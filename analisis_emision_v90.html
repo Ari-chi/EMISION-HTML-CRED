@@ -511,13 +511,11 @@ h4.section-title{margin:14px 0 8px 0;font-size:13px;color:var(--accent-3);font-w
 <div class="tabs-wrap" id="tabsWrap" style="display:none">
   <nav class="tabs" id="tabs">
     <button class="tab active" data-tab="ejecutivo"><span class="num">01</span>Resumen Ejecutivo</button>
-    <button class="tab" data-tab="resumen"><span class="num">02</span>General</button>
-    <button class="tab" data-tab="mensual"><span class="num">03</span>Mensual</button>
-    <button class="tab" data-tab="desvios"><span class="num">04</span>Desvíos de Fecha</button>
-    <button class="tab" data-tab="rubro"><span class="num">05</span>Por Rubro</button>
-    <button class="tab" data-tab="producto"><span class="num">06</span>Por Producto</button>
-    <button class="tab" data-tab="polizas"><span class="num">07</span>Justificación por Póliza</button>
-    <button class="tab" data-tab="top10"><span class="num">08</span>Top 10 Casos</button>
+    <button class="tab" data-tab="mensual"><span class="num">02</span>Mensual</button>
+    <button class="tab" data-tab="desvios"><span class="num">03</span>Desvíos de Fecha</button>
+    <button class="tab" data-tab="rubro"><span class="num">04</span>Por Rubro</button>
+    <button class="tab" data-tab="polizas"><span class="num">05</span>Justificación por Póliza</button>
+    <button class="tab" data-tab="top10"><span class="num">06</span>Top 10 Casos</button>
   </nav>
 </div>
 
@@ -2154,7 +2152,7 @@ function renderAll(){
   document.getElementById('emptyState')?.remove();
   const content = document.getElementById('content');
   content.innerHTML='';
-  ['ejecutivo','resumen','mensual','desvios','rubro','producto','polizas','top10'].forEach(id=>{
+  ['ejecutivo','mensual','desvios','rubro','polizas','top10'].forEach(id=>{
     const sec = document.createElement('section');
     sec.className = 'section' + (id==='ejecutivo'?' active':'');
     sec.dataset.section = id;
@@ -2164,8 +2162,8 @@ function renderAll(){
   destroyCharts();
   bindGlobalToggles();
   renderEjecutivo();
-  renderResumen(); renderMensual(); renderDesvios();
-  renderRubro(); renderProducto();
+  renderMensual(); renderDesvios();
+  renderRubro();
   renderPolizas();
   renderTop10();
   setupTabs();
