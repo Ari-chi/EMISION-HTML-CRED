@@ -2835,19 +2835,19 @@ function ejecFlujo(S, useUSD){
       <div style="flex:1;background:rgba(30,111,217,.08);border-radius:10px;padding:16px 14px;display:flex;flex-direction:column;justify-content:center">
         <div style="font-size:11px;color:var(--accent);text-transform:uppercase;letter-spacing:.05em;font-weight:700;margin-bottom:6px">Presupuesto 2026</div>
         <div style="font-size:28px;font-weight:700;color:var(--accent-3);line-height:1;font-family:var(--font-mono)">${FMTc(S.presup26)}</div>
-        <div style="font-size:11px;color:var(--accent);margin-top:6px">objetivo del período</div>
+        <div style="font-size:15px;font-weight:700;color:var(--accent);margin-top:8px">objetivo del período</div>
       </div>
       <div style="display:flex;align-items:center;color:var(--ink-3);font-size:24px;font-weight:300">→</div>
       <div style="flex:1;background:rgba(45,155,106,.10);border-radius:10px;padding:16px 14px;display:flex;flex-direction:column;justify-content:center">
         <div style="font-size:11px;color:var(--pos);text-transform:uppercase;letter-spacing:.05em;font-weight:700;margin-bottom:6px">Emisión real 2026</div>
         <div style="font-size:28px;font-weight:700;color:var(--pos);line-height:1;font-family:var(--font-mono)">${FMTc(S.emis26)}</div>
-        <div style="font-size:11px;color:var(--pos);margin-top:6px">${S.cumpl!=null?(S.cumpl*100).toFixed(1)+'% del objetivo':'—'}</div>
+        <div style="font-size:18px;font-weight:800;color:var(--pos);margin-top:8px;font-family:var(--font-mono)">${S.cumpl!=null?(S.cumpl*100).toFixed(1)+'%':'—'}<span style="font-size:12px;font-weight:600;margin-left:4px">del objetivo</span></div>
       </div>
       <div style="display:flex;align-items:center;color:var(--ink-3);font-size:20px;font-weight:300">=</div>
       <div style="flex:1;background:${desvio>0?'rgba(217,71,71,.10)':'rgba(45,155,106,.10)'};border-radius:10px;padding:16px 14px;display:flex;flex-direction:column;justify-content:center">
         <div style="font-size:11px;color:${desvio>0?'var(--neg)':'var(--pos)'};text-transform:uppercase;letter-spacing:.05em;font-weight:700;margin-bottom:6px">${desvio>0?'Desvío':'Sobre-cumplimiento'}</div>
         <div style="font-size:28px;font-weight:700;color:${desvio>0?'var(--neg)':'var(--pos)'};line-height:1;font-family:var(--font-mono)">${desvio>0?'−':'+'}${FMTc(dvAbs)}</div>
-        <div style="font-size:11px;color:${desvio>0?'var(--neg)':'var(--pos)'};margin-top:6px">${desvPct!=null?(desvPct>0?'−':'+')+Math.abs(desvPct).toFixed(1)+'% vs presupuesto':''}</div>
+        <div style="font-size:18px;font-weight:800;color:${desvio>0?'var(--neg)':'var(--pos)'};margin-top:8px;font-family:var(--font-mono)">${desvPct!=null?(desvPct>0?'−':'+')+Math.abs(desvPct).toFixed(1)+'%':''}<span style="font-size:12px;font-weight:600;margin-left:4px">vs presupuesto</span></div>
       </div>
     </div>
   </div>`;
@@ -3136,8 +3136,10 @@ function ejecJustificacion(S, useUSD, dual, useUSDprimary){
     else { const aFavor = vS>0; sgn = aFavor?'+':'−'; valColor = aFavor?'var(--pos)':'var(--neg)'; }
     return `<div style="background:var(--bg-2);border-radius:8px;padding:12px 14px;border-left:5px solid ${c.col};${clickable?'cursor:pointer':''}" ${clickable?`onclick="toggleEjecCausa('${c.id}')"`:''}>
       <div style="display:flex;align-items:center;gap:6px;font-size:12px;color:var(--accent-3);font-weight:700;margin-bottom:4px"><span style="width:12px;height:12px;border-radius:3px;background:${c.col};flex-shrink:0"></span>${c.lbl}${c.n>0?` <span style="color:var(--ink-3);font-weight:400">(${c.n} pól.)</span>`:''}</div>
-      <div style="font-size:23px;font-weight:700;color:${valColor};font-family:var(--font-mono);line-height:1">${sgn}${FMTc(c.val)}</div>
-      <div style="font-size:18px;font-weight:800;color:var(--accent-3);margin-top:4px">${pctTxt(c.val)} <span style="font-size:13px;font-weight:600;color:var(--ink-2)">del desvío</span></div>
+      <div style="display:flex;align-items:baseline;gap:10px;flex-wrap:wrap">
+        <div style="font-size:23px;font-weight:700;color:${valColor};font-family:var(--font-mono);line-height:1">${sgn}${FMTc(c.val)}</div>
+        <div style="font-size:17px;font-weight:800;color:var(--accent-3);font-family:var(--font-mono)">${pctTxt(c.val)}<span style="font-size:12px;font-weight:600;color:var(--ink-2);margin-left:4px">del desvío</span></div>
+      </div>
       ${clickable?`<div style="font-size:10px;color:var(--accent);margin-top:6px;text-transform:uppercase;letter-spacing:.05em;font-weight:700">▶ ver pólizas</div>`:''}
     </div>`;
   };
@@ -3195,6 +3197,13 @@ function ejecEmitido(S, useUSD, dual){
     {key:'nuevas', lbl:'Pólizas nuevas'},
     {key:'anualant', lbl:'Corresponde a la Anualidad Anterior'},
   ];
+  /* Total absoluto de la sección "Lo que se emitió" para mostrar el % que aporta
+     cada ítem. El bono RESTA (devolución), así que se usa con signo negativo en la
+     suma, igual que en la tarjeta de Emisión Total 2026. */
+  const _ec = S.emitidoCats || {};
+  const _sumRef = ['ren','seg','ter','ajuste','malus','nuevas','anualant']
+    .reduce((a,k)=> a + ((_ec[k] && _ec[k].total)||0), 0)
+    - ((_ec.bono && _ec.bono.total)||0);
   const cards = cats.map(c=>{
     const id = `ejecEmi_${c.key}_${sufijo}`;
     const data = S.emitidoCats ? S.emitidoCats[c.key] : null;
@@ -3205,13 +3214,18 @@ function ejecEmitido(S, useUSD, dual){
     const esBono = (c.key==='bono');
     const totDisp = esBono ? -Math.abs(tot) : tot;
     const totColor = esBono ? 'var(--neg)' : 'var(--pos)';
+    /* % que el ítem representa sobre el total de "Lo que se emitió" (con signo:
+       el bono cuenta como restando, por eso se compara con |totDisp|/|_sumRef|). */
+    const pct = _sumRef !== 0 ? (Math.abs(totDisp) / Math.abs(_sumRef) * 100) : null;
+    const pctTxt = pct!=null ? Math.round(pct)+'%' : '';
     return `<div style="background:rgba(45,155,106,.05);border-radius:8px;border-left:4px solid var(--pos);margin-bottom:6px">
-      <div style="padding:11px 14px;cursor:pointer;display:flex;justify-content:space-between;align-items:center" onclick="toggleEjecEmi('${id}')">
-        <div>
-          <span style="font-size:13.5px;color:var(--accent-3);font-weight:700">${c.lbl}</span>
-          <span style="font-size:11px;color:var(--ink-3);margin-left:6px">${n} pól.</span>
+      <div style="padding:11px 14px;cursor:pointer;display:grid;grid-template-columns:minmax(0,1fr) minmax(280px,auto);gap:16px;align-items:center" onclick="toggleEjecEmi('${id}')">
+        <div style="text-align:center">
+          <span style="font-size:14.5px;color:var(--accent-3);font-weight:700">${c.lbl}</span>
+          <span style="font-size:11.5px;color:var(--ink-3);margin-left:8px">${n} pól.</span>
         </div>
-        <div style="display:flex;align-items:center;gap:8px">
+        <div style="display:flex;align-items:baseline;justify-content:flex-end;gap:10px">
+          <span style="font-size:13px;color:var(--ink-3);font-family:var(--font-mono);font-weight:700;min-width:42px;text-align:right">${pctTxt}</span>
           <span style="font-size:19px;font-weight:700;color:${totColor};font-family:var(--font-mono)">${esBono?'−':''}${FMTc(Math.abs(totDisp))}</span>
           <span id="${id}_car" style="font-size:12px;color:var(--accent)">▸</span>
         </div>
@@ -4547,7 +4561,7 @@ function drawEjecRubroTabla(polArr, f, useUSD){
     const w26 = Math.round(val26(it)/maxVal*100);
     /* Si dual, agregar la segunda moneda compacta */
     const segMoneda = dual ? `<td style="padding:12px 12px;border-bottom:1px solid var(--line);text-align:right;font-family:var(--font-mono);font-size:13px;color:var(--ink-3)">${useUSD?fmtCompact(it.a25,false)+'→'+fmtCompact(it.a26,false):fmtCompact(it.u25,true)+'→'+fmtCompact(it.u26,true)}</td>` : '';
-    const conclTxt = conclusionRubro(computarVariacionesRubro(it, mesCorte));
+    const conclTxt = conclusionRubro(computarVariacionesRubro(it, mesCorte), it, useUSD);
     return `<tr style="cursor:pointer" onclick="toggleEjecRubroMotivo(${idx})">
       <td style="padding:12px 12px;border-bottom:1px solid var(--line);font-weight:800;font-size:16px">${it.rubro}<br><span style="font-size:13px;color:var(--accent);font-weight:700">${it.n} pól. · ▶ ver variaciones</span>${conclTxt}</td>
       <td style="padding:12px 12px;border-bottom:1px solid var(--line);width:40%">
@@ -4664,37 +4678,57 @@ function computarVariacionesRubro(it, mesCorte){
     boSube,boBaja,boPend, maSube,maBaja,maPend};
 }
 
-/* Conclusión visual corta: identifica los conceptos con mayor magnitud de variación
-   neta para explicar qué movió la emisión del rubro.
+/* Conclusión visual corta y ÚNICA: explica el principal motivo del desvío del rubro.
+   Se elige UN solo concepto — el que más aporta en la MISMA dirección que el desvío
+   del rubro. Si el rubro cayó, busca lo que más hizo caer la emisión; si subió, lo
+   que más la empujó.
    Contexto del negocio: prima mín = proyección × tasa × (70–80%); ajuste es venta
-   por sobre la prima mín.; bono compensa baja siniestralidad (<30% aprox.); malus
-   penaliza alta siniestralidad (>50% aprox.). */
-function conclusionRubro(V){
+   por sobre la prima mín.; bono compensa baja siniestralidad (<30% aprox., RESTA
+   emisión); malus penaliza alta siniestralidad (>50% aprox., SUMA emisión). */
+function conclusionRubro(V, it, useUSD){
   const sumD = (arr)=>arr.reduce((a,r)=>a+(r.d||0),0);
+  const netPM   = sumD(V.pmSube)+sumD(V.pmBaja);
+  const netAJ   = sumD(V.ajSube)+sumD(V.ajBaja);
+  const netBO   = sumD(V.boSube)+sumD(V.boBaja);
+  const netMA   = sumD(V.maSube)+sumD(V.maBaja);
+  const netProy = sumD(V.proySube)+sumD(V.proyBaja);
+  const netTasa = sumD(V.tasaSube)+sumD(V.tasaBaja);
+  /* Impacto firmado sobre la EMISIÓN (positivo = sube emisión, negativo = baja).
+     Bono se INVIERTE: más bono = más devolución = baja emisión. */
   const conceptos = [
-    {k:'pm',   net:sumD(V.pmSube)+sumD(V.pmBaja),     up:'Subió la prima mínima',           dn:'Bajó la prima mínima'},
-    {k:'proy', net:sumD(V.proySube)+sumD(V.proyBaja), up:'Subió la proyección de ventas',   dn:'Bajó la proyección de ventas'},
-    {k:'tasa', net:sumD(V.tasaSube)+sumD(V.tasaBaja), up:'Subió la tasa',                   dn:'Bajó la tasa'},
-    {k:'aj',   net:sumD(V.ajSube)+sumD(V.ajBaja),     up:'Mayor ajuste (venta sobre prima)', dn:'Menor ajuste'},
-    {k:'bo',   net:sumD(V.boSube)+sumD(V.boBaja),     up:'Mayor bono (siniestralidad baja)', dn:'Menor bono'},
-    {k:'ma',   net:sumD(V.maSube)+sumD(V.maBaja),     up:'Mayor malus (siniestralidad alta)',dn:'Menor malus'},
-    {k:'uv',   net:sumD(V.uvSube)+sumD(V.uvBaja),     up:'Subió la siniestralidad UV',      dn:'Bajó la siniestralidad UV'},
-    {k:'sinh', net:sumD(V.sinHSube)+sumD(V.sinHBaja), up:'Subió la siniestralidad histórica',dn:'Bajó la siniestralidad histórica'},
+    {k:'pm',   imp:netPM,    up:'Subió la prima mínima',                 dn:'Bajó la prima mínima'},
+    {k:'aj',   imp:netAJ,    up:'Mayor ajuste (venta sobre prima)',      dn:'Menor ajuste'},
+    {k:'bo',   imp:-netBO,   up:'Menor bono (devolución más chica)',     dn:'Mayor bono (más devolución)'},
+    {k:'ma',   imp:netMA,    up:'Mayor malus (siniestralidad alta)',     dn:'Menor malus'},
+    {k:'proy', imp:netProy,  up:'Subió la proyección de ventas',         dn:'Bajó la proyección de ventas'},
+    {k:'tasa', imp:netTasa,  up:'Subió la tasa',                         dn:'Bajó la tasa'},
   ];
   const pend = V.pmPend.length + V.ajPend.length + V.boPend.length + V.maPend.length
              + V.proyPend.length + V.tasaPend.length + V.uvPend.length + V.sinHPend.length;
-  const movers = conceptos.filter(c=>Math.abs(c.net)>0)
-    .sort((a,b)=>Math.abs(b.net)-Math.abs(a.net))
-    .slice(0,2);
-  if(movers.length===0 && pend===0) return '';
-  const partes = movers.map(c=>{
-    const txt = c.net>0 ? c.up : c.dn;
-    const color = (c.k==='bo' || c.k==='uv' || c.k==='sinh' || c.k==='ma')
-      ? (c.net>0 ? (c.k==='bo'?'var(--pos)':'var(--neg)') : (c.k==='bo'?'var(--neg)':'var(--pos)'))
-      : (c.net>0 ? 'var(--pos)' : 'var(--neg)');
-    return `<span style="color:${color};font-weight:700">${txt}</span>`;
-  });
-  if(pend>0) partes.push(`<span style="color:var(--accent-3);font-weight:700">${pend} concepto${pend>1?'s':''} pendiente${pend>1?'s':''}</span>`);
+  /* Dirección del desvío del rubro. */
+  const dRubro = useUSD ? (it.u26 - it.u25) : (it.a26 - it.a25);
+  /* Elegir el concepto dominante en la misma dirección. */
+  let principal = null;
+  const conImpacto = conceptos.filter(c=>c.imp!==0);
+  if(dRubro !== 0){
+    const mismaDir = conImpacto.filter(c=>Math.sign(c.imp)===Math.sign(dRubro));
+    mismaDir.sort((a,b)=>Math.abs(b.imp)-Math.abs(a.imp));
+    principal = mismaDir[0] || null;
+  }
+  if(!principal){
+    conImpacto.sort((a,b)=>Math.abs(b.imp)-Math.abs(a.imp));
+    principal = conImpacto[0] || null;
+  }
+  if(!principal && pend===0) return '';
+  const partes = [];
+  if(principal){
+    const txt = principal.imp>0 ? principal.up : principal.dn;
+    const color = principal.imp>0 ? 'var(--pos)' : 'var(--neg)';
+    partes.push(`<span style="color:${color};font-weight:700">${txt}</span>`);
+  }
+  if(pend>0){
+    partes.push(`<span style="color:var(--accent-3);font-weight:700">${pend} pendiente${pend>1?'s':''}</span>`);
+  }
   return `<div style="font-size:13px;color:var(--ink-2);margin-top:6px;padding:6px 0;line-height:1.4">▸ ${partes.join(' · ')}</div>`;
 }
 
