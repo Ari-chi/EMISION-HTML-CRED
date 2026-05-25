@@ -511,11 +511,11 @@ h4.section-title{margin:14px 0 8px 0;font-size:13px;color:var(--accent-3);font-w
 <div class="tabs-wrap" id="tabsWrap" style="display:none">
   <nav class="tabs" id="tabs">
     <button class="tab active" data-tab="ejecutivo"><span class="num">01</span>Resumen Ejecutivo</button>
-    <button class="tab" data-tab="mensual"><span class="num">02</span>Mensual</button>
-    <button class="tab" data-tab="desvios"><span class="num">03</span>Desvíos de Fecha</button>
-    <button class="tab" data-tab="rubro"><span class="num">04</span>Por Rubro</button>
-    <button class="tab" data-tab="polizas"><span class="num">05</span>Justificación por Póliza</button>
-    <button class="tab" data-tab="top10"><span class="num">06</span>Top 10 Casos</button>
+    <button class="tab" data-tab="top10"><span class="num">02</span>Top 10 Casos</button>
+    <button class="tab" data-tab="polizas"><span class="num">03</span>Justificación por Póliza</button>
+    <button class="tab" data-tab="desvios"><span class="num">04</span>Desvíos de Fecha</button>
+    <button class="tab" data-tab="rubro"><span class="num">05</span>Por Rubro</button>
+    <button class="tab" data-tab="mensual"><span class="num">06</span>Mensual</button>
   </nav>
 </div>
 
@@ -2800,7 +2800,6 @@ function drawEjecutivo(){
     <!-- BLOQUE 6 = OTROS CONCEPTOS (parte del Desvío) -->
     <div class="card">
       <div class="ejec-block-title">Otros Conceptos</div>
-      <div class="card-sub" style="margin-bottom:10px">Movimientos de fondo que <strong>no suman a la emisión</strong> pero explican el desvío: subas de proyección de ventas y variación de tasas, y las pólizas que mantienen o aumentan pero no llegan al objetivo. Click en un concepto para ver el desglose por moneda original.</div>
       ${setU?ejecOtrosConceptos(setU,true,dual):''}
       ${setA?ejecOtrosConceptos(setA,false,dual):''}
     </div>`;
@@ -3384,20 +3383,20 @@ function ejecOtrosConceptos(S, useUSD, dual){
     if(n===0) return '';
     /* Para proyección mostramos el monto sumado; para tasas y no-crecieron, la cantidad */
     const right = (c.tipo==='proy')
-      ? `<span style="font-size:18px;font-weight:700;color:var(--warn);font-family:var(--font-mono)">+${FMTc(data.total)}</span>`
-      : `<span style="font-size:15px;font-weight:700;color:var(--warn);font-family:var(--font-mono)">${n} pól.</span>`;
-    return `<div style="background:rgba(232,155,30,.06);border-radius:8px;border-left:4px solid var(--warn);margin-bottom:6px">
-      <div style="padding:11px 14px;cursor:pointer;display:flex;justify-content:space-between;align-items:center" onclick="toggleEjecOtros('${id}')">
+      ? `<span style="font-size:24px;font-weight:800;color:var(--warn);font-family:var(--font-mono)">+${FMTc(data.total)}</span>`
+      : `<span style="font-size:20px;font-weight:800;color:var(--warn);font-family:var(--font-mono)">${n} pól.</span>`;
+    return `<div style="background:rgba(232,155,30,.06);border-radius:8px;border-left:5px solid var(--warn);margin-bottom:8px">
+      <div style="padding:14px 18px;cursor:pointer;display:flex;justify-content:space-between;align-items:center;gap:12px" onclick="toggleEjecOtros('${id}')">
         <div>
-          <span style="font-size:13.5px;color:var(--accent-3);font-weight:700">${c.lbl}</span>
-          <span style="font-size:11px;color:var(--ink-3);margin-left:6px">${n} pól.</span>
+          <span style="font-size:17px;color:var(--accent-3);font-weight:700">${c.lbl}</span>
+          <span style="font-size:14px;color:var(--ink-3);margin-left:8px">${n} pól.</span>
         </div>
-        <div style="display:flex;align-items:center;gap:8px">
+        <div style="display:flex;align-items:center;gap:10px">
           ${right}
-          <span id="${id}_car" style="font-size:12px;color:var(--warn)">▸</span>
+          <span id="${id}_car" style="font-size:15px;color:var(--warn)">▸</span>
         </div>
       </div>
-      <div id="${id}" style="display:none;padding:0 14px 12px"></div>
+      <div id="${id}" style="display:none;padding:0 18px 14px"></div>
     </div>`;
   }).join('');
 
@@ -4548,8 +4547,9 @@ function drawEjecRubroTabla(polArr, f, useUSD){
     const w26 = Math.round(val26(it)/maxVal*100);
     /* Si dual, agregar la segunda moneda compacta */
     const segMoneda = dual ? `<td style="padding:12px 12px;border-bottom:1px solid var(--line);text-align:right;font-family:var(--font-mono);font-size:13px;color:var(--ink-3)">${useUSD?fmtCompact(it.a25,false)+'→'+fmtCompact(it.a26,false):fmtCompact(it.u25,true)+'→'+fmtCompact(it.u26,true)}</td>` : '';
+    const conclTxt = conclusionRubro(computarVariacionesRubro(it, mesCorte));
     return `<tr style="cursor:pointer" onclick="toggleEjecRubroMotivo(${idx})">
-      <td style="padding:12px 12px;border-bottom:1px solid var(--line);font-weight:800;font-size:16px">${it.rubro}<br><span style="font-size:13px;color:var(--accent);font-weight:700">${it.n} pól. · ▶ ver variaciones</span></td>
+      <td style="padding:12px 12px;border-bottom:1px solid var(--line);font-weight:800;font-size:16px">${it.rubro}<br><span style="font-size:13px;color:var(--accent);font-weight:700">${it.n} pól. · ▶ ver variaciones</span>${conclTxt}</td>
       <td style="padding:12px 12px;border-bottom:1px solid var(--line);width:40%">
         <div style="display:flex;align-items:center;gap:6px;margin-bottom:5px"><span style="font-size:12px;color:var(--ink-3);width:38px;font-weight:700">2025</span><div style="flex:1;height:18px;background:var(--bg-2);border-radius:3px;position:relative"><div style="position:absolute;left:0;top:0;bottom:0;width:${w25}%;background:rgba(94,179,232,.7);border-radius:3px"></div></div><span style="font-size:14px;font-family:var(--font-mono);width:82px;text-align:right;font-weight:700">${FMTc(val25(it),useUSD)}</span></div>
         <div style="display:flex;align-items:center;gap:6px"><span style="font-size:12px;color:var(--ink-3);width:38px;font-weight:700">2026</span><div style="flex:1;height:18px;background:var(--bg-2);border-radius:3px;position:relative"><div style="position:absolute;left:0;top:0;bottom:0;width:${w26}%;background:rgba(30,111,217,.85);border-radius:3px"></div></div><span style="font-size:14px;font-family:var(--font-mono);width:82px;text-align:right;font-weight:800">${FMTc(val26(it),useUSD)}</span></div>
@@ -4574,34 +4574,24 @@ function drawEjecRubroTabla(polArr, f, useUSD){
     </tr></thead><tbody>${trs}</tbody></table></div>`;
 }
 
-window.toggleEjecRubroMotivo = function(idx){
-  const row = document.getElementById('ejecRubroMot_'+idx);
-  const content = document.getElementById('ejecRubroMotContent_'+idx);
-  if(!row || !content) return;
-  if(row.style.display !== 'none'){ row.style.display='none'; return; }
-  const items = state._ejecRubroItems || [];
-  const it = items[idx]; if(!it) return;
-  const useUSD = state._ejecRubroUseUSD;
-  const mesCorte = state._ejecRubroMesCorte || 0;
-  /* Variaciones por concepto, cada una separada en AUMENTOS y DISMINUCIONES vs 2025.
-     Conceptos: Proyección de ventas, Tasa, Siniestralidad UV, Siniestralidad histórica,
-     Prima mínima, Ajuste, Bono, Malus.
-     Montos (prima/ajuste/bono/malus) respetan el "Acumulado hasta" via calcEmisionFiltrada.
-     Cada póliza muestra categoría + detalle//observación como justificación. */
+/* Variaciones por rubro: separa, para PRIMA/AJUSTE/BONO/MALUS, en variación REAL
+   (categoría 2026 no vacía y distinta de "Anualidad Anterior") vs PENDIENTE
+   (categoría vacía o = AA). Proyección/Tasa/Siniestralidad mantienen sube/baja.
+   Devuelve todos los arrays + un resumen para la conclusión visual. */
+function computarVariacionesRubro(it, mesCorte){
   const proySube=[], proyBaja=[];
   const tasaSube=[], tasaBaja=[];
   const uvSube=[], uvBaja=[];
   const sinHSube=[], sinHBaja=[];
-  const pmSube=[], pmBaja=[];
-  const ajSube=[], ajBaja=[];
-  const boSube=[], boBaja=[];
-  const maSube=[], maBaja=[];
-  const mc = (v,uu)=>fmtCompact(v,uu);
+  const pmSube=[], pmBaja=[], pmPend=[];
+  const ajSube=[], ajBaja=[], ajPend=[];
+  const boSube=[], boBaja=[], boPend=[];
+  const maSube=[], maBaja=[], maPend=[];
   for(const p of it.polizas){
     const uu = p.moneda==='US';
     const base={poliza:p.poliza, asegurado:p.asegurado, moneda:p.moneda};
     const f25=calcEmisionFiltrada(p,2025,mesCorte), f26=calcEmisionFiltrada(p,2026,mesCorte);
-    /* ----- Proyección de ventas (moneda original) ----- */
+    /* ----- Proyección de ventas ----- */
     const pr25=uu?(p.proyUSD2025||0):(p.proyARS2025||0), pr26=uu?(p.proyUSD2026||0):(p.proyARS2026||0);
     if(pr25!==pr26 && (pr25>0||pr26>0)){
       const d=pr26-pr25;
@@ -4626,23 +4616,86 @@ window.toggleEjecRubroMotivo = function(idx){
       const rec={...base, s25:p.sinH2025, s26:p.sinH2026, d, cat:p.sinHCategoria||null, det:p.sinHDetalle||null};
       (d>0?sinHSube:sinHBaja).push(rec);
     }
-    /* ----- Conceptos con monto (prima/ajuste/bono/malus): magnitud en moneda original ----- */
-    const conc = (key, arrSube, arrBaja)=>{
+    /* ----- Conceptos con monto: real vs pendiente según categoría 2026 ----- */
+    const concSplit = (key, conceptoLabel, arrSube, arrBaja, arrPend)=>{
+      const cR = p.conceptos[conceptoLabel];
       const v25 = Math.abs(uu?f25.breakdownUSD[key]:f25.breakdownARS[key]);
       const v26 = Math.abs(uu?f26.breakdownUSD[key]:f26.breakdownARS[key]);
+      const cat = (cR && cR.categoria) ? String(cR.categoria).trim() : '';
+      const esAA = categoriaEsAnualidadAnterior(cat);
+      const esPendiente = !cat || esAA;
+      if(esPendiente){
+        /* Pendiente — solo si hay algo que renovar (v25>0). Si no, no aporta info. */
+        if(v25>0){
+          arrPend.push({...base, v25, v26:null /* sentinel "Pendiente" */,
+            cat:cR?cR.categoria:null, det:cR?cR.detalle:null, esAA});
+        }
+        return;
+      }
       if(v25===v26 || (v25===0 && v26===0)) return;
-      const cR = p.conceptos[{primaMin:'Prima Minima',ajuste:'Ajuste',bono:'Bono',malus:'Malus'}[key]];
       const d=v26-v25;
       const rec={...base, v25, v26, d, dpct: v25?d/Math.abs(v25):null, cat:cR?cR.categoria:null, det:cR?cR.detalle:null};
       (d>0?arrSube:arrBaja).push(rec);
     };
-    conc('primaMin', pmSube, pmBaja);
-    conc('ajuste',   ajSube, ajBaja);
-    conc('bono',     boSube, boBaja);
-    conc('malus',    maSube, maBaja);
+    concSplit('primaMin','Prima Minima', pmSube, pmBaja, pmPend);
+    concSplit('ajuste',  'Ajuste',       ajSube, ajBaja, ajPend);
+    concSplit('bono',    'Bono',         boSube, boBaja, boPend);
+    concSplit('malus',   'Malus',        maSube, maBaja, maPend);
   }
   const byAbsD=(a,b)=>Math.abs(b.d)-Math.abs(a.d);
+  const byV25Desc=(a,b)=>b.v25-a.v25;
   [proySube,proyBaja,tasaSube,tasaBaja,uvSube,uvBaja,sinHSube,sinHBaja,pmSube,pmBaja,ajSube,ajBaja,boSube,boBaja,maSube,maBaja].forEach(a=>a.sort(byAbsD));
+  [pmPend, ajPend, boPend, maPend].forEach(a=>a.sort(byV25Desc));
+  return {proySube,proyBaja,tasaSube,tasaBaja,uvSube,uvBaja,sinHSube,sinHBaja,
+    pmSube,pmBaja,pmPend, ajSube,ajBaja,ajPend, boSube,boBaja,boPend, maSube,maBaja,maPend};
+}
+
+/* Conclusión visual corta: identifica los conceptos con mayor magnitud de variación
+   neta para explicar qué movió la emisión del rubro.
+   Contexto del negocio: prima mín = proyección × tasa × (70–80%); ajuste es venta
+   por sobre la prima mín.; bono compensa baja siniestralidad (<30% aprox.); malus
+   penaliza alta siniestralidad (>50% aprox.). */
+function conclusionRubro(V){
+  const sumD = (arr)=>arr.reduce((a,r)=>a+(r.d||0),0);
+  const conceptos = [
+    {k:'pm',   net:sumD(V.pmSube)+sumD(V.pmBaja),     up:'Subió la prima mínima',           dn:'Bajó la prima mínima'},
+    {k:'proy', net:sumD(V.proySube)+sumD(V.proyBaja), up:'Subió la proyección de ventas',   dn:'Bajó la proyección de ventas'},
+    {k:'tasa', net:sumD(V.tasaSube)+sumD(V.tasaBaja), up:'Subió la tasa',                   dn:'Bajó la tasa'},
+    {k:'aj',   net:sumD(V.ajSube)+sumD(V.ajBaja),     up:'Mayor ajuste (venta sobre prima)', dn:'Menor ajuste'},
+    {k:'bo',   net:sumD(V.boSube)+sumD(V.boBaja),     up:'Mayor bono (siniestralidad baja)', dn:'Menor bono'},
+    {k:'ma',   net:sumD(V.maSube)+sumD(V.maBaja),     up:'Mayor malus (siniestralidad alta)',dn:'Menor malus'},
+    {k:'uv',   net:sumD(V.uvSube)+sumD(V.uvBaja),     up:'Subió la siniestralidad UV',      dn:'Bajó la siniestralidad UV'},
+    {k:'sinh', net:sumD(V.sinHSube)+sumD(V.sinHBaja), up:'Subió la siniestralidad histórica',dn:'Bajó la siniestralidad histórica'},
+  ];
+  const pend = V.pmPend.length + V.ajPend.length + V.boPend.length + V.maPend.length;
+  const movers = conceptos.filter(c=>Math.abs(c.net)>0)
+    .sort((a,b)=>Math.abs(b.net)-Math.abs(a.net))
+    .slice(0,2);
+  if(movers.length===0 && pend===0) return '';
+  const partes = movers.map(c=>{
+    const txt = c.net>0 ? c.up : c.dn;
+    const color = (c.k==='bo' || c.k==='uv' || c.k==='sinh' || c.k==='ma')
+      ? (c.net>0 ? (c.k==='bo'?'var(--pos)':'var(--neg)') : (c.k==='bo'?'var(--neg)':'var(--pos)'))
+      : (c.net>0 ? 'var(--pos)' : 'var(--neg)');
+    return `<span style="color:${color};font-weight:700">${txt}</span>`;
+  });
+  if(pend>0) partes.push(`<span style="color:var(--accent-3);font-weight:700">${pend} concepto${pend>1?'s':''} pendiente${pend>1?'s':''}</span>`);
+  return `<div style="font-size:13px;color:var(--ink-2);margin-top:6px;padding:6px 0;line-height:1.4">▸ ${partes.join(' · ')}</div>`;
+}
+
+window.toggleEjecRubroMotivo = function(idx){
+  const row = document.getElementById('ejecRubroMot_'+idx);
+  const content = document.getElementById('ejecRubroMotContent_'+idx);
+  if(!row || !content) return;
+  if(row.style.display !== 'none'){ row.style.display='none'; return; }
+  const items = state._ejecRubroItems || [];
+  const it = items[idx]; if(!it) return;
+  const useUSD = state._ejecRubroUseUSD;
+  const mesCorte = state._ejecRubroMesCorte || 0;
+  const V = computarVariacionesRubro(it, mesCorte);
+  const {proySube,proyBaja,tasaSube,tasaBaja,uvSube,uvBaja,sinHSube,sinHBaja,
+    pmSube,pmBaja,pmPend, ajSube,ajBaja,ajPend, boSube,boBaja,boPend, maSube,maBaja,maPend} = V;
+  const mc = (v,uu)=>fmtCompact(v,uu);
 
   const miniJustif = (cat,det)=>{
     const m = miniResumen(cat,det);
@@ -4655,6 +4708,16 @@ window.toggleEjecRubroMotivo = function(idx){
       <div style="display:flex;justify-content:space-between;gap:10px;font-size:14.5px"><span><strong>${fmtPoliza(r.poliza)}</strong> <span style="color:var(--ink-2)">${(r.asegurado||'').substring(0,24)}</span> <span style="font-size:12px;color:${r.moneda==='US'?'var(--pos)':'var(--accent)'};font-weight:700">${r.moneda}</span></span>
       <span style="font-family:var(--font-mono);font-weight:700">${mc(r.v25,r.moneda==='US')} → ${mc(r.v26,r.moneda==='US')} <span style="color:${cc};font-weight:800">${r.dpct!=null?'('+(r.d>=0?'+':'')+FMT_PCT(r.dpct)+')':''}</span></span></div>
       ${miniJustif(r.cat,r.det)}</div>`;
+  };
+  /* Fila para concepto PENDIENTE: 2026 dice "Pendiente" en vez de un número.
+     El motivo (vacía o AA) aparece en gris como etiqueta. */
+  const filaPendiente = (r)=>{
+    const motivo = r.esAA ? 'Anualidad Anterior' : 'sin categoría';
+    return `<div style="padding:9px 0;border-bottom:1px solid var(--line)">
+      <div style="display:flex;justify-content:space-between;gap:10px;font-size:14.5px;align-items:baseline"><span><strong>${fmtPoliza(r.poliza)}</strong> <span style="color:var(--ink-2)">${(r.asegurado||'').substring(0,24)}</span> <span style="font-size:12px;color:${r.moneda==='US'?'var(--pos)':'var(--accent)'};font-weight:700">${r.moneda}</span></span>
+      <span style="font-family:var(--font-mono);font-weight:700">${mc(r.v25,r.moneda==='US')} → <span style="color:#4ba3c7;font-weight:800;background:rgba(75,163,199,.10);padding:1px 7px;border-radius:4px">Pendiente</span></span></div>
+      <div style="font-size:12px;color:var(--ink-3);font-style:italic;margin-top:2px">${motivo}${r.det?' · '+String(r.det).substring(0,60):''}</div>
+    </div>`;
   };
   /* Fila para TASA (porcentaje con 3 decimales) */
   const filaTasa = (r)=>{
@@ -4687,23 +4750,36 @@ window.toggleEjecRubroMotivo = function(idx){
       <div id="${did}" style="display:none;padding:2px 0 6px 12px">${arr.map(fila).join('')}</div>
     </div>`;
   };
-  /* Bloque concepto — colapsable; contiene las dos direcciones */
-  const conceptoBloque = (cid, titulo, subeArr, bajaArr, fila, labelSube, labelBaja)=>{
-    if(subeArr.length===0 && bajaArr.length===0) return '';
+  /* Bloque concepto — colapsable; contiene las dos direcciones reales y, opcionalmente,
+     un bloque de PENDIENTES (categoría vacía o "Anualidad Anterior" en 2026). */
+  const conceptoBloque = (cid, titulo, subeArr, bajaArr, fila, labelSube, labelBaja, pendArr)=>{
+    pendArr = pendArr || [];
+    if(subeArr.length===0 && bajaArr.length===0 && pendArr.length===0) return '';
     const cidNode = `ejrCon_${idx}_${cid}`;
+    const totalN = subeArr.length+bajaArr.length+pendArr.length;
+    const pendSec = pendArr.length>0 ? `
+      <div style="margin:4px 0 4px 14px">
+        <div onclick="toggleEjrNode('ejrDir_${idx}_${cid}_pend')" style="cursor:pointer;display:flex;align-items:center;font-size:13px;font-weight:800;color:#4ba3c7;padding:5px 8px;border-left:3px solid #4ba3c7;background:rgba(75,163,199,.06);border-radius:4px;text-transform:uppercase;letter-spacing:.03em">
+          ${flecha(false)}Pendientes 2026 · ${pendArr.length} pól.</div>
+        <div id="ejrDir_${idx}_${cid}_pend" style="display:none;padding:2px 0 6px 12px">${pendArr.map(filaPendiente).join('')}</div>
+      </div>` : '';
     return `<div style="margin-bottom:8px">
       <div onclick="toggleEjrNode('${cidNode}')" style="cursor:pointer;display:flex;align-items:center;font-size:15px;font-weight:800;color:var(--accent-3);padding:8px 10px;background:rgba(30,111,217,.06);border-radius:6px">
-        ${flecha(false)}${titulo} <span style="color:var(--ink-3);font-weight:600;margin-left:8px;font-size:13px">(${subeArr.length+bajaArr.length} pól.)</span></div>
+        ${flecha(false)}${titulo} <span style="color:var(--ink-3);font-weight:600;margin-left:8px;font-size:13px">(${totalN} pól.)</span></div>
       <div id="${cidNode}" style="display:none;padding-top:4px">
         ${dirSec(cid,'sube',labelSube,'var(--pos)',subeArr,fila)}
         ${dirSec(cid,'baja',labelBaja,'var(--neg)',bajaArr,fila)}
+        ${pendSec}
       </div>
     </div>`;
   };
 
   const totalVar = proySube.length+proyBaja.length+tasaSube.length+tasaBaja.length+
     uvSube.length+uvBaja.length+sinHSube.length+sinHBaja.length+
-    pmSube.length+pmBaja.length+ajSube.length+ajBaja.length+boSube.length+boBaja.length+maSube.length+maBaja.length;
+    pmSube.length+pmBaja.length+pmPend.length+
+    ajSube.length+ajBaja.length+ajPend.length+
+    boSube.length+boBaja.length+boPend.length+
+    maSube.length+maBaja.length+maPend.length;
 
   content.innerHTML = `
     <div style="font-size:16px;font-weight:800;color:var(--accent-3);margin-bottom:10px">Variaciones en ${it.rubro}</div>
@@ -4711,10 +4787,10 @@ window.toggleEjecRubroMotivo = function(idx){
     ${conceptoBloque('tasa','Tasa', tasaSube, tasaBaja, filaTasa, 'Aumentos respecto al 2025', 'Disminuciones respecto al 2025')}
     ${conceptoBloque('uv','Siniestralidad UV', uvSube, uvBaja, filaSin('UV'), 'Aumentos respecto al 2025', 'Disminuciones respecto al 2025')}
     ${conceptoBloque('sinh','Siniestralidad histórica', sinHSube, sinHBaja, filaSin('Sin.H'), 'Aumentos respecto al 2025', 'Disminuciones respecto al 2025')}
-    ${conceptoBloque('pm','Prima mínima', pmSube, pmBaja, filaMonto, 'Aumentos respecto al 2025', 'Disminuciones respecto al 2025')}
-    ${conceptoBloque('aj','Ajuste', ajSube, ajBaja, filaMonto, 'Aumentos respecto al 2025', 'Disminuciones respecto al 2025')}
-    ${conceptoBloque('bo','Bono', boSube, boBaja, filaMonto, 'Aumentos respecto al 2025', 'Disminuciones respecto al 2025')}
-    ${conceptoBloque('ma','Malus', maSube, maBaja, filaMonto, 'Aumentos respecto al 2025', 'Disminuciones respecto al 2025')}
+    ${conceptoBloque('pm','Prima mínima', pmSube, pmBaja, filaMonto, 'Aumentos respecto al 2025', 'Disminuciones respecto al 2025', pmPend)}
+    ${conceptoBloque('aj','Ajuste',       ajSube, ajBaja, filaMonto, 'Aumentos respecto al 2025', 'Disminuciones respecto al 2025', ajPend)}
+    ${conceptoBloque('bo','Bono',         boSube, boBaja, filaMonto, 'Aumentos respecto al 2025', 'Disminuciones respecto al 2025', boPend)}
+    ${conceptoBloque('ma','Malus',        maSube, maBaja, filaMonto, 'Aumentos respecto al 2025', 'Disminuciones respecto al 2025', maPend)}
     ${totalVar===0?'<div style="font-size:14px;color:var(--ink-3);font-style:italic">Sin variaciones de conceptos en este rubro.</div>':''}`;
   row.style.display='';
 };
