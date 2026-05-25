@@ -553,6 +553,15 @@ const state = {
 };
 const charts = {};
 
+/* Formato corto de número de póliza: solo los últimos 3 dígitos para no ocupar
+   espacio en la UI. El número completo sigue guardado en p.poliza para búsquedas
+   y claves internas. */
+function fmtPoliza(n){
+  if(n===null || n===undefined) return '';
+  const s = String(n);
+  return s.length>3 ? s.slice(-3) : s;
+}
+
 /* ============================================================
    CONFIGURACIÓN EDITABLE  (APP_CONFIG)
    ------------------------------------------------------------
@@ -2503,12 +2512,19 @@ function drawEjecutivo(){
         emitidoCats.anualant.polizas.push(recAA);
       }
       /* ===== Prima Mínima NO-AA → por tipo de póliza (Renovación/Segunda anualidad/etc.) =====
-         Sumar la prima mínima 2026 emitida (con categoría distinta de "Anualidad Anterior"). */
+         Sumar la prima mínima 2026 emitida (con categoría distinta de "Anualidad Anterior").
+         Renovación / Segunda anualidad / Tercera anualidad: requieren prima mínima emitida y > 0.
+         Pólizas nuevas: se listan por tipo, aunque la prima 2026 aún sea 0 (póliza creada
+         pero todavía sin emitir), para que la tarjeta aparezca igual y refleje la cantidad. */
       if(conceptoEmitido26(rPMp, mesCorte) && pm26>0 && !esAnualAnt){
         if(p.tipo2026==='Segunda anualidad'){ emiSeg+=pm26; nSeg++; pmSeg+=pm26; emitidoCats.seg.total+=pm26; emitidoCats.seg.polizas.push(recPM); }
         else if(p.tipo2026==='Renovación'){ emiRen+=pm26; nRen++; pmRen+=pm26; emitidoCats.ren.total+=pm26; emitidoCats.ren.polizas.push(recPM); }
         else if(p.tipo2026==='Tercera anualidad'){ emiTer+=pm26; nTer++; emitidoCats.ter.total+=pm26; emitidoCats.ter.polizas.push(recPM); }
-        else if(p.tipo2026==='Póliza nueva'){ incNuevas+=pm26; nNuevas++; emitidoCats.nuevas.total+=pm26; emitidoCats.nuevas.polizas.push(recPM); }
+      }
+      if(p.tipo2026==='Póliza nueva' && !esAnualAnt){
+        emitidoCats.nuevas.total += pm26;
+        emitidoCats.nuevas.polizas.push(recPM);
+        incNuevas += pm26; nNuevas++;
       }
       /* ===== Ajuste / Malus / Bono NO-AA → su propia categoría =====
          INDEPENDIENTES del estado de la prima mínima. La regla (pedido del usuario):
@@ -3235,26 +3251,32 @@ window.toggleEjecEmi = function(id){
     const concBadge = p.concepto ? `<span style="font-size:11px;color:var(--accent-3);font-weight:700;background:rgba(124,77,255,.10);padding:1px 6px;border-radius:3px;margin-left:4px">${p.concepto}</span>` : '';
     return `<div style="padding:8px 0;border-bottom:1px solid var(--line)">
       <div style="display:flex;justify-content:space-between;gap:10px;align-items:baseline">
-        <span style="font-size:14px"><strong>${p.poliza}</strong> <span style="color:var(--ink-2);font-size:13px">${(p.asegurado||'').substring(0,22)}</span> <span style="font-size:11px;color:var(--accent);font-weight:700;background:rgba(30,111,217,.10);padding:2px 7px;border-radius:4px">${p.rubro||'—'}</span>${concBadge}</span>
+        <span style="font-size:14px"><strong>${fmtPoliza(p.poliza)}</strong> <span style="color:var(--ink-2);font-size:13px">${(p.asegurado||'').substring(0,22)}</span> <span style="font-size:11px;color:var(--accent);font-weight:700;background:rgba(30,111,217,.10);padding:2px 7px;border-radius:4px">${p.rubro||'—'}</span>${concBadge}</span>
         <span style="font-family:var(--font-mono);white-space:nowrap;font-size:15px;font-weight:700;color:${esBono?'var(--neg)':'inherit'}">${sgnTxt}${fmtCompact(v26,useUSD)} <span style="color:${cc};font-weight:800;font-size:13px">${dpct!=null?'('+((v26-v25)>=0?'+':'')+FMT_PCT(dpct)+')':''}</span></span>
       </div>
       ${equivLine}
     </div>`;
   };
 
-  /* Una columna = una moneda ORIGINAL ($ o US). Dentro: crecieron / resto.
-     monOrig: 'US' o '$' (filtra por moneda original). */
+  /* "Pólizas nuevas" y "Anualidad Anterior" no tienen comparación con 2025 que
+     tenga sentido (las nuevas no existían y las AA pertenecen al período previo),
+     así que en esas tarjetas mostramos una sola lista ordenada por monto.
+     El resto (Renovaciones, Segunda/Tercera anualidad, Ajuste, Malus, Bono) se
+     desglosa en tres bloques: Crecieron / Mantienen / Cayeron. */
+  const esSimple = /^ejecEmi_(nuevas|anualant)_/.test(id);
+
+  /* Una columna = una moneda ORIGINAL ($ o US). monOrig: 'US' o '$' (filtra por
+     moneda original de la póliza). */
   const col = (monOrig)=>{
     const arr = data.polizas.filter(p=>p.moneda===monOrig);
-    const umbral = (monOrig==='US')?10:30;
+    const umbralPct = (monOrig==='US')?10:30;
+    const umbral = umbralPct/100;
     const esUS = (monOrig==='US');
     const headColor = esUS?'var(--pos)':'var(--accent)';
     const headBg = esUS?'rgba(45,155,106,.12)':'rgba(30,111,217,.10)';
     const tot = arr.reduce((a,p)=>a+valBtn(p,'26'),0);
-    /* Ordenar de MAYOR a MENOR emisión dentro de cada sección (pedido del usuario) */
+    /* Ordenar de MAYOR a MENOR emisión dentro de cada sección. */
     const ordDesc = (a,b)=> valBtn(b,'26')-valBtn(a,'26');
-    const crecen = arr.filter(p=>p.creció).sort(ordDesc);
-    const resto  = arr.filter(p=>!p.creció).sort(ordDesc);
     const bloque = (a2, titulo, color, bg)=>{
       if(a2.length===0) return '';
       const t2 = a2.reduce((s,p)=>s+valBtn(p,'26'),0);
@@ -3266,15 +3288,40 @@ window.toggleEjecEmi = function(id){
         ${a2.map(p=>fila(p)).join('')}
       </div>`;
     };
+    const cabecera = `<div style="display:flex;align-items:center;gap:10px;margin-bottom:12px;padding:13px 16px;background:${headBg};border-radius:8px;border:2px solid ${headColor}">
+      <span style="font-size:26px;font-weight:800;color:${headColor}">${esUS?'US':'$'}</span>
+      <span style="font-size:16px;font-weight:800;color:${headColor};text-transform:uppercase;letter-spacing:.03em">Moneda original ${esUS?'dólares':'pesos'}</span>
+      <span style="margin-left:auto;font-family:var(--font-mono);font-size:20px;font-weight:800;color:${esBono?'var(--neg)':headColor}">${arr.length} pól. · ${sgnTxt}${fmtCompact(tot,useUSD)}</span>
+    </div>`;
+    if(arr.length===0){
+      return `<div>${cabecera}<div style="font-size:13px;color:var(--ink-3);font-style:italic">— sin pólizas en esta moneda —</div></div>`;
+    }
+    if(esSimple){
+      /* Pólizas nuevas / Anualidad Anterior: una sola lista ordenada. */
+      const sorted = [...arr].sort(ordDesc);
+      return `<div>${cabecera}${bloque(sorted, 'Pólizas', headColor, headBg)}</div>`;
+    }
+    /* Tres buckets — la variación se calcula en moneda ORIGINAL para coherencia
+       con el umbral (+30% en pesos, +10% en dólares). */
+    const v25orig = (p)=> (p.moneda==='US') ? (p.usd25||0) : (p.ars25||0);
+    const v26orig = (p)=> (p.moneda==='US') ? (p.usd26||0) : (p.ars26||0);
+    const variacion = (p)=>{
+      const a = v25orig(p), b = v26orig(p);
+      if(a===0 && b>0) return Infinity;   /* nuevo emitido sin base 2025 → crece */
+      if(a===0)        return 0;          /* nada vs nada */
+      return (b-a)/Math.abs(a);
+    };
+    const crecieron = arr.filter(p=> variacion(p) > umbral).sort(ordDesc);
+    const cayeron   = arr.filter(p=> variacion(p) < 0).sort(ordDesc);
+    const mantienen = arr.filter(p=>{
+      const v = variacion(p);
+      return v >= 0 && v <= umbral;
+    }).sort(ordDesc);
     return `<div>
-      <div style="display:flex;align-items:center;gap:10px;margin-bottom:12px;padding:13px 16px;background:${headBg};border-radius:8px;border:2px solid ${headColor}">
-        <span style="font-size:26px;font-weight:800;color:${headColor}">${esUS?'US':'$'}</span>
-        <span style="font-size:16px;font-weight:800;color:${headColor};text-transform:uppercase;letter-spacing:.03em">Moneda original ${esUS?'dólares':'pesos'}</span>
-        <span style="margin-left:auto;font-family:var(--font-mono);font-size:20px;font-weight:800;color:${esBono?'var(--neg)':headColor}">${arr.length} pól. · ${sgnTxt}${fmtCompact(tot,useUSD)}</span>
-      </div>
-      ${bloque(crecen, `Crecieron +${umbral}%`, 'var(--pos)', 'rgba(45,155,106,.10)')}
-      ${bloque(resto, 'Resto emitido', 'var(--accent-3)', 'rgba(30,111,217,.06)')}
-      ${arr.length===0?'<div style="font-size:13px;color:var(--ink-3);font-style:italic">— sin pólizas en esta moneda —</div>':''}
+      ${cabecera}
+      ${bloque(crecieron, `Crecieron +${umbralPct}% o más`, 'var(--pos)', 'rgba(45,155,106,.10)')}
+      ${bloque(mantienen, `Mantienen (0% a +${umbralPct}%)`, 'var(--accent-3)', 'rgba(30,111,217,.06)')}
+      ${bloque(cayeron,   `Cayeron`, 'var(--neg)', 'rgba(217,71,71,.08)')}
     </div>`;
   };
 
@@ -3380,7 +3427,7 @@ window.toggleEjecOtros = function(id){
       const miniTxt = resumen ? `<div style="font-size:13px;color:var(--ink-3);margin-top:3px;font-style:italic;line-height:1.35">${resumen}</div>` : '<div style="font-size:12.5px;color:var(--warn);margin-top:3px;font-style:italic">⚠ sin categoría/observación que lo justifique</div>';
       return `<div style="padding:9px 0;border-bottom:1px solid var(--line)">
         <div style="display:flex;justify-content:space-between;gap:10px;align-items:baseline">
-          <span style="font-size:14.5px"><strong>${p.poliza}</strong> <span style="color:var(--ink-2)">${(p.asegurado||'').substring(0,24)}</span> <span style="font-size:12px;color:var(--accent);font-weight:700;background:rgba(30,111,217,.10);padding:2px 7px;border-radius:4px">${p.rubro||'—'}</span></span>
+          <span style="font-size:14.5px"><strong>${fmtPoliza(p.poliza)}</strong> <span style="color:var(--ink-2)">${(p.asegurado||'').substring(0,24)}</span> <span style="font-size:12px;color:var(--accent);font-weight:700;background:rgba(30,111,217,.10);padding:2px 7px;border-radius:4px">${p.rubro||'—'}</span></span>
           <span style="font-family:var(--font-mono);white-space:nowrap;font-size:14.5px;font-weight:700">${fmtCompact(v25,uuO)} → ${fmtCompact(v26,uuO)} <span style="color:var(--warn);font-weight:800">(+${FMT_PCT(p.crec)} / objetivo +${(p.umbral*100).toFixed(0)}%)</span></span>
         </div>
         ${miniTxt}
@@ -3412,7 +3459,7 @@ window.toggleEjecOtros = function(id){
       const d = (p.tasa26-p.tasa25);
       return `<div style="padding:8px 0;border-bottom:1px solid var(--line)">
         <div style="display:flex;justify-content:space-between;gap:10px;align-items:baseline">
-          <span style="font-size:14px"><strong>${p.poliza}</strong> <span style="color:var(--ink-2);font-size:13px">${(p.asegurado||'').substring(0,22)}</span> <span style="font-size:11px;color:var(--accent);font-weight:700;background:rgba(30,111,217,.10);padding:2px 7px;border-radius:4px">${p.rubro||'—'}</span></span>
+          <span style="font-size:14px"><strong>${fmtPoliza(p.poliza)}</strong> <span style="color:var(--ink-2);font-size:13px">${(p.asegurado||'').substring(0,22)}</span> <span style="font-size:11px;color:var(--accent);font-weight:700;background:rgba(30,111,217,.10);padding:2px 7px;border-radius:4px">${p.rubro||'—'}</span></span>
           <span style="font-family:var(--font-mono);white-space:nowrap;font-size:14px">${FMT_PCT_TASA(p.tasa25)} → <strong style="color:var(--pos);font-size:15px">${FMT_PCT_TASA(p.tasa26)}</strong> <span style="color:var(--pos);font-weight:800">(+${FMT_PCT_TASA(d)})</span></span>
         </div>
         <div style="font-size:11.5px;color:var(--ink-3);margin-top:3px;font-style:italic;line-height:1.3">${conclusionTasa(p)}</div>
@@ -3452,7 +3499,7 @@ window.toggleEjecOtros = function(id){
     const miniTxt = resumen ? `<div style="font-size:11.5px;color:var(--ink-3);margin-top:3px;font-style:italic;line-height:1.3">${resumen}</div>` : '';
     return `<div style="padding:8px 0;border-bottom:1px solid var(--line)">
       <div style="display:flex;justify-content:space-between;gap:10px;align-items:baseline">
-        <span style="font-size:14px"><strong>${p.poliza}</strong> <span style="color:var(--ink-2);font-size:13px">${(p.asegurado||'').substring(0,22)}</span> <span style="font-size:11px;color:var(--accent);font-weight:700;background:rgba(30,111,217,.10);padding:2px 7px;border-radius:4px">${p.rubro||'—'}</span></span>
+        <span style="font-size:14px"><strong>${fmtPoliza(p.poliza)}</strong> <span style="color:var(--ink-2);font-size:13px">${(p.asegurado||'').substring(0,22)}</span> <span style="font-size:11px;color:var(--accent);font-weight:700;background:rgba(30,111,217,.10);padding:2px 7px;border-radius:4px">${p.rubro||'—'}</span></span>
         <span style="font-family:var(--font-mono);white-space:nowrap;font-size:15px;font-weight:700">${fmtCompact(v26,useUSD)} <span style="color:${cc};font-weight:800;font-size:13px">${dpct!=null?'('+((v26-v25)>=0?'+':'')+FMT_PCT(dpct)+')':''}</span></span>
       </div>
       ${equivLine}
@@ -3850,7 +3897,7 @@ window.toggleEjecCausa = function(id){
        nombre y la lista de números; si es una sola, el número de póliza como siempre. */
     const polDisp = (r._polizas && r._polizas.length>1)
       ? `<strong>${(r.asegurado||'').substring(0,28)}</strong> <span style="color:var(--ink-3);font-size:11px">(${r._polizas.length} pól.: ${r._polizas.join(', ')})</span>`
-      : `<strong>${r.poliza}</strong> <span style="color:var(--ink-2);font-size:13px">${(r.asegurado||'').substring(0,22)}</span>`;
+      : `<strong>${fmtPoliza(r.poliza)}</strong> <span style="color:var(--ink-2);font-size:13px">${(r.asegurado||'').substring(0,22)}</span>`;
     return `<tr>
       <td style="padding:9px 8px;border-bottom:1px solid var(--line);font-size:14px">${polDisp} <span style="color:var(--accent);font-size:11px;font-weight:700;background:rgba(30,111,217,.10);padding:1px 6px;border-radius:3px">${r.tipoC}</span>${extra||''}</td>
       <td style="padding:9px 8px;border-bottom:1px solid var(--line);font-size:12px;color:var(--ink-2)">${r.rubro||'—'}</td>
@@ -3995,7 +4042,7 @@ window.toggleEjecCausa = function(id){
       const monOrig=(r.moneda==='US')?'US':'$'; const monBtn=btnUSD?'US':'$';
       const eq = (monOrig!==monBtn)?`<div style="font-size:11px;color:var(--ink-3);font-family:var(--font-mono);text-align:right;margin-top:1px">equiv. orig. ${monOrig==='US'?'US':'$'} ${fmtCompact(valOrigR(r),monOrig==='US')}</div>`:'';
       return `<tr>
-      <td style="padding:9px 8px;border-bottom:1px solid var(--line);font-size:14px"><strong>${r.poliza}</strong> <span style="color:var(--ink-2);font-size:13px">${(r.asegurado||'').substring(0,22)}</span> <span style="color:var(--accent);font-size:11px;font-weight:700;background:rgba(30,111,217,.10);padding:1px 6px;border-radius:3px">${r.tipoC}</span>
+      <td style="padding:9px 8px;border-bottom:1px solid var(--line);font-size:14px"><strong>${fmtPoliza(r.poliza)}</strong> <span style="color:var(--ink-2);font-size:13px">${(r.asegurado||'').substring(0,22)}</span> <span style="color:var(--accent);font-size:11px;font-weight:700;background:rgba(30,111,217,.10);padding:1px 6px;border-radius:3px">${r.tipoC}</span>
         <div style="font-size:12.5px;color:var(--ink-2);margin-top:2px">prima ${fmtCompact(fB(r,'pm25'),btnUSD)} → <strong>${fmtCompact(fB(r,'pm26'),btnUSD)}</strong> (creció ${FMT_PCT(r.crec)}, falta para +${(umb*100).toFixed(0)}%) · ajuste ${fmtCompact(fB(r,'aj'),btnUSD)} · bono ${fmtCompact(fB(r,'bo'),btnUSD)} · malus ${fmtCompact(fB(r,'ma'),btnUSD)}</div></td>
       <td style="padding:9px 8px;border-bottom:1px solid var(--line);font-size:12px;color:var(--ink-2)">${r.rubro||'—'}</td>
       <td style="padding:9px 8px;border-bottom:1px solid var(--line);text-align:right;font-family:var(--font-mono);font-weight:800;font-size:15px;color:#888780;white-space:nowrap">${fmtCompact(valBtnR(r),btnUSD)}${eq}</td>
@@ -4548,7 +4595,7 @@ window.toggleEjecRubroMotivo = function(idx){
   const filaMonto = (r)=>{
     const cc = r.d>=0?'var(--pos)':'var(--neg)';
     return `<div style="padding:9px 0;border-bottom:1px solid var(--line)">
-      <div style="display:flex;justify-content:space-between;gap:10px;font-size:14.5px"><span><strong>${r.poliza}</strong> <span style="color:var(--ink-2)">${(r.asegurado||'').substring(0,24)}</span> <span style="font-size:12px;color:${r.moneda==='US'?'var(--pos)':'var(--accent)'};font-weight:700">${r.moneda}</span></span>
+      <div style="display:flex;justify-content:space-between;gap:10px;font-size:14.5px"><span><strong>${fmtPoliza(r.poliza)}</strong> <span style="color:var(--ink-2)">${(r.asegurado||'').substring(0,24)}</span> <span style="font-size:12px;color:${r.moneda==='US'?'var(--pos)':'var(--accent)'};font-weight:700">${r.moneda}</span></span>
       <span style="font-family:var(--font-mono);font-weight:700">${mc(r.v25,r.moneda==='US')} → ${mc(r.v26,r.moneda==='US')} <span style="color:${cc};font-weight:800">${r.dpct!=null?'('+(r.d>=0?'+':'')+FMT_PCT(r.dpct)+')':''}</span></span></div>
       ${miniJustif(r.cat,r.det)}</div>`;
   };
@@ -4556,7 +4603,7 @@ window.toggleEjecRubroMotivo = function(idx){
   const filaTasa = (r)=>{
     const cc = r.d>=0?'var(--pos)':'var(--neg)';
     return `<div style="padding:9px 0;border-bottom:1px solid var(--line)">
-      <div style="display:flex;justify-content:space-between;gap:10px;font-size:14.5px"><span><strong>${r.poliza}</strong> <span style="color:var(--ink-2)">${(r.asegurado||'').substring(0,24)}</span> <span style="font-size:12px;color:${r.moneda==='US'?'var(--pos)':'var(--accent)'};font-weight:700">${r.moneda}</span></span>
+      <div style="display:flex;justify-content:space-between;gap:10px;font-size:14.5px"><span><strong>${fmtPoliza(r.poliza)}</strong> <span style="color:var(--ink-2)">${(r.asegurado||'').substring(0,24)}</span> <span style="font-size:12px;color:${r.moneda==='US'?'var(--pos)':'var(--accent)'};font-weight:700">${r.moneda}</span></span>
       <span style="font-family:var(--font-mono);font-weight:700">${FMT_PCT_TASA(r.t25)} → ${FMT_PCT_TASA(r.t26)} <span style="color:${cc};font-weight:800">(${r.d>=0?'+':''}${FMT_PCT_TASA(r.d)})</span></span></div>
       ${miniJustif(r.cat,r.det)}</div>`;
   };
@@ -4564,7 +4611,7 @@ window.toggleEjecRubroMotivo = function(idx){
   const filaSin = (lbl)=>(r)=>{
     const cc = r.d>=0?'var(--neg)':'var(--pos)';
     return `<div style="padding:9px 0;border-bottom:1px solid var(--line)">
-      <div style="display:flex;justify-content:space-between;gap:10px;font-size:14.5px"><span><strong>${r.poliza}</strong> <span style="color:var(--ink-2)">${(r.asegurado||'').substring(0,24)}</span> <span style="font-size:12px;color:${r.moneda==='US'?'var(--pos)':'var(--accent)'};font-weight:700">${r.moneda}</span></span>
+      <div style="display:flex;justify-content:space-between;gap:10px;font-size:14.5px"><span><strong>${fmtPoliza(r.poliza)}</strong> <span style="color:var(--ink-2)">${(r.asegurado||'').substring(0,24)}</span> <span style="font-size:12px;color:${r.moneda==='US'?'var(--pos)':'var(--accent)'};font-weight:700">${r.moneda}</span></span>
       <span style="font-family:var(--font-mono);font-weight:700">${lbl} ${FMT_PCT_SIN(r.s25)} → ${FMT_PCT_SIN(r.s26)} <span style="color:${cc};font-weight:800">(${r.d>=0?'+':''}${FMT_PCT_SIN(r.d)})</span></span></div>
       ${miniJustif(r.cat,r.det)}</div>`;
   };
@@ -5084,7 +5131,7 @@ function drawResumen(){
                               <td style="padding:4px 5px;border-bottom:1px solid var(--line);text-align:right;font-weight:700">${cellFmt(totU,totA)}</td>`;
                           };
                           return `<tr>
-                            <td rowspan="2" style="padding:5px;border-bottom:2px solid var(--line-2);vertical-align:middle"><strong>#${p.poliza}</strong> · ${p.asegurado||'—'} · ${moneda}</td>
+                            <td rowspan="2" style="padding:5px;border-bottom:2px solid var(--line-2);vertical-align:middle"><strong>#${fmtPoliza(p.poliza)}</strong> · ${p.asegurado||'—'} · ${moneda}</td>
                             <td rowspan="2" style="padding:5px;border-bottom:2px solid var(--line-2);color:var(--ink-2);font-size:9.5px;vertical-align:middle">${p.rubro||'—'} · ${p.producto||'—'}</td>
                             ${row(2025)}
                           </tr>
@@ -6182,7 +6229,7 @@ window.toggleEmitDesvioDetalle = function(){
         const mesReal = r.fechaReal ? `${MESES[r.fechaReal.getMonth()]} ${r.fechaReal.getFullYear()}` : '—';
         const mesEsp = r.mesEsperado ? monthLabel(r.mesEsperado) : '—';
         return `<tr>
-          <td style="padding:8px 10px;border-bottom:1px solid var(--line);font-weight:700">${r.poliza}<br><span style="font-size:10.5px;color:var(--ink-3);font-weight:400">${r.asegurado||''}</span></td>
+          <td style="padding:8px 10px;border-bottom:1px solid var(--line);font-weight:700">${fmtPoliza(r.poliza)}<br><span style="font-size:10.5px;color:var(--ink-3);font-weight:400">${r.asegurado||''}</span></td>
           <td style="padding:8px 10px;border-bottom:1px solid var(--line);font-size:11.5px">${r.rubro||'—'}</td>
           <td style="padding:8px 10px;border-bottom:1px solid var(--line);font-weight:600">${r.concepto}</td>
           <td style="padding:8px 10px;border-bottom:1px solid var(--line);text-align:right;font-family:var(--font-mono);font-weight:700">${fmtMonto}<br><span style="font-size:10px;color:var(--ink-3);font-weight:400">${fmtMontoAlt}</span></td>
@@ -6761,7 +6808,7 @@ function drawDesviosTabla(filters){
         <span class="pill ${p.cls}">${p.txt}</span>
         <div style="margin-top:4px">${fmtTipoPill(r.tipo25, r.tipo26)}</div>
       </td>
-      <td><strong>${r.poliza}</strong><br><span style="font-size:11px;color:var(--ink-3)">${r.asegurado||''}</span></td>
+      <td><strong>${fmtPoliza(r.poliza)}</strong><br><span style="font-size:11px;color:var(--ink-3)">${r.asegurado||''}</span></td>
       <td>${r.concepto}</td>
       <td style="font-size:11px;color:var(--ink-3)">${r.vigDesde?r.vigDesde.toLocaleDateString('es-AR'):'—'}<br>${r.vigHasta?r.vigHasta.toLocaleDateString('es-AR'):'—'}</td>
       <td>${fmtMes(r.esp25)}</td><td>${fmtMes(r.real25)}</td>
@@ -7966,7 +8013,7 @@ function polizaRowHTML(p,_just,filters){
   return `<div class="justif-row">
     <div class="justif-head">
       <div>
-        <div class="pol-name">${p.asegurado||'—'}<span class="pol-num">#${p.poliza} · ${p.producto||''} · ${p.rubro||''} · ${p.moneda||''}</span></div>
+        <div class="pol-name">${p.asegurado||'—'}<span class="pol-num">#${fmtPoliza(p.poliza)} · ${p.producto||''} · ${p.rubro||''} · ${p.moneda||''}</span></div>
         <div class="pol-pills">${motPills}</div>
       </div>
       <div class="pol-meta">
@@ -8742,7 +8789,7 @@ function drawTop10(){
       <div>
         <div style="display:flex;justify-content:space-between;align-items:flex-start;gap:14px;flex-wrap:wrap;margin-bottom:4px">
           <div>
-            <div style="font-size:14.5px;font-weight:600;color:var(--accent-3)">${item.p.asegurado||'—'}<span style="font-family:var(--font-mono);font-size:11px;color:var(--ink-3);margin-left:8px;font-weight:500">#${item.p.poliza} · ${item.p.rubro||''} · ${item.p.producto||''} · ${item.p.moneda||''}</span>${tipoChip(item.p.tipo2025,'25')}${tipoChip(item.p.tipo2026,'26')}</div>
+            <div style="font-size:14.5px;font-weight:600;color:var(--accent-3)">${item.p.asegurado||'—'}<span style="font-family:var(--font-mono);font-size:11px;color:var(--ink-3);margin-left:8px;font-weight:500">#${fmtPoliza(item.p.poliza)} · ${item.p.rubro||''} · ${item.p.producto||''} · ${item.p.moneda||''}</span>${tipoChip(item.p.tipo2025,'25')}${tipoChip(item.p.tipo2026,'26')}</div>
             <div style="font-family:var(--font-mono);font-size:10.5px;color:var(--ink-3);margin-top:3px">Vig: ${item.p.vigDesde?item.p.vigDesde.toLocaleDateString('es-AR'):'—'} → ${item.p.vigHasta?item.p.vigHasta.toLocaleDateString('es-AR'):'—'} · Broker ${item.p.broker||'—'}</div>
             ${item._just.motivos.length>0?`<div style="margin-top:5px;display:flex;gap:4px;flex-wrap:wrap">${item._just.motivos.map(m=>`<span class="pill neu" style="font-size:9.5px;font-family:var(--font-mono)">${m}</span>`).join('')}</div>`:''}
           </div>
