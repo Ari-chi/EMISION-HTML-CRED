@@ -45,7 +45,7 @@ input[type=file]{display:none}
 .tab.active{color:var(--accent);border-bottom-color:var(--accent)}
 .tab .num{font-family:var(--font-mono);font-size:10px;opacity:.6}
 
-main{padding:28px 48px 60px;max-width:1700px;margin:0 auto}
+main{padding:28px 32px 60px;max-width:2000px;margin:0 auto}
 .section{display:none;animation:fadeIn .3s ease}
 .section.active{display:block}
 @keyframes fadeIn{from{opacity:0;transform:translateY(6px)}to{opacity:1;transform:none}}
@@ -2625,31 +2625,46 @@ function drawEjecutivo(){
 
       if(est==='desvio_emision_pendiente' || est==='desvio_pendiente_mayor_2m'){
         /* Estimación del pendiente = prima mínima del AÑO ANTERIOR (lo más estable y realista).
-           Solo si no hay pm25 se recurre a proy*tasa*factor, acotado para evitar explosiones. */
-        let estim = pm25;
-        if(!(estim>0)){
-          const proy = useUSD ? (p.proyUSD2026||p.proyUSD2025||0) : (p.proyARS2026||p.proyARS2025||0);
+           Se calcula en AMBAS monedas y se ancla a la moneda ORIGINAL de la póliza:
+           el equivalente en la otra moneda usa el TC del botón 7° (si está activo),
+           para que los % del gráfico USD y ARS coincidan. Sin TC vuelve al valor
+           bruto del Excel (comportamiento anterior).
+           Solo si no hay pm25 en ninguna moneda se recurre a proy*tasa*factor. */
+        let estARS = f25.breakdownARS.primaMin;
+        let estUSD = f25.breakdownUSD.primaMin;
+        if(!(estARS>0) && !(estUSD>0)){
+          const proyARS = (p.proyARS2026||p.proyARS2025||0);
+          const proyUSD = (p.proyUSD2026||p.proyUSD2025||0);
           const tasa = (p.tasa2026!=null?p.tasa2026:p.tasa2025);
-          estim = (proy && tasa) ? proy*tasa*FACTOR_DEF : 0;
+          estARS = (proyARS && tasa) ? proyARS*tasa*FACTOR_DEF : 0;
+          estUSD = (proyUSD && tasa) ? proyUSD*tasa*FACTOR_DEF : 0;
         }
-        pendiente += estim; nPend++;
+        const cv = convertirPendienteTC(estARS, estUSD, p.moneda);
+        pendiente += useUSD ? cv.usd : cv.ars;
+        nPend++;
         continue;
       }
       /* CLAVE: solo contar variaciones de prima/proy/tasa/ajuste/bono/malus si la
          prima mínima 2026 está REALMENTE emitida (fecha + monto). Si no, es pendiente. */
       const rPM = p.conceptos['Prima Minima'];
       if(!conceptoEmitido26(rPM, mesCorte)){
-        /* No emitida → tratar como pendiente, usando prima del año anterior */
-        if(pm25>0){ pendiente += pm25; nPend++; }
+        /* No emitida → tratar como pendiente, usando prima del año anterior con TC. */
+        const cv = convertirPendienteTC(f25.breakdownARS.primaMin, f25.breakdownUSD.primaMin, p.moneda);
+        const v = useUSD ? cv.usd : cv.ars;
+        if(v>0){ pendiente += v; nPend++; }
         continue;
       }
       /* PRIMA MÍNIMA PARCIALMENTE EMITIDA (pedido del usuario): emitió algunas cuotas
          2026 pero aún le faltan meses por emitir. Esa diferencia NO es "menor prima
          mínima" real, sino emisión PENDIENTE. La contamos como pendiente (solo la parte
-         no emitida: prima año anterior − lo ya emitido en 2026) y NO como baja de prima. */
+         no emitida: prima año anterior − lo ya emitido en 2026) y NO como baja de prima.
+         La diferencia se evalúa en cada moneda y se aplica TC para alinear vistas. */
       if(primaMinTienePendiente(p, mesCorte)){
-        const faltante = pm25 - pm26;
-        if(faltante>0){ pendiente += faltante; nPend++; }
+        const fARS = f25.breakdownARS.primaMin - f26.breakdownARS.primaMin;
+        const fUSD = f25.breakdownUSD.primaMin - f26.breakdownUSD.primaMin;
+        const cv = convertirPendienteTC(fARS>0?fARS:0, fUSD>0?fUSD:0, p.moneda);
+        const v = useUSD ? cv.usd : cv.ars;
+        if(v>0){ pendiente += v; nPend++; }
         continue;
       }
       /* MENOR PRIMA MÍNIMA (efecto): comparar las MISMAS cuotas (N cuotas 2026 vs primeras
@@ -3083,7 +3098,7 @@ function ejecJustificacion(S, useUSD, dual, useUSDprimary){
   /* Segmento de barra. % en BLANCO adentro, GRANDE y SIN sombreado (pedido del usuario).
      TODOS los segmentos muestran su % (no se omite ninguno, aunque sean finos): la fuente
      se reduce gradualmente para que el número entre en segmentos angostos. */
-  const fsSeg = (pctAncho)=> pctAncho>=8 ? 17 : (pctAncho>=4 ? 13 : (pctAncho>=2 ? 11 : 9));
+  const fsSeg = (pctAncho)=> pctAncho>=8 ? 22 : (pctAncho>=4 ? 17 : (pctAncho>=2 ? 13 : 11));
   const seg = (c, ultimo)=>{
     if(c.val<=0) return '';
     const pctReal = pctDe(c.val);          /* % sobre el desvío total (texto) */
@@ -3146,7 +3161,7 @@ function ejecJustificacion(S, useUSD, dual, useUSDprimary){
     <!-- LLAVE minimalista sobre los 4 pendientes -->
     ${llave}
     <!-- BARRA ÚNICA: representa el DESVÍO TOTAL; las causas lo rellenan; el resto en gris -->
-    <div style="height:46px;border-radius:8px;background:var(--bg-2);overflow:hidden;display:flex;box-shadow:inset 0 0 0 1px rgba(0,0,0,.06);margin-bottom:10px">
+    <div style="height:64px;border-radius:10px;background:var(--bg-2);overflow:hidden;display:flex;box-shadow:inset 0 0 0 1px rgba(0,0,0,.06);margin-bottom:10px">
       ${causas.map((c,i)=>seg(c, false)).join('')}${segGris()}
     </div>
     ${pctSinCubrir>=0.5?`<div style="font-size:12.5px;color:var(--ink-3);margin-bottom:18px;display:flex;align-items:center;gap:7px"><span style="width:13px;height:13px;border-radius:3px;background:#c5cdd9;flex-shrink:0"></span>Sin justificar · <strong style="color:#5a6b85;font-family:var(--font-mono)">${FMTc(sinCubrir)}</strong> · <strong style="color:#5a6b85">${Math.round(pctSinCubrir)}%</strong> del desvío</div>`:'<div style="margin-bottom:8px"></div>'}
