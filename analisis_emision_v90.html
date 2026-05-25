@@ -3260,7 +3260,7 @@ window.toggleEjecEmi = function(id){
     const monOrig = (p.moneda==='US')?'US':'$';
     const monBtn = useUSD?'US':'$';
     const equivLine = (monOrig!==monBtn)
-      ? `<div style="font-size:12px;color:var(--ink-3);font-family:var(--font-mono);text-align:right;margin-top:2px">equiv. orig. ${monOrig==='US'?'US':'$'} ${sgnTxt}${fmtCompact(valOrig(p,'26'),monOrig==='US')}</div>`
+      ? `<div style="font-size:12px;color:var(--ink-3);font-family:var(--font-mono);text-align:right;margin-top:2px">${monOrig==='US'?'US':'$'} ${sgnTxt}${fmtCompact(valOrig(p,'26'),monOrig==='US')}</div>`
       : '';
     const concBadge = p.concepto ? `<span style="font-size:11px;color:var(--accent-3);font-weight:700;background:rgba(124,77,255,.10);padding:1px 6px;border-radius:3px;margin-left:4px">${p.concepto}</span>` : '';
     return `<div style="padding:8px 0;border-bottom:1px solid var(--line)">
@@ -3506,7 +3506,7 @@ window.toggleEjecOtros = function(id){
     const cc = (v26-v25)>=0?'var(--pos)':'var(--neg)';
     const monOrig=(p.moneda==='US')?'US':'$'; const monBtn=useUSD?'US':'$';
     const equivLine = (monOrig!==monBtn)
-      ? `<div style="font-size:12px;color:var(--ink-3);font-family:var(--font-mono);text-align:right;margin-top:2px">equiv. orig. ${monOrig==='US'?'US':'$'} ${fmtCompact(valOrig(p,'26'),monOrig==='US')}</div>`
+      ? `<div style="font-size:12px;color:var(--ink-3);font-family:var(--font-mono);text-align:right;margin-top:2px">${monOrig==='US'?'US':'$'} ${fmtCompact(valOrig(p,'26'),monOrig==='US')}</div>`
       : '';
     /* mini-texto con categoría + detalle/justificación */
     const resumen = miniResumen(p.categoria, p.detalle);
@@ -3904,24 +3904,18 @@ window.toggleEjecCausa = function(id){
       }
       mostrar = Math.abs(vBtn);
     }
-    /* Línea con el valor en moneda original.
+    /* Línea con el valor en moneda original cuando la vista está en la otra moneda.
        - Prima/Ajuste/Bono/Malus (menores): el desglose (extra) ya muestra el
          arrow en ambas monedas, así que acá no agregamos nada para no duplicar.
-       - Pólizas que se fueron y Pendientes (de emisión / prima / ajuste /
-         bono / malus): sin label "equiv. orig." — solo el monto en la
-         moneda original cuando la vista está en la OTRA moneda. Eso
-         representa el valor real que la póliza está pendiente en su moneda
-         de contratación (convertido a la otra con el TC del botón 7°). */
+       - Resto (perdidas, pendientes): solo el monto con prefijo de moneda
+         ($ X / US Y), sin label adicional. */
     let equivLine = '';
     if(monOrig!==monBtn){
       const valOrig = fmtCompact(Math.abs(valOrigR(r)), monOrig==='US');
       const monSym = monOrig==='US'?'US':'$';
-      if(id==='prima' || id==='ajuste' || id==='bono' || id==='malus'){
-        equivLine = '';
-      } else if(id==='perdidas' || id==='pendiente' || /^pend_/.test(id)){
+      const esMenor = (id==='prima' || id==='ajuste' || id==='bono' || id==='malus');
+      if(!esMenor){
         equivLine = `<div style="font-size:11px;color:var(--ink-3);font-family:var(--font-mono);text-align:right;margin-top:1px">${monSym} ${valOrig}</div>`;
-      } else {
-        equivLine = `<div style="font-size:11px;color:var(--ink-3);font-family:var(--font-mono);text-align:right;margin-top:1px">equiv. orig. ${monSym} ${valOrig}</div>`;
       }
     }
     /* Identificación de la fila: si agrupa varias pólizas (mismo asegurado), mostrar el
@@ -4088,7 +4082,7 @@ window.toggleEjecCausa = function(id){
     const fB=(r,base)=> btnUSD?(r[base+'USD']||0):(r[base+'ARS']||0);
     const trs=arr.map(r=>{
       const monOrig=(r.moneda==='US')?'US':'$'; const monBtn=btnUSD?'US':'$';
-      const eq = (monOrig!==monBtn)?`<div style="font-size:11px;color:var(--ink-3);font-family:var(--font-mono);text-align:right;margin-top:1px">equiv. orig. ${monOrig==='US'?'US':'$'} ${fmtCompact(valOrigR(r),monOrig==='US')}</div>`:'';
+      const eq = (monOrig!==monBtn)?`<div style="font-size:11px;color:var(--ink-3);font-family:var(--font-mono);text-align:right;margin-top:1px">${monOrig==='US'?'US':'$'} ${fmtCompact(valOrigR(r),monOrig==='US')}</div>`:'';
       return `<tr>
       <td style="padding:9px 8px;border-bottom:1px solid var(--line);font-size:14px"><strong>${fmtPoliza(r.poliza)}</strong> <span style="color:var(--ink-2);font-size:13px">${(r.asegurado||'').substring(0,22)}</span> <span style="color:var(--accent);font-size:11px;font-weight:700;background:rgba(30,111,217,.10);padding:1px 6px;border-radius:3px">${r.tipoC}</span>
         <div style="font-size:12.5px;color:var(--ink-2);margin-top:2px">prima ${fmtCompact(fB(r,'pm25'),btnUSD)} → <strong>${fmtCompact(fB(r,'pm26'),btnUSD)}</strong> (creció ${FMT_PCT(r.crec)}, falta para +${(umb*100).toFixed(0)}%) · ajuste ${fmtCompact(fB(r,'aj'),btnUSD)} · bono ${fmtCompact(fB(r,'bo'),btnUSD)} · malus ${fmtCompact(fB(r,'ma'),btnUSD)}</div></td>
