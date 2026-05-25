@@ -1,0 +1,16 @@
+# Datos sensibles — nunca commitear archivos de emisión
+*.xlsx
+*.xls
+*.xlsm
+*.xlsb
+*.csv
+*.ods
+
+# Sistema
+.DS_Store
+Thumbs.db
+
+# Editores
+.vscode/
+.idea/
+*.swp
