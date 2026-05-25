@@ -1344,17 +1344,23 @@ function conceptosPendientes(p, mesCorte){
       }
       continue; /* concepto resuelto como pendiente parcial; no seguir con la lógica estándar */
     }
-    /* Si tiene categoría AA o "No corresponde", no está pendiente (estado ya resuelto). */
-    const esAA = r ? categoriaEsAnualidadAnterior(r.categoria) : false;
-    const esNoCorr = r ? categoriaEsNoCorresponde(r.categoria) : false;
-    if(esAA || esNoCorr) continue;
-    const tieneJustif = conceptoTieneJustificacion(r);
-    if(tieneJustif) continue; /* tiene justificación → no es "pendiente sin info" */
-    /* monto 2026 ya emitido de este concepto (propio, sin AA) */
-    const v26ARS = f26full.breakdownARS[c.k];
-    const v26USD = f26full.breakdownUSD[c.k];
-    const a26 = Math.abs(p.moneda==='US'?v26USD:v26ARS);
-    if(a26>0) continue; /* ya emitió algo del período → no pendiente */
+    /* REGLA (pedido del usuario) — pendiente si:
+         · categoría VACÍA  → no se emitió este concepto del 2026, o
+         · categoría = "Corresponde a la Anualidad Anterior"  → el monto pertenece
+           a la anualidad anterior, así que el 2026 sigue pendiente.
+       Cualquier otra categoría con texto (Mantiene, Incremento, No corresponde,
+       etc.) significa que el concepto ya tiene resolución → NO pendiente.
+       Si la póliza tiene VARIAS filas del mismo concepto (típico de Prima Mínima
+       cuando convive una fila de "Anualidad Anterior" con la del nuevo período),
+       el aggregator ya seleccionó la categoría VÁLIDA si existe alguna; por eso
+       evaluar `cat` post-agregación es suficiente para cubrir el caso "AA + otra
+       fila con categoría real → deja de estar pendiente". */
+    const cat = (r && r.categoria) ? String(r.categoria).trim() : '';
+    const esAA = categoriaEsAnualidadAnterior(cat);
+    const esNoCorr = categoriaEsNoCorresponde(cat);
+    if(esNoCorr) continue; /* "No corresponde" = no se emite este año → no pendiente */
+    const pendiente = (!cat) || esAA;
+    if(!pendiente) continue;
     /* monto a renovar = lo emitido en 2025 de este concepto */
     /* MONTO PENDIENTE = la emisión 2025 del concepto (lo que se emitió el año anterior y
        falta renovar), tomada de cada moneda por separado. El equivalente en la otra moneda
@@ -3899,18 +3905,20 @@ window.toggleEjecCausa = function(id){
       mostrar = Math.abs(vBtn);
     }
     /* Línea con el valor en moneda original.
-       - Prima/Ajuste/Bono/Malus: el desglose (extra) ya muestra el arrow en
-         ambas monedas, así que acá no agregamos nada para no duplicar.
-       - Pólizas que se fueron: sin label "equiv. orig." — solo el monto en
-         la moneda original cuando la vista está en la OTRA moneda.
-       - Resto (pendientes, etc.): mantiene el formato "equiv. orig." como antes. */
+       - Prima/Ajuste/Bono/Malus (menores): el desglose (extra) ya muestra el
+         arrow en ambas monedas, así que acá no agregamos nada para no duplicar.
+       - Pólizas que se fueron y Pendientes (de emisión / prima / ajuste /
+         bono / malus): sin label "equiv. orig." — solo el monto en la
+         moneda original cuando la vista está en la OTRA moneda. Eso
+         representa el valor real que la póliza está pendiente en su moneda
+         de contratación (convertido a la otra con el TC del botón 7°). */
     let equivLine = '';
     if(monOrig!==monBtn){
       const valOrig = fmtCompact(Math.abs(valOrigR(r)), monOrig==='US');
       const monSym = monOrig==='US'?'US':'$';
       if(id==='prima' || id==='ajuste' || id==='bono' || id==='malus'){
         equivLine = '';
-      } else if(id==='perdidas'){
+      } else if(id==='perdidas' || id==='pendiente' || /^pend_/.test(id)){
         equivLine = `<div style="font-size:11px;color:var(--ink-3);font-family:var(--font-mono);text-align:right;margin-top:1px">${monSym} ${valOrig}</div>`;
       } else {
         equivLine = `<div style="font-size:11px;color:var(--ink-3);font-family:var(--font-mono);text-align:right;margin-top:1px">equiv. orig. ${monSym} ${valOrig}</div>`;
