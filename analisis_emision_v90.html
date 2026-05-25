@@ -3898,16 +3898,36 @@ window.toggleEjecCausa = function(id){
       }
       mostrar = Math.abs(vBtn);
     }
-    const equivLine = (monOrig!==monBtn)
-      ? `<div style="font-size:11px;color:var(--ink-3);font-family:var(--font-mono);text-align:right;margin-top:1px">equiv. orig. ${monOrig==='US'?'US':'$'} ${fmtCompact(Math.abs(valOrigR(r)), monOrig==='US')}</div>`
-      : '';
+    /* Línea con el valor en moneda original.
+       - Prima/Ajuste/Bono/Malus: el desglose (extra) ya muestra el arrow en
+         ambas monedas, así que acá no agregamos nada para no duplicar.
+       - Pólizas que se fueron: sin label "equiv. orig." — solo el monto en
+         la moneda original cuando la vista está en la OTRA moneda.
+       - Resto (pendientes, etc.): mantiene el formato "equiv. orig." como antes. */
+    let equivLine = '';
+    if(monOrig!==monBtn){
+      const valOrig = fmtCompact(Math.abs(valOrigR(r)), monOrig==='US');
+      const monSym = monOrig==='US'?'US':'$';
+      if(id==='prima' || id==='ajuste' || id==='bono' || id==='malus'){
+        equivLine = '';
+      } else if(id==='perdidas'){
+        equivLine = `<div style="font-size:11px;color:var(--ink-3);font-family:var(--font-mono);text-align:right;margin-top:1px">${monSym} ${valOrig}</div>`;
+      } else {
+        equivLine = `<div style="font-size:11px;color:var(--ink-3);font-family:var(--font-mono);text-align:right;margin-top:1px">equiv. orig. ${monSym} ${valOrig}</div>`;
+      }
+    }
     /* Identificación de la fila: si agrupa varias pólizas (mismo asegurado), mostrar el
        nombre y la lista de números; si es una sola, el número de póliza como siempre. */
     const polDisp = (r._polizas && r._polizas.length>1)
       ? `<strong>${(r.asegurado||'').substring(0,28)}</strong> <span style="color:var(--ink-3);font-size:11px">(${r._polizas.length} pól.: ${r._polizas.join(', ')})</span>`
       : `<strong>${fmtPoliza(r.poliza)}</strong> <span style="color:var(--ink-2);font-size:13px">${(r.asegurado||'').substring(0,22)}</span>`;
+    /* En "Pólizas que se fueron" todas las pólizas están terminadas, así que
+       no hace falta repetir el chip "Terminada" en cada fila. */
+    const tipoChip = (id==='perdidas')
+      ? ''
+      : ` <span style="color:var(--accent);font-size:11px;font-weight:700;background:rgba(30,111,217,.10);padding:1px 6px;border-radius:3px">${r.tipoC}</span>`;
     return `<tr>
-      <td style="padding:9px 8px;border-bottom:1px solid var(--line);font-size:14px">${polDisp} <span style="color:var(--accent);font-size:11px;font-weight:700;background:rgba(30,111,217,.10);padding:1px 6px;border-radius:3px">${r.tipoC}</span>${extra||''}</td>
+      <td style="padding:9px 8px;border-bottom:1px solid var(--line);font-size:14px">${polDisp}${tipoChip}${extra||''}</td>
       <td style="padding:9px 8px;border-bottom:1px solid var(--line);font-size:12px;color:var(--ink-2)">${r.rubro||'—'}</td>
       <td style="padding:9px 8px;border-bottom:1px solid var(--line);text-align:right;font-family:var(--font-mono);font-weight:800;font-size:15px;color:${color};white-space:nowrap">${sgn}${fmtCompact(mostrar, btnUSD)}${equivLine}</td>
     </tr>`;
@@ -3916,11 +3936,23 @@ window.toggleEjecCausa = function(id){
     if(arr.length===0) return '';
     const tot = arr.reduce((a,r)=>a+valBtnR(r),0);
     const u = btnUSD; /* mostrar siempre en moneda del botón */
+    /* Devuelve una línea con la variación 25→26 en la MONEDA ORIGINAL de la
+       póliza cuando ésta difiere de la vista. Permite ver la variación real
+       en la moneda en la que se contrató, además del equivalente en la vista. */
+    const arrowOrig = (r, baseKey, label)=>{
+      const monOrigR = (r.moneda==='US')?'US':'$';
+      const monBtnR = u?'US':'$';
+      if(monOrigR === monBtnR) return '';
+      const isUS = monOrigR==='US';
+      const v25 = r[baseKey+'25'+(isUS?'USD':'ARS')] || 0;
+      const v26 = r[baseKey+'26'+(isUS?'USD':'ARS')] || 0;
+      return `<div style="font-size:11.5px;color:var(--ink-3);margin-top:2px;font-family:var(--font-mono);font-style:italic">${label} ${fmtCompact(v25,isUS)} → <strong>${fmtCompact(v26,isUS)}</strong> · moneda original</div>`;
+    };
     const trs = arr.map(r=>{
       let extra='';
       const mini = (cat,det)=>{ const m=miniResumen(cat,det); return m?`<div style="font-size:11.5px;color:var(--ink-3);margin-top:3px;font-style:italic;line-height:1.3">${m}</div>`:''; };
-      if(modo==='prima'){ extra = `<div style="font-size:12.5px;color:var(--ink-2);margin-top:2px">prima mín. ${fmtCompact(fBtn(r,'pm25'),u)} → <strong>${fmtCompact(fBtn(r,'pm26'),u)}</strong></div>`; }
-      else if(modo==='proy'){ extra = `<div style="font-size:12.5px;color:var(--ink-2);margin-top:2px">proyección ${fmtCompact(fBtn(r,'proy25'),u)} → <strong>${fmtCompact(fBtn(r,'proy26'),u)}</strong></div>${mini(r.proyCat,r.proyDet)}`; }
+      if(modo==='prima'){ extra = `<div style="font-size:12.5px;color:var(--ink-2);margin-top:2px">prima mín. ${fmtCompact(fBtn(r,'pm25'),u)} → <strong>${fmtCompact(fBtn(r,'pm26'),u)}</strong></div>${arrowOrig(r,'pm','prima mín.')}`; }
+      else if(modo==='proy'){ extra = `<div style="font-size:12.5px;color:var(--ink-2);margin-top:2px">proyección ${fmtCompact(fBtn(r,'proy25'),u)} → <strong>${fmtCompact(fBtn(r,'proy26'),u)}</strong></div>${arrowOrig(r,'proy','proyección')}${mini(r.proyCat,r.proyDet)}`; }
       else if(modo==='tasa'){ extra = `<div style="font-size:12.5px;color:var(--ink-2);margin-top:2px">tasa ${r.tasa25!=null?FMT_PCT_TASA(r.tasa25):'—'} → <strong>${r.tasa26!=null?FMT_PCT_TASA(r.tasa26):'—'}</strong> · <span style="color:var(--neg)">reduce prima ${fmtCompact(valBtnR(r),u)}</span></div>${mini(r.tasaCat,r.tasaDet)}`; }
       else if(modo==='perd'){ extra = ''; }
       else if(modo==='pend'){
@@ -3936,8 +3968,8 @@ window.toggleEjecCausa = function(id){
           extra = '';
         }
       }
-      else if(modo==='ajuste'){ extra = `<div style="font-size:12.5px;color:var(--ink-2);margin-top:2px">ajuste ${fmtCompact(fBtn(r,'v25'),u)} → <strong>${fmtCompact(fBtn(r,'v26'),u)}</strong></div>`; }
-      else if(modo==='bono'||modo==='malus'){ extra = `<div style="font-size:12px;color:var(--ink-2);margin-top:2px">${modo} ${fmtCompact(fBtn(r,'v25'),u)} → <strong>${fmtCompact(fBtn(r,'v26'),u)}</strong> · Sin.H ${r.sinH25!=null?FMT_PCT_SIN(r.sinH25):'—'}→${r.sinH26!=null?FMT_PCT_SIN(r.sinH26):'—'} · <strong style="color:var(--accent-3)">Sin.UV ${r.sinUV25!=null?FMT_PCT_SIN(r.sinUV25):'—'}→${r.sinUV26!=null?FMT_PCT_SIN(r.sinUV26):'—'}</strong></div>`; }
+      else if(modo==='ajuste'){ extra = `<div style="font-size:12.5px;color:var(--ink-2);margin-top:2px">ajuste ${fmtCompact(fBtn(r,'v25'),u)} → <strong>${fmtCompact(fBtn(r,'v26'),u)}</strong></div>${arrowOrig(r,'v','ajuste')}`; }
+      else if(modo==='bono'||modo==='malus'){ extra = `<div style="font-size:12px;color:var(--ink-2);margin-top:2px">${modo} ${fmtCompact(fBtn(r,'v25'),u)} → <strong>${fmtCompact(fBtn(r,'v26'),u)}</strong> · Sin.H ${r.sinH25!=null?FMT_PCT_SIN(r.sinH25):'—'}→${r.sinH26!=null?FMT_PCT_SIN(r.sinH26):'—'} · <strong style="color:var(--accent-3)">Sin.UV ${r.sinUV25!=null?FMT_PCT_SIN(r.sinUV25):'—'}→${r.sinUV26!=null?FMT_PCT_SIN(r.sinUV26):'—'}</strong></div>${arrowOrig(r,'v',modo)}`; }
       return filaPol(r, extra);
     }).join('');
     /* Total NETO con signo: suma de variaciones con signo. Negativo = desvío (rojo),
