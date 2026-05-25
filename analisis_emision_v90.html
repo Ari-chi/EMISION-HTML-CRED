@@ -599,6 +599,7 @@ const APP_CONFIG_DEFAULT = {
     perdidas:    'Pólizas que se fueron',
     prima:       'Menor prima mínima',
     abm:         'Menor Ajuste / Bono / Malus',
+    menor:       'Menores (Prima / Ajuste / Bono / Malus)',
     pendiente:   'Pendiente de emisión',
   },
 };
@@ -3038,6 +3039,8 @@ function ejecJustificacion(S, useUSD, dual, useUSDprimary){
     malus: contarPolizasCausa('malus', dd.polFiltradas, dd.mesCorte),
     sinjust: contarPolizasCausa('sinjust', dd.polFiltradas, dd.mesCorte),
   } : null;
+  /* Cache para el mini-gráfico del drill "menor" (magnitud por concepto). */
+  if(cnt) state._ejecCausasCnt = cnt;
   let causas;
   let pendDesglose = null; /* desglose del pendiente por concepto (para mini-barra y total) */
   if(cnt){
@@ -3048,21 +3051,23 @@ function ejecJustificacion(S, useUSD, dual, useUSDprimary){
     pendDesglose = dp;
     const pv = (o)=> o ? (useUSD ? o.totUSD : o.totARS) : 0;
     const mk = (id,lbl,vSigned,n,col,grupo)=>({id,lbl,val:Math.abs(vSigned),vSigned,n,col,...(grupo?{grupo}:{})});
+    /* "Menores" ahora es un único item que junta prima/ajuste/bono/malus (con sus
+       4 subbotones en el drill). El total = suma firmada de las 4 magnitudes. */
+    const menorSigned = mkVal(cnt.prima) + abmSigned;
+    const menorN = cnt.prima.n + cnt.ajuste.n + cnt.bono.n + cnt.malus.n;
     causas = [
       mk('pend_prima',APP_CONFIG.textos.pend_prima, pv(dp&&dp.primaMin), dp?dp.primaMin.n:0, APP_CONFIG.colores.pendiente,'pendiente'),
       mk('pend_ajuste',APP_CONFIG.textos.pend_ajuste, pv(dp&&dp.ajuste), dp?dp.ajuste.n:0, APP_CONFIG.colores.pendiente,'pendiente'),
       mk('pend_malus',APP_CONFIG.textos.pend_malus, pv(dp&&dp.malus), dp?dp.malus.n:0, APP_CONFIG.colores.pendiente,'pendiente'),
       mk('perdidas',APP_CONFIG.textos.perdidas, mkVal(cnt.perdidas), cnt.perdidas.n, APP_CONFIG.colores.perdidas),
-      mk('prima',APP_CONFIG.textos.prima, mkVal(cnt.prima), cnt.prima.n, APP_CONFIG.colores.prima),
-      mk('abm',APP_CONFIG.textos.abm, abmSigned, cnt.ajuste.n+cnt.bono.n+cnt.malus.n, APP_CONFIG.colores.abm),
+      mk('menor',APP_CONFIG.textos.menor || 'Menor Prima / Ajuste / Bono / Malus', menorSigned, menorN, APP_CONFIG.colores.abm),
     ].filter(c=>c.val>1);
   } else {
     const mk = (id,lbl,vSigned,n,col)=>({id,lbl,val:Math.abs(vSigned),vSigned,n,col});
     causas = [
       mk('pendiente',APP_CONFIG.textos.pendiente, S.cPend, S.nPend, APP_CONFIG.colores.pendiente),
       mk('perdidas',APP_CONFIG.textos.perdidas, S.cPerdidas, S.nPerdidas, APP_CONFIG.colores.perdidas),
-      mk('prima',APP_CONFIG.textos.prima, S.cPrimaMin, S.nPrimaMin, APP_CONFIG.colores.prima),
-      mk('abm',APP_CONFIG.textos.abm, S.cAjuste+S.cBono+S.cMalus, 0, APP_CONFIG.colores.abm),
+      mk('menor', APP_CONFIG.textos.menor || 'Menor Prima / Ajuste / Bono / Malus', S.cPrimaMin+S.cAjuste+S.cBono+S.cMalus, 0, APP_CONFIG.colores.abm),
     ].filter(c=>c.val>1);
   }
 
@@ -3162,20 +3167,20 @@ function ejecJustificacion(S, useUSD, dual, useUSDprimary){
     <!-- LLAVE minimalista sobre los 4 pendientes -->
     ${llave}
     <!-- BARRA ÚNICA: representa el DESVÍO TOTAL; las causas lo rellenan; el resto en gris -->
-    <div style="height:64px;border-radius:10px;background:var(--bg-2);overflow:hidden;display:flex;box-shadow:inset 0 0 0 1px rgba(0,0,0,.06);margin-bottom:10px">
+    <div style="height:64px;border-radius:10px;background:var(--bg-2);overflow:hidden;display:flex;box-shadow:inset 0 0 0 1px rgba(0,0,0,.06);margin-bottom:14px">
       ${causas.map((c,i)=>seg(c, false)).join('')}${segGris()}
     </div>
-    ${pctSinCubrir>=0.5?`<div style="font-size:12.5px;color:var(--ink-3);margin-bottom:18px;display:flex;align-items:center;gap:7px"><span style="width:13px;height:13px;border-radius:3px;background:#c5cdd9;flex-shrink:0"></span>Sin justificar · <strong style="color:#5a6b85;font-family:var(--font-mono)">${FMTc(sinCubrir)}</strong> · <strong style="color:#5a6b85">${Math.round(pctSinCubrir)}%</strong> del desvío</div>`:'<div style="margin-bottom:8px"></div>'}
+    ${pctSinCubrir>=0.5?`<div style="font-size:12.5px;color:var(--ink-3);margin-bottom:28px;display:flex;align-items:center;gap:7px"><span style="width:13px;height:13px;border-radius:3px;background:#c5cdd9;flex-shrink:0"></span>Sin justificar · <strong style="color:#5a6b85;font-family:var(--font-mono)">${FMTc(sinCubrir)}</strong> · <strong style="color:#5a6b85">${Math.round(pctSinCubrir)}%</strong> del desvío</div>`:'<div style="margin-bottom:24px"></div>'}
 
-    <!-- TARJETAS: primero todo lo pendiente, luego (separado) las otras causas -->
+    <!-- TARJETAS: primero todo lo pendiente (3 columnas) y luego, BIEN separado, las otras causas en columna vertical -->
     ${causasPend.length?`
-    <div style="font-size:12px;color:var(--accent-3);text-transform:uppercase;letter-spacing:.05em;font-weight:800;margin-bottom:8px;display:flex;align-items:center;gap:7px"><span style="width:12px;height:12px;border-radius:3px;background:#4ba3c7"></span>Pendiente de emisión</div>
-    <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(190px,1fr));gap:10px;margin-bottom:${causasOtras.length?22:0}px">
+    <div style="font-size:13px;color:var(--accent-3);text-transform:uppercase;letter-spacing:.06em;font-weight:800;margin-bottom:10px;display:flex;align-items:center;gap:8px"><span style="width:14px;height:14px;border-radius:3px;background:#4ba3c7"></span>Pendiente de emisión</div>
+    <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(220px,1fr));gap:12px;margin-bottom:${causasOtras.length?32:0}px">
       ${causasPend.map(tarjeta).join('')}
     </div>`:''}
     ${causasOtras.length?`
-    <div style="font-size:12px;color:var(--accent-3);text-transform:uppercase;letter-spacing:.05em;font-weight:800;margin-bottom:8px">Otras causas del desvío</div>
-    <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(190px,1fr));gap:10px">
+    <div style="font-size:13px;color:var(--accent-3);text-transform:uppercase;letter-spacing:.06em;font-weight:800;margin:10px 0 10px 0;padding-top:14px;border-top:1px dashed var(--line-2)">Otras causas del desvío</div>
+    <div style="display:flex;flex-direction:column;gap:10px">
       ${causasOtras.map(tarjeta).join('')}
     </div>`:''}
   </div>`;
@@ -3219,16 +3224,14 @@ function ejecEmitido(S, useUSD, dual){
     const pct = _sumRef !== 0 ? (Math.abs(totDisp) / Math.abs(_sumRef) * 100) : null;
     const pctTxt = pct!=null ? Math.round(pct)+'%' : '';
     return `<div style="background:rgba(45,155,106,.05);border-radius:8px;border-left:4px solid var(--pos);margin-bottom:6px">
-      <div style="padding:11px 14px;cursor:pointer;display:grid;grid-template-columns:minmax(0,1fr) minmax(280px,auto);gap:16px;align-items:center" onclick="toggleEjecEmi('${id}')">
-        <div style="text-align:center">
+      <div style="padding:11px 18px;cursor:pointer;display:grid;grid-template-columns:1fr auto auto auto;column-gap:18px;align-items:center;max-width:980px;margin:0 auto" onclick="toggleEjecEmi('${id}')">
+        <div style="text-align:left">
           <span style="font-size:14.5px;color:var(--accent-3);font-weight:700">${c.lbl}</span>
           <span style="font-size:11.5px;color:var(--ink-3);margin-left:8px">${n} pól.</span>
         </div>
-        <div style="display:flex;align-items:baseline;justify-content:flex-end;gap:10px">
-          <span style="font-size:13px;color:var(--ink-3);font-family:var(--font-mono);font-weight:700;min-width:42px;text-align:right">${pctTxt}</span>
-          <span style="font-size:19px;font-weight:700;color:${totColor};font-family:var(--font-mono)">${esBono?'−':''}${FMTc(Math.abs(totDisp))}</span>
-          <span id="${id}_car" style="font-size:12px;color:var(--accent)">▸</span>
-        </div>
+        <span style="font-size:13px;color:var(--ink-3);font-family:var(--font-mono);font-weight:700;min-width:42px;text-align:right">${pctTxt}</span>
+        <span style="font-size:19px;font-weight:700;color:${totColor};font-family:var(--font-mono);min-width:80px;text-align:right">${esBono?'−':''}${FMTc(Math.abs(totDisp))}</span>
+        <span id="${id}_car" style="font-size:12px;color:var(--accent)">▸</span>
       </div>
       <div id="${id}" style="display:none;padding:0 14px 12px"></div>
     </div>`;
@@ -4196,18 +4199,55 @@ window.toggleEjecCausa = function(id){
     </div>`;
   }
 
-  const titulos = {pendiente:'Pendiente de emisión', pend_prima:'Prima mínima pendiente', pend_ajuste:'Ajuste pendiente', pend_bono:'Bono pendiente', pend_malus:'Malus pendiente', perdidas:'Pólizas que se fueron', prima:'Prima mínima', ajuste:'Ajuste', bono:'Bono', malus:'Malus', sinjust:'Pólizas que no crecieron'};
+  const titulos = {pendiente:'Pendiente de emisión', pend_prima:'Prima mínima pendiente', pend_ajuste:'Ajuste pendiente', pend_bono:'Bono pendiente', pend_malus:'Malus pendiente', perdidas:'Pólizas que se fueron', prima:'Prima mínima', ajuste:'Ajuste', bono:'Bono', malus:'Malus', menor:'Menores — Prima / Ajuste / Bono / Malus', sinjust:'Pólizas que no crecieron'};
   let contenido;
-  if(id==='prima'){
-    /* selector de sub-desglose + mini-gráficos de variaciones */
+  /* Mini-gráfico general que muestra la magnitud de los 4 conceptos "menores"
+     (Prima Mínima / Ajuste / Bono / Malus) para que se vea de un vistazo cuál
+     pesa más antes de seleccionar el sub-botón. */
+  const menorChart = ()=>{
+    const cd = state._ejecCausasCnt || {};
+    const u = d.useUSD;
+    const vals = [
+      {k:'prima',  lbl:'Prima mín.', col:APP_CONFIG.colores.prima,    val:Math.abs(cd.prima ? (u?cd.prima.totUSD:cd.prima.totARS) : 0), n:cd.prima?cd.prima.n:0},
+      {k:'ajuste', lbl:'Ajuste',     col:APP_CONFIG.colores.abm,      val:Math.abs(cd.ajuste? (u?cd.ajuste.totUSD:cd.ajuste.totARS) : 0), n:cd.ajuste?cd.ajuste.n:0},
+      {k:'bono',   lbl:'Bono',       col:'#d94747',                   val:Math.abs(cd.bono  ? (u?cd.bono.totUSD:cd.bono.totARS)   : 0), n:cd.bono?cd.bono.n:0},
+      {k:'malus',  lbl:'Malus',      col:'#7c4dff',                   val:Math.abs(cd.malus ? (u?cd.malus.totUSD:cd.malus.totARS) : 0), n:cd.malus?cd.malus.n:0},
+    ];
+    const max = Math.max(1, ...vals.map(v=>v.val));
+    const FMTcL = (v)=>fmtCompact(v, u);
+    return `<div style="background:var(--bg-2);border-radius:8px;padding:12px 14px;margin-bottom:14px">
+      <div style="font-size:11.5px;color:var(--accent-3);text-transform:uppercase;letter-spacing:.05em;font-weight:800;margin-bottom:10px">Magnitud por concepto (${u?'USD':'ARS$'})</div>
+      ${vals.map(v=>`<div style="display:grid;grid-template-columns:90px 1fr auto;gap:10px;align-items:center;margin-bottom:6px">
+        <span style="font-size:12.5px;color:var(--ink-2);font-weight:700">${v.lbl}</span>
+        <div style="height:14px;background:rgba(0,0,0,.04);border-radius:3px;position:relative"><div style="position:absolute;left:0;top:0;bottom:0;width:${Math.round(v.val/max*100)}%;background:${v.col};border-radius:3px"></div></div>
+        <span style="font-family:var(--font-mono);font-weight:700;font-size:13px;color:${v.col};min-width:80px;text-align:right">−${FMTcL(v.val)} <span style="color:var(--ink-3);font-weight:500;font-size:11px">(${v.n} pól.)</span></span>
+      </div>`).join('')}
+    </div>`;
+  };
+  if(id==='prima' || id==='menor'){
+    /* Para "menor" mostramos 4 sub-botones (Prima/Ajuste/Bono/Malus). El default es
+       Prima (que a su vez tiene 3 sub-sub-vistas Prima/Proy/Tasa, ligadas porque la
+       prima mínima depende de la proyección × tasa). */
+    const isMenor = (id==='menor');
+    const btn = (sub,label,active)=>`<button class="ejec-menorbtn" data-sub="${sub}" onclick="setEjecMenorSub('${sub}')" style="padding:7px 16px;font-size:12px;font-weight:700;border-radius:5px;border:1px solid ${active?'var(--accent)':'var(--line-2)'};background:${active?'var(--accent)':'var(--bg-2)'};color:${active?'#fff':'var(--ink-2)'};cursor:pointer">${label}</button>`;
+    const subSelector = isMenor
+      ? `<div style="display:flex;gap:8px;margin-bottom:14px;flex-wrap:wrap" id="ejecMenorSubsel">
+          ${btn('prima','Prima mínima',true)}${btn('ajuste','Ajuste',false)}${btn('bono','Bono',false)}${btn('malus','Malus',false)}
+        </div>`
+      : '';
     contenido = `
-      <div style="display:flex;gap:8px;margin-bottom:12px" id="ejecPrimaSubsel">
-        <button class="ejec-subbtn" data-sub="prima" onclick="setEjecPrimaSub('prima')" style="padding:6px 14px;font-size:11.5px;font-weight:700;border-radius:5px;border:1px solid var(--accent);background:var(--accent);color:#fff;cursor:pointer">Prima mínima</button>
-        <button class="ejec-subbtn" data-sub="proy" onclick="setEjecPrimaSub('proy')" style="padding:6px 14px;font-size:11.5px;font-weight:700;border-radius:5px;border:1px solid var(--line-2);background:var(--bg-2);color:var(--ink-2);cursor:pointer">Proyección de ventas</button>
-        <button class="ejec-subbtn" data-sub="tasa" onclick="setEjecPrimaSub('tasa')" style="padding:6px 14px;font-size:11.5px;font-weight:700;border-radius:5px;border:1px solid var(--line-2);background:var(--bg-2);color:var(--ink-2);cursor:pointer">Tasa</button>
-      </div>
-      <div style="margin-bottom:14px"><div id="ejecVariacionesLabel" style="font-size:12px;color:var(--ink-2);margin-bottom:8px;font-weight:600">Variaciones que afectan la prima mínima (2025 vs 2026):</div><div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(160px,1fr));gap:10px" id="ejecVariacionesGrid"></div><div id="ejecVariacionesValores" style="margin-top:8px"></div></div>
-      <div id="ejecPrimaCols" style="display:grid;grid-template-columns:1fr 1fr;gap:16px">${colPrima(false,'prima')}${colPrima(true,'prima')}</div>`;
+      ${isMenor ? menorChart() : ''}
+      ${subSelector}
+      <div id="ejecMenorBody">
+        <div style="display:flex;gap:8px;margin-bottom:12px" id="ejecPrimaSubsel">
+          <button class="ejec-subbtn" data-sub="prima" onclick="setEjecPrimaSub('prima')" style="padding:6px 14px;font-size:11.5px;font-weight:700;border-radius:5px;border:1px solid var(--accent);background:var(--accent);color:#fff;cursor:pointer">Prima mínima</button>
+          <button class="ejec-subbtn" data-sub="proy" onclick="setEjecPrimaSub('proy')" style="padding:6px 14px;font-size:11.5px;font-weight:700;border-radius:5px;border:1px solid var(--line-2);background:var(--bg-2);color:var(--ink-2);cursor:pointer">Proyección de ventas</button>
+          <button class="ejec-subbtn" data-sub="tasa" onclick="setEjecPrimaSub('tasa')" style="padding:6px 14px;font-size:11.5px;font-weight:700;border-radius:5px;border:1px solid var(--line-2);background:var(--bg-2);color:var(--ink-2);cursor:pointer">Tasa</button>
+        </div>
+        <div style="font-size:11.5px;color:var(--ink-3);font-style:italic;margin-bottom:10px;line-height:1.4">La prima mínima se calcula como proyección × tasa × (~70–80%). Por eso una baja de prima suele estar ligada a una baja de proyección o tasa — los tres conceptos se ven acá.</div>
+        <div style="margin-bottom:14px"><div id="ejecVariacionesLabel" style="font-size:12px;color:var(--ink-2);margin-bottom:8px;font-weight:600">Variaciones que afectan la prima mínima (2025 vs 2026):</div><div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(160px,1fr));gap:10px" id="ejecVariacionesGrid"></div><div id="ejecVariacionesValores" style="margin-top:8px"></div></div>
+        <div id="ejecPrimaCols" style="display:grid;grid-template-columns:1fr 1fr;gap:16px">${colPrima(false,'prima')}${colPrima(true,'prima')}</div>
+      </div>`;
   } else if(id==='abm'){
     contenido = `
       <div style="display:flex;gap:8px;margin-bottom:12px" id="ejecAbmSubsel">
@@ -4227,14 +4267,35 @@ window.toggleEjecCausa = function(id){
     ${contenido}`;
   panel.style.display='block';
   panel.dataset.open = id;
-  if(id==='prima'){
+  if(id==='prima' || id==='menor'){
     state._ejecPrimaSub='prima';
+    state._ejecMenorSub='prima';
     const fEjec = d.f||state.sectionFilters.ejecutivo;
     /* Permitir reconstruir columnas + gráficos al cambiar el sub-selector */
     window._rebuildEjecPrimaCols = function(sub){
       const cont = document.getElementById('ejecPrimaCols');
       if(cont) cont.innerHTML = colPrima(false, sub) + colPrima(true, sub);
       drawEjecVariaciones(polFiltradas, fEjec, d.useUSD, {sub});
+    };
+    /* Para "menor": reconstruir todo el body según el sub-botón elegido. */
+    window._rebuildEjecMenorBody = function(sub){
+      const body = document.getElementById('ejecMenorBody');
+      if(!body) return;
+      if(sub==='prima'){
+        body.innerHTML = `
+          <div style="display:flex;gap:8px;margin-bottom:12px" id="ejecPrimaSubsel">
+            <button class="ejec-subbtn" data-sub="prima" onclick="setEjecPrimaSub('prima')" style="padding:6px 14px;font-size:11.5px;font-weight:700;border-radius:5px;border:1px solid var(--accent);background:var(--accent);color:#fff;cursor:pointer">Prima mínima</button>
+            <button class="ejec-subbtn" data-sub="proy" onclick="setEjecPrimaSub('proy')" style="padding:6px 14px;font-size:11.5px;font-weight:700;border-radius:5px;border:1px solid var(--line-2);background:var(--bg-2);color:var(--ink-2);cursor:pointer">Proyección de ventas</button>
+            <button class="ejec-subbtn" data-sub="tasa" onclick="setEjecPrimaSub('tasa')" style="padding:6px 14px;font-size:11.5px;font-weight:700;border-radius:5px;border:1px solid var(--line-2);background:var(--bg-2);color:var(--ink-2);cursor:pointer">Tasa</button>
+          </div>
+          <div style="font-size:11.5px;color:var(--ink-3);font-style:italic;margin-bottom:10px;line-height:1.4">La prima mínima se calcula como proyección × tasa × (~70–80%). Por eso una baja de prima suele estar ligada a una baja de proyección o tasa — los tres conceptos se ven acá.</div>
+          <div style="margin-bottom:14px"><div id="ejecVariacionesLabel" style="font-size:12px;color:var(--ink-2);margin-bottom:8px;font-weight:600">Variaciones que afectan la prima mínima (2025 vs 2026):</div><div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(160px,1fr));gap:10px" id="ejecVariacionesGrid"></div><div id="ejecVariacionesValores" style="margin-top:8px"></div></div>
+          <div id="ejecPrimaCols" style="display:grid;grid-template-columns:1fr 1fr;gap:16px">${colPrima(false,'prima')}${colPrima(true,'prima')}</div>`;
+        drawEjecVariaciones(polFiltradas, fEjec, d.useUSD, {sub:'prima'});
+      } else {
+        /* ajuste / bono / malus → mismas columnas que el drill 'abm' */
+        body.innerHTML = `<div id="ejecAbmCols" style="display:grid;grid-template-columns:1fr 1fr;gap:16px">${colAbm(false,sub)}${colAbm(true,sub)}</div>`;
+      }
     };
     drawEjecVariaciones(polFiltradas, fEjec, d.useUSD, {sub:'prima'});
   }
@@ -4244,6 +4305,18 @@ window.toggleEjecCausa = function(id){
       if(cont) cont.innerHTML = colAbm(false, sub) + colAbm(true, sub);
     };
   }
+};
+
+/* Cambiar el botón principal del drill "menor" (Prima/Ajuste/Bono/Malus). */
+window.setEjecMenorSub = function(sub){
+  state._ejecMenorSub = sub;
+  document.querySelectorAll('#ejecMenorSubsel .ejec-menorbtn').forEach(b=>{
+    const act = b.dataset.sub===sub;
+    b.style.background = act?'var(--accent)':'var(--bg-2)';
+    b.style.color = act?'#fff':'var(--ink-2)';
+    b.style.borderColor = act?'var(--accent)':'var(--line-2)';
+  });
+  if(window._rebuildEjecMenorBody) window._rebuildEjecMenorBody(sub);
 };
 
 /* Cambiar el sub-desglose de prima (prima/proy/tasa) */
