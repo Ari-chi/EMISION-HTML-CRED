@@ -4932,8 +4932,9 @@ function drawResumen(){
       acumGrupo(nuev25, sumAmbosAnios(p));
       arrNuev25.push(p);
     }
-    /* Pólizas nuevas 2026: tipo2026 = "Póliza nueva" */
-    if(p.tipo2026 === 'Póliza nueva'){
+    /* Pólizas nuevas 2026: tipo2026 EXPLÍCITO = "Póliza nueva" y no terminada
+       (consistente con la regla del card "Pólizas nuevas" del Resumen Ejecutivo). */
+    if(p.tipo2026 === 'Póliza nueva' && p.tipo2026Explicito && !polizaTerminada(p)){
       polNuevas26++;
       acumGrupo(nuev26, sumAmbosAnios(p));
       arrNuev26.push(p);
@@ -7069,7 +7070,9 @@ function drawFieldSection(field, sectionId, title){
   for(const p of polFiltradas){
     const k = p[field] || `(sin ${title.toLowerCase()})`;
     if(p.tipo2025 === 'Póliza nueva') (nuevas25PorField[k] = nuevas25PorField[k] || []).push(p);
-    if(p.tipo2026 === 'Póliza nueva') (nuevas26PorField[k] = nuevas26PorField[k] || []).push(p);
+    /* "Pólizas nuevas 2026" sólo cuenta cuando el tipo viene EXPLÍCITO en la columna
+       2026 y la póliza no está terminada (regla unificada con Resumen Ejecutivo). */
+    if(p.tipo2026 === 'Póliza nueva' && p.tipo2026Explicito && !polizaTerminada(p)) (nuevas26PorField[k] = nuevas26PorField[k] || []).push(p);
     if(p.tipo2025 === 'Póliza terminada') (term25PorField[k] = term25PorField[k] || []).push(p);
     if(p.tipo2026 === 'Póliza terminada') (term26PorField[k] = term26PorField[k] || []).push(p);
   }
@@ -7849,9 +7852,14 @@ function justificarPoliza(p, mesCorte){
   if(sH){ motivos.push('Siniestralidad'); reasons.push(sH); }
   if(sUV){ motivos.push('Siniestralidad'); reasons.push(sUV); }
 
-  if(reasons.length===0){
-    if(f25.totUSD===0 && f26.totUSD>0){ motivos.push('Póliza nueva 2026'); reasons.push('Emisión nueva 2026.'); }
-    else if(f25.totUSD>0 && f26.totUSD>0) reasons.push('Sin cambios significativos.');
+  /* "Póliza nueva 2026": SOLO las marcadas explícitamente en la columna 2026 del Excel
+     (no las heredadas de 2025) y que no estén terminadas. Coincide con la regla del
+     card "Pólizas nuevas" en Resumen Ejecutivo. */
+  if(p.tipo2026==='Póliza nueva' && p.tipo2026Explicito && !polizaTerminada(p)){
+    motivos.push('Póliza nueva 2026');
+    if(reasons.length===0) reasons.push('Emisión nueva 2026.');
+  } else if(reasons.length===0){
+    if(f25.totUSD>0 && f26.totUSD>0) reasons.push('Sin cambios significativos.');
   }
 
   /* Detección de conceptos "No corresponde" — para que la póliza aparezca al filtrar por
