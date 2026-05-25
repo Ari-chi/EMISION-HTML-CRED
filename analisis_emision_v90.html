@@ -1127,6 +1127,10 @@ function aggregatePolizas(){
     }
     if(tn26 && !p.tipo2026){
       p.tipo2026 = tn26;
+      /* Marcador: el tipo 2026 vino EXPLÍCITO de la columna (no heredado).
+         Se usa para "Pólizas nuevas 2026": solo cuenta cuando 2026 dice
+         literalmente "Póliza nueva", no cuando se heredó desde tipo 2025. */
+      p.tipo2026Explicito = true;
     }
   }
   /* Si alguna póliza quedó sin tipo 2026 explícito (columna vacía) pero sí tiene tipo 2025,
@@ -1134,7 +1138,7 @@ function aggregatePolizas(){
      siéndolo en 2026 salvo que se indique lo contrario (terminada/nueva). Evita que pólizas
      queden como tipo2026=null y se clasifiquen mal. */
   for(const p of map.values()){
-    if(!p.tipo2026 && p.tipo2025) p.tipo2026 = p.tipo2025;
+    if(!p.tipo2026 && p.tipo2025){ p.tipo2026 = p.tipo2025; p.tipo2026Explicito = false; }
   }
   state.polizas = [...map.values()];
 }
@@ -2521,7 +2525,11 @@ function drawEjecutivo(){
         else if(p.tipo2026==='Renovación'){ emiRen+=pm26; nRen++; pmRen+=pm26; emitidoCats.ren.total+=pm26; emitidoCats.ren.polizas.push(recPM); }
         else if(p.tipo2026==='Tercera anualidad'){ emiTer+=pm26; nTer++; emitidoCats.ter.total+=pm26; emitidoCats.ter.polizas.push(recPM); }
       }
-      if(p.tipo2026==='Póliza nueva' && !esAnualAnt){
+      /* Pólizas nuevas 2026: SOLO las que el Excel marca explícitamente como
+         "Póliza nueva" en la columna de 2026 (no las heredadas desde 2025) Y
+         que no estén terminadas. Una póliza que fue nueva en 2025 pero que en
+         2026 ya es renovación/segunda anualidad NO debe contar acá. */
+      if(p.tipo2026==='Póliza nueva' && p.tipo2026Explicito && !polizaTerminada(p) && !esAnualAnt){
         emitidoCats.nuevas.total += pm26;
         emitidoCats.nuevas.polizas.push(recPM);
         incNuevas += pm26; nNuevas++;
