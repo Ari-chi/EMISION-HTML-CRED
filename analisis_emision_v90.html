@@ -1703,6 +1703,27 @@ function polizaTerminada(p){
   return /terminada/i.test(p.tipo2026||'') || /terminada/i.test(p.tipo2025||'');
 }
 
+/* Tipo de pendiente cuando la póliza está pendiente de emitir 2026, según
+   reglas del negocio (pedido del usuario):
+     · Si "Inicio Anualidad 2026" > "Vigencia Hasta" → la anualidad arranca
+       DESPUÉS del fin de la vigencia, así que lo pendiente es la RENOVACIÓN
+       (la póliza tiene que renovarse para cubrir el nuevo período).
+     · Si "Inicio Anualidad 2026" ≤ "Vigencia Hasta" → la nueva anualidad cae
+       DENTRO del período vigente, así que lo pendiente es la SEGUNDA (o
+       tercera, etc.) anualidad de la misma póliza.
+     · Si falta alguna fecha → 'desconocido' (se muestra label genérico).
+   Devuelve 'renovacion' | 'segunda' | 'desconocido'. */
+function tipoPendientePol(p){
+  if(!p || !p.inicioAnualidad2026 || !p.vigHasta) return 'desconocido';
+  return p.inicioAnualidad2026 > p.vigHasta ? 'renovacion' : 'segunda';
+}
+function etiquetaTipoPendiente(p){
+  const t = tipoPendientePol(p);
+  if(t==='renovacion') return 'Pendiente renovación';
+  if(t==='segunda')    return 'Pendiente 2ª anualidad';
+  return 'Pendiente';
+}
+
 function estadoPolizaConsolidado(p, mesCorte){
   /* MODELO COHERENTE para acumulado:
      - Si terminada → 'terminada'
@@ -4312,10 +4333,24 @@ window.toggleEjecCausa = function(id){
       ? `<strong>${(r.asegurado||'').substring(0,28)}</strong> <span style="color:var(--ink-3);font-size:11px">(${r._polizas.length} pól.: ${r._polizas.join(', ')})</span>`
       : `<strong>${fmtPoliza(r.poliza)}</strong> <span style="color:var(--ink-2);font-size:13px">${(r.asegurado||'').substring(0,22)}</span>`;
     /* En "Pólizas que se fueron" todas las pólizas están terminadas, así que
-       no hace falta repetir el chip "Terminada" en cada fila. */
-    const tipoChip = (id==='perdidas')
-      ? ''
-      : ` <span style="color:var(--accent);font-size:11px;font-weight:700;background:rgba(30,111,217,.10);padding:1px 6px;border-radius:3px">${r.tipoC}</span>`;
+       no hace falta repetir el chip "Terminada" en cada fila. Para pendientes
+       mostramos en lugar del tipoC un chip que distingue si está pendiente la
+       RENOVACIÓN o la 2ª ANUALIDAD (regla del usuario: Inicio Anualidad 2026
+       vs Vigencia Hasta). */
+    const esPendiente = (id==='pendiente' || /^pend_/.test(id));
+    let tipoChip;
+    if(id==='perdidas'){
+      tipoChip = '';
+    } else if(esPendiente){
+      const full = state.polizas.find(pp=>pp.clave===r.clave || pp.poliza===r.poliza);
+      const tp = tipoPendientePol(full || {});
+      const lbl = tp==='renovacion' ? 'Renov. pendiente' : (tp==='segunda' ? '2ª anual. pendiente' : 'Pendiente');
+      const c   = tp==='renovacion' ? 'var(--warn)' : (tp==='segunda' ? 'var(--accent)' : 'var(--ink-3)');
+      const bg  = tp==='renovacion' ? 'rgba(232,155,30,.12)' : (tp==='segunda' ? 'rgba(30,111,217,.10)' : 'rgba(0,0,0,.05)');
+      tipoChip = ` <span style="color:${c};font-size:11px;font-weight:800;background:${bg};padding:1px 6px;border-radius:3px">${lbl}</span>`;
+    } else {
+      tipoChip = ` <span style="color:var(--accent);font-size:11px;font-weight:700;background:rgba(30,111,217,.10);padding:1px 6px;border-radius:3px">${r.tipoC}</span>`;
+    }
     return `<tr>
       <td style="padding:9px 8px;border-bottom:1px solid var(--line);font-size:14px">${polDisp}${tipoChip}${extra||''}</td>
       <td style="padding:9px 8px;border-bottom:1px solid var(--line);font-size:12px;color:var(--ink-2)">${r.rubro||'—'}</td>
@@ -8721,11 +8756,15 @@ function justificarPoliza(p, mesCorte){
   if(esPendiente){
     const esp26 = mesEsperadoEmision(p.vigDesde,p.vigHasta,2026,p.inicioAnualidad2026);
     if(esPendienteMayor){
-      motivos.push('Pendiente emisión >2m');
-      reasons.push(`<strong>Pendiente de emisión &gt; 2 meses:</strong> Prima Mínima 2026 sin emitir, esperada en ${monthLabel(esp26)}. La nueva anualidad / renovación no se ha emitido todavía.`);
+      /* Diferenciamos si lo pendiente es RENOVACIÓN o SEGUNDA ANUALIDAD según
+         la posición de "Inicio Anualidad 2026" respecto a "Vigencia Hasta". */
+      const lblTipo = etiquetaTipoPendiente(p);
+      motivos.push(lblTipo + ' >2m');
+      reasons.push(`<strong>${lblTipo} &gt; 2 meses:</strong> Prima Mínima 2026 sin emitir, esperada en ${monthLabel(esp26)}.`);
     } else {
-      motivos.push('Pendiente emisión');
-      reasons.push(`<strong>Pendiente de emisión:</strong> Prima Mínima 2026 sin emitir, esperada en ${monthLabel(esp26)}. La nueva anualidad / renovación no se ha emitido todavía (≤2 meses).`);
+      const lblTipo = etiquetaTipoPendiente(p);
+      motivos.push(lblTipo);
+      reasons.push(`<strong>${lblTipo}:</strong> Prima Mínima 2026 sin emitir, esperada en ${monthLabel(esp26)} (≤2 meses).`);
     }
   }
 
@@ -9801,8 +9840,6 @@ function renderTop10(){
       <span class="label">Filtrar por motivo</span>
       <select id="fTop10Motivo">
         <option value="">Todos los motivos</option>
-        <option>Pendiente emisión</option>
-        <option>Pendiente emisión >2m</option>
         <option>Emitido con desvío</option>
         <option>No corresponde</option>
         <option>Aumento de tasa</option>
@@ -9813,7 +9850,6 @@ function renderTop10(){
         <option>Póliza nueva 2026</option>
       </select>
     </div>
-    <div id="top10-nlabel"></div>
     <div class="card"><h3 style="color:var(--pos);margin-bottom:14px">Top 10 — Mejoras</h3><div id="topMejoras"></div></div>
     <div class="card"><h3 style="color:var(--neg);margin-bottom:14px">Top 10 — Caídas</h3><div id="topCaidas"></div></div>`;
   bindSectionFilters('top10',()=>drawTop10());
@@ -9828,8 +9864,10 @@ function drawTop10(){
   const polFiltradas = aplicarFiltrosPolizas(state.polizas, f);
   let arr = polFiltradas
     .map(p=>({p,_just:justificarPoliza(p,mesCorte)}))
-    .filter(x=>x._just.f25.totUSD>0 || x._just.f26.totUSD>0 || x._just.motivos.length>0);
-  /* Aplicar filtro de motivo si está activo */
+    .filter(x=>x._just.f25.totUSD>0 || x._just.f26.totUSD>0 || x._just.motivos.length>0)
+    /* Excluir pendientes: la hoja de Top 10 muestra movimientos reales, no
+       casos pendientes (regla unificada con el Resumen Ejecutivo). */
+    .filter(x=> !polizaPendienteEmision(x.p, mesCorte));
   if(motF){
     arr = arr.filter(x=> x._just.motivos.some(m=>m.toLowerCase().includes(motF.toLowerCase())));
   }
@@ -9837,50 +9875,59 @@ function drawTop10(){
   const mejoras = [...arr].sort((a,b)=>calcVar(b)-calcVar(a)).slice(0,10);
   const caidas = [...arr].sort((a,b)=>calcVar(a)-calcVar(b)).slice(0,10);
 
-  const lblUniv = f.universo==='emit26'?'Emitidas 2026':'Todas';
-  const lblSeg  = f.segmento==='arsArs'?'$ en $':(f.segmento==='usdUsd'?'US en US':(f.segmento==='vs'?'US vs $':'Todas las monedas'));
-  const labelPer = mesCorte===0?'año completo':`acumulado Ene–${MESES[mesCorte-1]}`;
-  document.getElementById('top10-nlabel').innerHTML = `<div class="n-label-bar">N = ${polFiltradas.length} pólizas (${arr.length} con datos) · ${lblUniv} · ${lblSeg} · ${labelPer}</div>`;
-
   const buildCard = (item, idx, esPos)=>{
     const v = calcVar(item);
     const vAr = item._just.f26.totARS - item._just.f25.totARS;
     const pctU = item._just.f25.totUSD>0 ? FMT_PCT(v/item._just.f25.totUSD) : (item._just.f26.totUSD>0?'nuevo':'—');
     const pctA = item._just.f25.totARS>0 ? FMT_PCT(vAr/item._just.f25.totARS) : (item._just.f26.totARS>0?'nuevo':'—');
-    const tipoChip = (t, year)=>{
-      if(!t) return '';
-      const abrev = t==='Renovación'?'Renov.':(t==='Segunda anualidad'?'2da Anual.':(t==='Póliza nueva'?'Nueva':(t==='Póliza terminada'?'Cancelada':t)));
-      const cls = t==='Póliza terminada'?'neg':(t==='Póliza nueva'?'pos':'neu');
-      return `<span class="pill ${cls}" style="font-size:9.5px;margin-left:4px">'${year} ${abrev}</span>`;
-    };
-    /* Moneda original: si la póliza es US → USD prioritaria; si es $ → ARS$ prioritaria */
     const esUS = item.p.moneda === 'US';
     const cardId = `top10_card_${esPos?'mej':'cai'}_${idx}`;
-    /* Color principal grande = verde/rojo; secundario en azul más chico */
     const colorPrincipal = esPos ? 'var(--pos)' : 'var(--neg)';
-    const valPrincipalHTML = esUS
-      ? `<div style="font-size:17px;font-weight:700;color:${colorPrincipal};cursor:pointer" onclick="cambiarMonedaTop10('${cardId}','usd')"><span style="font-size:10px;color:var(--ink-3);font-weight:500;text-transform:uppercase;letter-spacing:.06em;margin-right:6px">click</span>${esPos?'+':''}${FMT_USD(v)} <span style="font-size:12px;font-weight:600">(${pctU})</span></div>`
-      : `<div style="font-size:17px;font-weight:700;color:${colorPrincipal};cursor:pointer" onclick="cambiarMonedaTop10('${cardId}','ars')"><span style="font-size:10px;color:var(--ink-3);font-weight:500;text-transform:uppercase;letter-spacing:.06em;margin-right:6px">click</span>${esPos?'+':''}${FMT_ARS(vAr)} <span style="font-size:12px;font-weight:600">(${pctA})</span></div>`;
-    const valSecundarioHTML = esUS
-      ? `<div style="font-size:13px;font-weight:600;color:var(--accent);cursor:pointer;margin-top:4px" onclick="cambiarMonedaTop10('${cardId}','ars')"><span style="font-size:10px;color:var(--ink-3);font-weight:500;text-transform:uppercase;letter-spacing:.06em;margin-right:6px">click</span>${esPos?'+':''}${FMT_ARS(vAr)} <span style="font-size:11px">(${pctA})</span></div>`
-      : `<div style="font-size:13px;font-weight:600;color:var(--accent);cursor:pointer;margin-top:4px" onclick="cambiarMonedaTop10('${cardId}','usd')"><span style="font-size:10px;color:var(--ink-3);font-weight:500;text-transform:uppercase;letter-spacing:.06em;margin-right:6px">click</span>${esPos?'+':''}${FMT_USD(v)} <span style="font-size:11px">(${pctU})</span></div>`;
-    return `<div id="${cardId}" data-pol-clave="${item.p.clave}" data-pol-idx="${esPos?'mej':'cai'}_${idx}" style="display:grid;grid-template-columns:42px 1fr;gap:14px;margin-bottom:12px;padding:14px;border:1px solid var(--line);border-radius:6px;background:var(--panel)">
+    /* Tipo 2026 destacado (Renovación / Segunda anualidad / Póliza nueva /
+       Tercera anualidad / Póliza terminada). Si vino heredado, igual lo
+       mostramos. */
+    const t26 = item.p.tipo2026 || '';
+    const t26Abrev = t26==='Renovación'?'Renovación'
+      : (t26==='Segunda anualidad'?'2ª anualidad'
+      : (t26==='Tercera anualidad'?'3ª anualidad'
+      : (t26==='Póliza nueva'?'Póliza nueva'
+      : (t26==='Póliza terminada'?'Terminada':t26))));
+    const t26Color = t26==='Póliza terminada'?'var(--neg)':(t26==='Póliza nueva'?'var(--pos)':'var(--accent-3)');
+    const t26Bg = t26==='Póliza terminada'?'rgba(217,71,71,.10)':(t26==='Póliza nueva'?'rgba(45,155,106,.10)':'rgba(30,111,217,.08)');
+    /* Chips destacados de rubro / producto / moneda. */
+    const chipBig = (label, val, color, bg)=>val?`<span style="display:inline-flex;align-items:center;background:${bg};color:${color};font-size:11.5px;font-weight:700;padding:4px 10px;border-radius:14px;margin-right:6px;margin-bottom:4px">${val}</span>`:'';
+    /* Valor principal en MONEDA ORIGINAL + línea de equivalente clickeable. */
+    const vPrim = esUS ? v : vAr;
+    const pctPrim = esUS ? pctU : pctA;
+    const fmtPrim = esUS ? FMT_USD : FMT_ARS;
+    const vEquiv = esUS ? vAr : v;
+    const pctEquiv = esUS ? pctA : pctU;
+    const fmtEquiv = esUS ? FMT_ARS : FMT_USD;
+    return `<div id="${cardId}" data-pol-clave="${item.p.clave}" data-pol-idx="${esPos?'mej':'cai'}_${idx}" data-cur-mode="orig" style="display:grid;grid-template-columns:44px 1fr;gap:16px;margin-bottom:14px;padding:16px;border:1px solid var(--line);border-radius:8px;background:var(--panel);box-shadow:0 1px 3px rgba(10,31,58,.04)">
       <div class="top-rank">${String(idx+1).padStart(2,'0')}</div>
       <div>
-        <div style="display:flex;justify-content:space-between;align-items:flex-start;gap:14px;flex-wrap:wrap;margin-bottom:4px">
-          <div>
-            <div style="font-size:14.5px;font-weight:600;color:var(--accent-3)">${item.p.asegurado||'—'}<span style="font-family:var(--font-mono);font-size:11px;color:var(--ink-3);margin-left:8px;font-weight:500">#${fmtPoliza(item.p.poliza)} · ${item.p.rubro||''} · ${item.p.producto||''} · ${item.p.moneda||''}</span>${tipoChip(item.p.tipo2025,'25')}${tipoChip(item.p.tipo2026,'26')}</div>
-            <div style="font-family:var(--font-mono);font-size:10.5px;color:var(--ink-3);margin-top:3px">Vig: ${item.p.vigDesde?item.p.vigDesde.toLocaleDateString('es-AR'):'—'} → ${item.p.vigHasta?item.p.vigHasta.toLocaleDateString('es-AR'):'—'} · Broker ${item.p.broker||'—'}</div>
-            ${item._just.motivos.length>0?`<div style="margin-top:5px;display:flex;gap:4px;flex-wrap:wrap">${item._just.motivos.map(m=>`<span class="pill neu" style="font-size:9.5px;font-family:var(--font-mono)">${m}</span>`).join('')}</div>`:''}
+        <!-- Header: asegurado + chips destacados a la derecha -->
+        <div style="display:flex;justify-content:space-between;align-items:flex-start;gap:18px;flex-wrap:wrap;margin-bottom:10px">
+          <div style="min-width:0;flex:1">
+            <div style="font-size:16px;font-weight:700;color:var(--accent-3);margin-bottom:6px">${item.p.asegurado||'—'}</div>
+            <div style="margin-bottom:4px">
+              ${chipBig('Rubro · '+item.p.rubro, item.p.rubro, 'var(--accent)', 'rgba(30,111,217,.10)')}
+              ${chipBig('Producto · '+item.p.producto, item.p.producto, 'var(--accent-3)', 'rgba(10,31,58,.06)')}
+              ${chipBig(item.p.moneda||'—', item.p.moneda, item.p.moneda==='US'?'var(--pos)':'var(--accent)', item.p.moneda==='US'?'rgba(45,155,106,.10)':'rgba(30,111,217,.10)')}
+              ${t26?`<span style="display:inline-flex;align-items:center;background:${t26Bg};color:${t26Color};font-size:11.5px;font-weight:800;padding:4px 10px;border-radius:14px;margin-right:6px;margin-bottom:4px">${t26Abrev}</span>`:''}
+            </div>
+            <div style="font-family:var(--font-mono);font-size:11px;color:var(--ink-3);margin-top:6px">Vig: ${item.p.vigDesde?item.p.vigDesde.toLocaleDateString('es-AR'):'—'} → ${item.p.vigHasta?item.p.vigHasta.toLocaleDateString('es-AR'):'—'} · Broker: ${item.p.broker||'—'}</div>
           </div>
-          <div style="font-family:var(--font-mono);text-align:right">
-            ${valPrincipalHTML}
-            ${valSecundarioHTML}
+          <!-- Valor principal en moneda original + equivalente clickeable -->
+          <div style="font-family:var(--font-mono);text-align:right;min-width:170px">
+            <div style="font-size:20px;font-weight:800;color:${colorPrincipal}" data-role="topVal">${esPos?'+':''}${fmtPrim(vPrim)} <span style="font-size:13px;font-weight:700">(${pctPrim})</span></div>
+            <div data-role="topEquiv" style="font-size:12px;font-weight:600;color:var(--ink-3);margin-top:4px;cursor:pointer;user-select:none" onclick="cambiarMonedaTop10('${cardId}')" data-cur-equiv-base="${esUS?'ars':'usd'}">
+              <span style="font-size:9.5px;text-transform:uppercase;letter-spacing:.07em;margin-right:5px" data-role="clickLbl">click</span>${esPos?'+':''}${fmtEquiv(vEquiv)} <span style="font-size:11px">(${pctEquiv})</span>
+            </div>
           </div>
         </div>
         <div class="top10-detalle" data-moneda="${esUS?'usd':'ars'}">${polizaRowDetalle(item.p, item._just, {...f, cur:(esUS?'usd':'ars')})}</div>
         ${(()=>{
-          /* Botón Motivos compacto para Top 10 */
           const conceptoLabel = {'Proyeccion de Ventas':'Proyección','Prima Minima':'Prima Mínima','Ajuste':'Ajuste','Bono':'Bono','Malus':'Malus','Tasa aplicable':'Tasa','Siniestralidad H':'Sin. H','Siniestralidad UV':'Sin. UV'};
           const motivosOrden = ['Proyeccion de Ventas','Prima Minima','Ajuste','Bono','Malus','Tasa aplicable','Siniestralidad H','Siniestralidad UV'];
           const motivosCon = motivosOrden.map(c=>{
@@ -9908,25 +9955,56 @@ function drawTop10(){
   };
   document.getElementById('topMejoras').innerHTML = mejoras.map((m,i)=>buildCard(m,i,true)).join('');
   document.getElementById('topCaidas').innerHTML = caidas.map((m,i)=>buildCard(m,i,false)).join('');
-  /* Guardar mejoras/caidas para reactividad al click */
   state._top10Mejoras = mejoras;
   state._top10Caidas = caidas;
 }
 
-/* Cambia la moneda del detalle del card clickeado */
-window.cambiarMonedaTop10 = function(cardId, nuevaMoneda){
+/* Toggle entre moneda original y equivalente: click swap los valores principal
+   y secundario; el "click" se pinta de azul cuando está en modo equivalente
+   para dar señal visual. */
+window.cambiarMonedaTop10 = function(cardId){
   const card = document.getElementById(cardId);
   if(!card) return;
-  const idx = card.dataset.polIdx; /* "mej_3" o "cai_5" */
+  const idx = card.dataset.polIdx;
   const [tipo, n] = idx.split('_');
   const arr = tipo==='mej' ? state._top10Mejoras : state._top10Caidas;
   const item = arr[parseInt(n,10)];
   if(!item) return;
-  const det = card.querySelector('.top10-detalle');
-  if(!det) return;
   const f = getSectionFilters('top10');
-  det.dataset.moneda = nuevaMoneda;
-  det.innerHTML = polizaRowDetalle(item.p, item._just, {...f, cur:nuevaMoneda});
+  const valEl = card.querySelector('[data-role="topVal"]');
+  const equivEl = card.querySelector('[data-role="topEquiv"]');
+  const clickLbl = equivEl ? equivEl.querySelector('[data-role="clickLbl"]') : null;
+  const det = card.querySelector('.top10-detalle');
+  if(!valEl || !equivEl || !det) return;
+  const esPos = tipo==='mej';
+  const esUS = item.p.moneda==='US';
+  const v = item._just.f26.totUSD - item._just.f25.totUSD;
+  const vAr = item._just.f26.totARS - item._just.f25.totARS;
+  const pctU = item._just.f25.totUSD>0 ? FMT_PCT(v/item._just.f25.totUSD) : (item._just.f26.totUSD>0?'nuevo':'—');
+  const pctA = item._just.f25.totARS>0 ? FMT_PCT(vAr/item._just.f25.totARS) : (item._just.f26.totARS>0?'nuevo':'—');
+  const cur = card.dataset.curMode || 'orig';
+  const nextCur = cur==='orig' ? 'equiv' : 'orig';
+  card.dataset.curMode = nextCur;
+  const showUS = (nextCur==='orig' && esUS) || (nextCur==='equiv' && !esUS);
+  const sgn = esPos?'+':'';
+  const colorPrincipal = esPos ? 'var(--pos)' : 'var(--neg)';
+  if(showUS){
+    valEl.innerHTML = `${sgn}${FMT_USD(v)} <span style="font-size:13px;font-weight:700">(${pctU})</span>`;
+    equivEl.innerHTML = `<span style="font-size:9.5px;text-transform:uppercase;letter-spacing:.07em;margin-right:5px" data-role="clickLbl">click</span>${sgn}${FMT_ARS(vAr)} <span style="font-size:11px">(${pctA})</span>`;
+    det.innerHTML = polizaRowDetalle(item.p, item._just, {...f, cur:'usd'});
+  } else {
+    valEl.innerHTML = `${sgn}${FMT_ARS(vAr)} <span style="font-size:13px;font-weight:700">(${pctA})</span>`;
+    equivEl.innerHTML = `<span style="font-size:9.5px;text-transform:uppercase;letter-spacing:.07em;margin-right:5px" data-role="clickLbl">click</span>${sgn}${FMT_USD(v)} <span style="font-size:11px">(${pctU})</span>`;
+    det.innerHTML = polizaRowDetalle(item.p, item._just, {...f, cur:'ars'});
+  }
+  valEl.style.color = colorPrincipal;
+  /* "click" en azul cuando estamos viendo el equivalente, gris cuando orig. */
+  const cl = equivEl.querySelector('[data-role="clickLbl"]');
+  if(cl){
+    cl.style.color = (nextCur==='equiv') ? 'var(--accent)' : 'var(--ink-3)';
+    cl.style.fontWeight = (nextCur==='equiv') ? '800' : '500';
+  }
+  equivEl.style.color = (nextCur==='equiv') ? 'var(--accent)' : 'var(--ink-3)';
 };
 
 /* Genera el bloque de cards de proyección, conceptos y siniestralidad para top10 */
