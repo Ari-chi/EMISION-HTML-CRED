@@ -3638,7 +3638,9 @@ window.toggleEjecEmi = function(id){
     /* Cells sin tinte de fondo. Solo el símbolo $/US se colorea sutil para
        diferenciar la moneda; al lado, el conteo de pólizas en esa moneda. */
     const monSymHTML = (sym, n)=>{
-      const c = sym==='US' ? 'var(--pos)' : 'var(--accent)';
+      /* Colores de moneda en los títulos: $ en ámbar, US en violeta para
+         diferenciar fácil entre tarjetas (pedido del usuario). */
+      const c = sym==='US' ? '#8b5cf6' : '#e89b1e';
       return `<span style="color:${c};font-weight:900;margin-left:3px">${sym}</span> <span style="color:var(--ink-3);font-weight:600">(${n} pól.)</span>`;
     };
     const cellMonto = (titulo, sym, info, isUS)=>{
@@ -4691,7 +4693,9 @@ window.toggleEjecCausa = function(id){
     /* Cells planos (sin tinte de fondo). El símbolo $/US se colorea sutil
        como única señal visual de moneda, con el conteo de pólizas al lado. */
     const monSymHTML = (sym, n)=>{
-      const c = sym==='US' ? 'var(--pos)' : 'var(--accent)';
+      /* Colores de moneda en los títulos: $ en ámbar, US en violeta para
+         diferenciar fácil entre tarjetas (pedido del usuario). */
+      const c = sym==='US' ? '#8b5cf6' : '#e89b1e';
       return `<span style="color:${c};font-weight:900;margin-left:3px">${sym}</span> <span style="color:var(--ink-3);font-weight:600">(${n} pól.)</span>`;
     };
     const cellMonto = (titulo, sym, info, isUS)=>{
