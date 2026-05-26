@@ -3245,13 +3245,32 @@ function renderEjecDesvioPies(){
     const canvas = document.getElementById(id);
     if(!canvas) continue;
     const {partes, useUSD} = pies[id];
+    /* Para el gráfico unificamos las porciones del MISMO color (los 3
+       pendientes celeste se ven como UNA sola porción), pero la leyenda
+       a la derecha conserva el desglose individual. */
+    const merged = [];
+    const idxByCol = new Map();
+    for(const p of partes){
+      if(idxByCol.has(p.col)){
+        const i = idxByCol.get(p.col);
+        merged[i].val += p.val;
+        merged[i].lbl = (merged[i].lbl==='Pendiente de emisión' || /pendiente/i.test(merged[i].lbl)) ? 'Pendiente de emisión' : merged[i].lbl;
+      } else {
+        idxByCol.set(p.col, merged.length);
+        merged.push({lbl:p.lbl, col:p.col, val:p.val});
+      }
+    }
+    /* Renombrar la porción celeste agrupada para que el tooltip diga
+       "Pendiente de emisión" en vez de la sub-categoría que tocara primero. */
+    const pendIdx = merged.findIndex(m=>m.col==='#7ec8e3' || /pendiente/i.test(m.lbl));
+    if(pendIdx>=0) merged[pendIdx].lbl = 'Pendiente de emisión';
     drawChart(id, {
       type:'doughnut',
       data:{
-        labels: partes.map(p=>p.lbl),
+        labels: merged.map(p=>p.lbl),
         datasets:[{
-          data: partes.map(p=>p.val),
-          backgroundColor: partes.map(p=>p.col),
+          data: merged.map(p=>p.val),
+          backgroundColor: merged.map(p=>p.col),
           borderColor:'#fff', borderWidth:2,
         }]
       },
@@ -3361,9 +3380,124 @@ function ejecEmitido(S, useUSD, dual){
       <div style="width:100%;max-width:340px;justify-self:center"><canvas id="${pieId}" style="max-height:320px"></canvas></div>
       <div>${leyenda}</div>
     </div>
-    <div id="${drillId}" style="margin-top:8px"></div>` : '<div style="font-size:12px;color:var(--ink-3);font-style:italic">— sin emisión registrada —</div>'}
+    <!-- Botón "Crecimiento": polizas que NO crecieron el umbral (30%$/10%US)
+         según su moneda original. Aplica sobre TODAS las pólizas con emisión
+         2026, no sobre un bucket. -->
+    <div style="margin-top:14px;padding-top:14px;border-top:1px dashed var(--line-2)">
+      <div onclick="toggleEjecCrecimiento('${sufijo}')" style="cursor:pointer;display:flex;align-items:center;gap:10px;padding:10px 14px;background:rgba(232,155,30,.08);border-left:4px solid var(--warn);border-radius:6px;font-size:14.5px;font-weight:700;color:var(--accent-3)">
+        <span id="ejecCrecCar_${sufijo}" style="font-size:12px;color:var(--warn)">▸</span>
+        <span>Crecimiento — pólizas que NO alcanzaron el umbral (+30% en pesos · +10% en dólares)</span>
+      </div>
+      <div id="ejecCrecArea_${sufijo}" style="margin-top:10px"></div>
+    </div>
+    <div id="${drillId}" style="margin-top:14px"></div>` : '<div style="font-size:12px;color:var(--ink-3);font-style:italic">— sin emisión registrada —</div>'}
   </div>`;
 }
+
+/* Helper: armar la lista de polizas con emisión 2026 que NO alcanzaron el
+   umbral de crecimiento (30% en moneda original $, 10% en US) comparando
+   emisión total (prima + ajuste + bono + malus, neto con signo) 2025 vs 2026.
+   Para cada póliza devuelve total25, total26, faltante (target - 26), %. */
+function calcEjecCrecimiento(polFiltradas, mesCorte, useUSD){
+  const out = {ars:[], usd:[]};
+  for(const p of polFiltradas){
+    if(polizaTerminada(p)) continue;
+    const f25 = calcEmisionFiltrada(p,2025,mesCorte);
+    const f26 = calcEmisionFiltrada(p,2026,mesCorte);
+    const uu = p.moneda==='US';
+    /* Total = prima + ajuste + bono + malus (bono ya viene negativo en el
+       Excel, así que suma con su signo y resta del total). */
+    const t25 = uu ? f25.totUSD : f25.totARS;
+    const t26 = uu ? f26.totUSD : f26.totARS;
+    if(t25<=0 || t26<=0) continue;
+    const umbral = uu ? 0.10 : 0.30;
+    const crec = (t26 - t25) / Math.abs(t25);
+    if(crec >= umbral) continue;
+    const objetivo = t25 * (1 + umbral);
+    const faltante = objetivo - t26;
+    const rec = {
+      clave:p.clave, poliza:p.poliza, asegurado:p.asegurado, rubro:p.rubro, moneda:p.moneda,
+      tipo2026:p.tipo2026, t25, t26, crec, umbral, objetivo, faltante,
+      ars25:f25.totARS, ars26:f26.totARS, usd25:f25.totUSD, usd26:f26.totUSD,
+    };
+    if(uu) out.usd.push(rec);
+    else   out.ars.push(rec);
+  }
+  out.ars.sort((a,b)=>b.faltante-a.faltante);
+  out.usd.sort((a,b)=>b.faltante-a.faltante);
+  return out;
+}
+
+/* Toggle del bloque Crecimiento. Renderiza la lista de pólizas que no
+   alcanzaron el umbral, separadas por moneda original. */
+window.toggleEjecCrecimiento = function(sufijo){
+  const area = document.getElementById('ejecCrecArea_'+sufijo);
+  const car = document.getElementById('ejecCrecCar_'+sufijo);
+  if(!area) return;
+  if(area.dataset.open==='1'){ area.innerHTML=''; area.dataset.open=''; if(car) car.textContent='▸'; return; }
+  area.dataset.open='1'; if(car) car.textContent='▾';
+  const d = state._ejecData; if(!d){ area.innerHTML='—'; return; }
+  const useUSD = (sufijo==='u');
+  const data = calcEjecCrecimiento(d.polFiltradas, d.mesCorte, useUSD);
+  const fmtMon = (v, isUS)=>fmtCompact(v, isUS);
+  const fila = (r)=>{
+    const isUS = r.moneda==='US';
+    const pct = FMT_PCT(r.crec);
+    const umbPct = (r.umbral*100).toFixed(0)+'%';
+    return `<div style="padding:9px 4px;border-bottom:1px solid var(--line);display:grid;grid-template-columns:1fr auto;gap:14px;align-items:flex-start">
+      <div>
+        <div style="display:flex;align-items:baseline;gap:8px;flex-wrap:wrap">
+          <strong style="font-size:14px">${fmtPoliza(r.poliza)}</strong>
+          <span style="color:var(--ink-2);font-size:13px">${(r.asegurado||'').substring(0,32)}</span>
+          <span style="font-size:11px;color:var(--accent);font-weight:700;background:rgba(30,111,217,.10);padding:2px 7px;border-radius:4px">${r.rubro||'—'}</span>
+          <span style="font-size:11px;color:var(--ink-3);font-weight:600">${r.tipo2026||''}</span>
+        </div>
+        <div style="font-family:var(--font-mono);font-size:12.5px;color:var(--ink-2);margin-top:4px;line-height:1.45">
+          2025 ${fmtMon(r.t25, isUS)} → 2026 <strong>${fmtMon(r.t26, isUS)}</strong>
+          <span style="color:var(--neg);font-weight:700;margin-left:6px">(creció ${pct})</span>
+          · objetivo +${umbPct}: <strong style="color:var(--accent-3)">${fmtMon(r.objetivo, isUS)}</strong>
+        </div>
+      </div>
+      <div style="text-align:right;font-family:var(--font-mono);white-space:nowrap;min-width:130px">
+        <div style="font-size:11px;color:var(--ink-3);text-transform:uppercase;letter-spacing:.05em;font-weight:700">Falta</div>
+        <div style="font-size:16px;font-weight:800;color:var(--warn)">+${fmtMon(r.faltante, isUS)}</div>
+      </div>
+    </div>`;
+  };
+  const col = (arr, monLbl, isUS)=>{
+    const sym = isUS ? 'US' : '$';
+    const symColor = isUS ? '#8b5cf6' : '#e89b1e';
+    const tot = arr.reduce((a,r)=>a+r.faltante,0);
+    if(arr.length===0){
+      return `<div>
+        <div style="font-size:13px;font-weight:800;color:var(--accent-3);margin-bottom:8px;padding-bottom:6px;border-bottom:1px solid var(--line)">
+          <span style="color:${symColor}">${sym}</span> ${monLbl} <span style="color:var(--ink-3);font-weight:500">· 0 pól.</span>
+        </div>
+        <div style="font-size:12.5px;color:var(--ink-3);font-style:italic;padding:6px 0">— todas las pólizas alcanzaron el umbral —</div>
+      </div>`;
+    }
+    return `<div>
+      <div style="display:flex;align-items:baseline;justify-content:space-between;gap:10px;margin-bottom:8px;padding-bottom:6px;border-bottom:1px solid var(--line)">
+        <div style="font-size:13px;font-weight:800;color:var(--accent-3)">
+          <span style="color:${symColor}">${sym}</span> ${monLbl} <span style="color:var(--ink-3);font-weight:500">· ${arr.length} pól.</span>
+        </div>
+        <div style="font-family:var(--font-mono);font-size:14px;font-weight:800;color:var(--warn)">Falta total: +${fmtMon(tot, isUS)}</div>
+      </div>
+      ${arr.map(fila).join('')}
+    </div>`;
+  };
+  area.innerHTML = `<div style="background:var(--panel);border:1px solid var(--line);border-radius:8px;padding:14px 16px">
+    <div style="font-size:12px;color:var(--ink-3);font-style:italic;margin-bottom:12px;line-height:1.4">
+      Pólizas que tienen emisión 2026 pero NO alcanzaron el crecimiento esperado vs 2025
+      según su moneda original (umbral: 30 % para pesos, 10 % para dólares).
+      Total = Prima Mínima + Ajuste + Bono + Malus.
+    </div>
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap:18px">
+      ${col(data.ars, 'Pól. en pesos', false)}
+      ${col(data.usd, 'Pól. en dólares', true)}
+    </div>
+  </div>`;
+};
 
 /* Renderiza los pie charts de "Lo que se emitió" guardados en state._ejecEmiPies.
    Se llama después de inyectar el HTML del Resumen Ejecutivo. */
