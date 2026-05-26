@@ -2777,8 +2777,8 @@ function drawEjecutivo(){
     <div class="card">
       <div class="ejec-block-title">Justificación</div>
 
-      <!-- 3.1 Lo que se emitió -->
-      <div class="ejec-sub-title pos">▸ Lo que se emitió</div>
+      <!-- 3.1 Emisión 2026 -->
+      <div class="ejec-sub-title pos">▸ Emisión 2026</div>
       ${setU?ejecEmitido(setU,true,dual):''}
       ${setA?ejecEmitido(setA,false,dual):''}
 
@@ -3176,34 +3176,43 @@ function ejecJustificacion(S, useUSD, dual, useUSDprimary){
   }
   state._ejecDesvioPies = state._ejecDesvioPies || {};
   state._ejecDesvioPies[pieIdDes] = {partes:piePartes, useUSD};
-  /* Leyenda compacta a la derecha del pie: puntito + nombre + % */
-  const leyendaDes = piePartes.map(p=>`<div style="display:flex;align-items:baseline;gap:8px;padding:5px 0;font-size:13px;line-height:1.3">
-    <span style="width:11px;height:11px;border-radius:50%;background:${p.col};flex-shrink:0;border:1px solid rgba(0,0,0,.08);display:inline-block;align-self:center"></span>
-    <span style="color:var(--accent-3);font-weight:700;flex:1">${p.lbl}</span>
-    <span style="font-family:var(--font-mono);font-weight:800;color:var(--accent-3);min-width:34px;text-align:right">${Math.round(p.pctOf)}%</span>
-  </div>`).join('');
+  /* Leyenda a la derecha del pie: triangulito + puntito + nombre · n pól · % · total
+     (clickeable abre el desglose en el área común abajo). Las causas con id real
+     (pend_*, perdidas, menor) son clickeables; "Sin justificar" no. */
+  const leyendaDes = piePartes.map(p=>{
+    const causa = causas.find(c=>c.lbl===p.lbl);
+    const clickable = !!causa;
+    const id = causa ? causa.id : null;
+    const totSigned = causa ? (causa.vSigned!=null?causa.vSigned:causa.val) : p.val;
+    const totColor = clickable
+      ? (id==='pend_bono' ? 'var(--pos)'
+        : ((causa.grupo==='pendiente'||id==='pendiente'||id==='perdidas') ? 'var(--neg)'
+          : (totSigned>0?'var(--pos)':'var(--neg)')))
+      : 'var(--ink-3)';
+    const sgnLeg = id==='pend_bono' ? '+'
+      : (clickable && (causa.grupo==='pendiente'||id==='pendiente'||id==='perdidas') ? '−'
+        : (totSigned>=0?'+':'−'));
+    const nPolStr = causa && causa.n>0 ? ` <span style="color:var(--ink-3);font-weight:500;font-size:12.5px">· ${causa.n} pól.</span>` : '';
+    const click = clickable ? `onclick="toggleEjecCausa('${id}')"` : '';
+    const carId = clickable ? `id="ejecCausaCar_${id}"` : '';
+    return `<div ${click} style="display:grid;grid-template-columns:14px 14px 1fr auto auto;column-gap:10px;align-items:center;padding:8px 8px;border-radius:5px;${clickable?'cursor:pointer;':''}font-size:14.5px;line-height:1.3;border:1px solid transparent" ${clickable?`onmouseover="this.style.background='var(--bg-2)';this.style.borderColor='var(--line)'" onmouseout="this.style.background='';this.style.borderColor='transparent'"`:''}>
+      <span ${carId} style="font-size:11px;color:var(--accent)">${clickable?'▸':''}</span>
+      <span style="width:13px;height:13px;border-radius:50%;background:${p.col};border:1px solid rgba(0,0,0,.08)"></span>
+      <span style="color:var(--accent-3);font-weight:700">${p.lbl}${nPolStr}</span>
+      <span style="font-family:var(--font-mono);font-weight:800;color:var(--accent-3);min-width:38px;text-align:right">${Math.round(p.pctOf)}%</span>
+      <span style="font-family:var(--font-mono);font-weight:800;color:${totColor};min-width:82px;text-align:right">${sgnLeg}${FMTc(Math.abs(totSigned))}</span>
+    </div>`;
+  }).join('');
 
   return `<div style="margin-top:${dual?16:8}px">
     ${dual?`<div style="font-size:11px;color:var(--ink-3);text-transform:uppercase;letter-spacing:.05em;font-weight:700;margin-bottom:10px">${mLbl}</div>`:''}
     <div style="font-size:15px;color:var(--ink-2);margin-bottom:18px;font-weight:600">El desvío de <span style="font-size:22px;color:var(--neg);font-weight:700;font-family:var(--font-mono)">${FMTc(dvAbs)}</span> se compone así:</div>
 
     ${causas.length>0 ? `
-    <div style="display:grid;grid-template-columns:minmax(220px,300px) 1fr;gap:24px;align-items:center;margin-bottom:24px">
-      <div style="width:100%;max-width:280px;justify-self:center"><canvas id="${pieIdDes}" style="max-height:260px"></canvas></div>
+    <div style="display:grid;grid-template-columns:minmax(280px,360px) 1fr;gap:28px;align-items:center;margin-bottom:14px">
+      <div style="width:100%;max-width:340px;justify-self:center"><canvas id="${pieIdDes}" style="max-height:320px"></canvas></div>
       <div>${leyendaDes}</div>
     </div>` : ''}
-
-    <!-- TARJETAS: primero todo lo pendiente (3 columnas) y luego, BIEN separado, las otras causas -->
-    ${causasPend.length?`
-    <div style="font-size:13px;color:var(--accent-3);text-transform:uppercase;letter-spacing:.06em;font-weight:800;margin-bottom:10px">Pendiente de emisión</div>
-    <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(220px,1fr));gap:12px;margin-bottom:${causasOtras.length?32:0}px">
-      ${causasPend.map(tarjeta).join('')}
-    </div>`:''}
-    ${causasOtras.length?`
-    <div style="font-size:13px;color:var(--accent-3);text-transform:uppercase;letter-spacing:.06em;font-weight:800;margin:10px 0 10px 0;padding-top:14px;border-top:1px dashed var(--line-2)">Otras causas del desvío</div>
-    <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(280px,1fr));gap:12px">
-      ${causasOtras.map(tarjeta).join('')}
-    </div>`:''}
   </div>`;
 }
 
@@ -3231,7 +3240,8 @@ function renderEjecDesvioPies(){
           legend:{display:false},
           tooltip:{callbacks:{label:(ctx)=> `${ctx.label}: ${fmtCompact(ctx.parsed, useUSD)}`}}
         }
-      }
+      },
+      plugins:[pctOnArcPlugin]
     });
   }
 }
@@ -3288,44 +3298,29 @@ function ejecEmitido(S, useUSD, dual){
     </span>`;
   };
 
-  /* Tarjetas compactas (menos padding/altura) por debajo de la barra. */
-  const cards = items.map(it=>{
-    const id = `ejecEmi_${it.key}_${sufijo}`;
-    const totColor = it.esBono ? 'var(--neg)' : 'var(--pos)';
-    const pct = it.absVal/totalAbs*100;
-    const pctTxt = Math.round(pct)+'%';
-    return `<div style="background:rgba(45,155,106,.04);border-radius:6px;border-left:3px solid ${it.col};margin-bottom:3px">
-      <div style="padding:6px 14px;cursor:pointer;display:grid;grid-template-columns:1fr auto auto auto;column-gap:14px;align-items:center;max-width:760px;margin:0 auto" onclick="toggleEjecEmi('${id}')">
-        <div style="text-align:left">
-          <span style="font-size:13.5px;color:var(--accent-3);font-weight:700">${it.lbl}</span>
-          <span style="font-size:11px;color:var(--ink-3);margin-left:7px">${it.n} pól.</span>
-        </div>
-        <span style="font-size:12.5px;color:var(--ink-3);font-family:var(--font-mono);font-weight:700;min-width:36px;text-align:right">${pctTxt}</span>
-        <span style="font-size:17px;font-weight:700;color:${totColor};font-family:var(--font-mono);min-width:76px;text-align:right">${it.esBono?'−':''}${FMTc(Math.abs(it.totSigned))}</span>
-        <span id="${id}_car" style="font-size:11px;color:var(--accent)">▸</span>
-      </div>
-      <div id="${id}" style="display:none;padding:0 14px 12px"></div>
-    </div>`;
-  }).join('');
-
-  /* Guardar datos para los desplegables. */
+  /* Guardar datos para los desplegables. El drill se abre en un área COMÚN
+     debajo del chart+leyenda, no en cada item, para no apretar la leyenda. */
   state._ejecEmitido = state._ejecEmitido || {};
   cats.forEach(c=>{
     const id = `ejecEmi_${c.key}_${sufijo}`;
     state._ejecEmitido[id] = (S.emitidoCats && S.emitidoCats[c.key]) ? {data:S.emitidoCats[c.key], useUSD, dual} : {data:{total:0,polizas:[]}, useUSD, dual};
   });
 
-  /* Pie chart id único por moneda para evitar colisiones cuando se renderiza
-     en modo dual. Se dibuja con Chart.js después de inyectar el HTML. */
+  /* Pie chart id único por moneda. */
   const pieId = `ejecEmiPie_${sufijo}`;
-  /* Leyenda a la derecha del pie: cada item con su puntito de color, el
-     nombre y el % que aporta. */
+  const drillId = `ejecEmiDrillArea_${sufijo}`;
+  /* Leyenda a la derecha del pie: triangulito + puntito + nombre · n pól · % · total.
+     Es clickeable y abre el desglose abajo del gráfico (en el área común). */
   const leyenda = items.map(it=>{
+    const id = `ejecEmi_${it.key}_${sufijo}`;
     const pct = Math.round(it.absVal/totalAbs*100);
-    return `<div style="display:flex;align-items:baseline;gap:8px;padding:5px 0;font-size:13px;line-height:1.3">
-      <span style="width:11px;height:11px;border-radius:50%;background:${it.col};flex-shrink:0;border:1px solid rgba(0,0,0,.08);display:inline-block;align-self:center"></span>
-      <span style="color:var(--accent-3);font-weight:700;flex:1">${it.lbl}</span>
-      <span style="font-family:var(--font-mono);font-weight:800;color:var(--accent-3);min-width:34px;text-align:right">${pct}%</span>
+    const totColor = it.esBono ? 'var(--neg)' : 'var(--accent-3)';
+    return `<div onclick="toggleEjecEmiArea('${id}','${drillId}')" style="display:grid;grid-template-columns:14px 14px 1fr auto auto;column-gap:10px;align-items:center;padding:8px 8px;border-radius:5px;cursor:pointer;font-size:14.5px;line-height:1.3;border:1px solid transparent" onmouseover="this.style.background='var(--bg-2)';this.style.borderColor='var(--line)'" onmouseout="this.style.background='';this.style.borderColor='transparent'">
+      <span id="${id}_car" style="font-size:11px;color:var(--accent)">▸</span>
+      <span style="width:13px;height:13px;border-radius:50%;background:${it.col};border:1px solid rgba(0,0,0,.08)"></span>
+      <span style="color:var(--accent-3);font-weight:700">${it.lbl} <span style="color:var(--ink-3);font-weight:500;font-size:12.5px">· ${it.n} pól.</span></span>
+      <span style="font-family:var(--font-mono);font-weight:800;color:var(--accent-3);min-width:38px;text-align:right">${pct}%</span>
+      <span style="font-family:var(--font-mono);font-weight:800;color:${totColor};min-width:82px;text-align:right">${it.esBono?'−':''}${FMTc(Math.abs(it.totSigned))}</span>
     </div>`;
   }).join('');
 
@@ -3340,11 +3335,11 @@ function ejecEmitido(S, useUSD, dual){
       <div style="font-size:30px;font-weight:700;color:var(--pos);font-family:var(--font-mono);line-height:1.1">${FMTc(sumItems)}</div>
     </div>
     ${items.length>0 ? `
-    <div style="display:grid;grid-template-columns:minmax(220px,300px) 1fr;gap:24px;align-items:center;margin-bottom:14px">
-      <div style="width:100%;max-width:280px;justify-self:center"><canvas id="${pieId}" style="max-height:240px"></canvas></div>
+    <div style="display:grid;grid-template-columns:minmax(280px,360px) 1fr;gap:28px;align-items:center;margin-bottom:14px">
+      <div style="width:100%;max-width:340px;justify-self:center"><canvas id="${pieId}" style="max-height:320px"></canvas></div>
       <div>${leyenda}</div>
-    </div>` : ''}
-    ${cards||'<div style="font-size:12px;color:var(--ink-3);font-style:italic">— sin emisión registrada —</div>'}
+    </div>
+    <div id="${drillId}" style="margin-top:8px"></div>` : '<div style="font-size:12px;color:var(--ink-3);font-style:italic">— sin emisión registrada —</div>'}
   </div>`;
 }
 
@@ -3373,10 +3368,75 @@ function renderEjecEmiPies(){
           legend:{display:false},
           tooltip:{callbacks:{label:(ctx)=> `${ctx.label}: ${fmtCompact(ctx.parsed, useUSD)}`}}
         }
-      }
+      },
+      plugins:[pctOnArcPlugin]
     });
   }
 }
+
+/* Plugin para dibujar el % adentro de cada arco del doughnut. Si la porción es
+   chica (<6%) lo dibuja AFUERA con el color del arco. Sin decimales. */
+const pctOnArcPlugin = {
+  id: 'pctOnArc',
+  afterDatasetsDraw(chart){
+    const ds = chart.data.datasets[0];
+    const meta = chart.getDatasetMeta(0);
+    const total = ds.data.reduce((a,b)=>a+(b||0),0);
+    if(!total) return;
+    const ctx = chart.ctx;
+    ctx.save();
+    meta.data.forEach((arc,i)=>{
+      const val = ds.data[i] || 0;
+      const pct = Math.round(val/total*100);
+      if(pct < 1) return;
+      const p = arc.getProps(['startAngle','endAngle','innerRadius','outerRadius','x','y'], true);
+      const angle = (p.startAngle + p.endAngle)/2;
+      const rMid = (p.innerRadius + p.outerRadius)/2;
+      ctx.textAlign='center'; ctx.textBaseline='middle';
+      if(pct >= 6){
+        const x = p.x + Math.cos(angle)*rMid;
+        const y = p.y + Math.sin(angle)*rMid;
+        ctx.font = 'bold 14px Calibri,Segoe UI,sans-serif';
+        ctx.fillStyle = '#fff';
+        ctx.fillText(pct+'%', x, y);
+      } else {
+        const rOut = p.outerRadius + 14;
+        const x = p.x + Math.cos(angle)*rOut;
+        const y = p.y + Math.sin(angle)*rOut;
+        ctx.font = 'bold 11px Calibri,Segoe UI,sans-serif';
+        ctx.fillStyle = ds.backgroundColor[i] || '#333';
+        ctx.fillText(pct+'%', x, y);
+      }
+    });
+    ctx.restore();
+  }
+};
+
+/* Abre/cierra el desglose en un área COMÚN debajo del chart+leyenda. itemId es
+   ejecEmi_<key>_<sufijo>; drillAreaId es el id del contenedor que recibe el HTML. */
+window.toggleEjecEmiArea = function(itemId, drillAreaId){
+  const area = document.getElementById(drillAreaId);
+  if(!area) return;
+  const wasOpen = area.dataset.open === itemId;
+  /* Cerrar todos los caret del set */
+  const sufijo = drillAreaId.replace('ejecEmiDrillArea_','');
+  document.querySelectorAll(`[id$="_car"]`).forEach(c=>{
+    if(c.id.startsWith('ejecEmi_') && c.id.endsWith('_'+sufijo+'_car')){ c.textContent='▸'; }
+  });
+  if(wasOpen){ area.innerHTML=''; area.dataset.open=''; return; }
+  /* Marcar el actual y renderizar */
+  const car = document.getElementById(itemId+'_car');
+  if(car) car.textContent='▾';
+  area.dataset.open = itemId;
+  /* Reutilizamos la lógica de toggleEjecEmi pero pasando un div objetivo. */
+  const tmp = document.createElement('div');
+  tmp.id = itemId;
+  tmp.style.display = 'none';
+  area.innerHTML = '';
+  area.appendChild(tmp);
+  if(typeof toggleEjecEmi === 'function') toggleEjecEmi(itemId);
+  /* toggleEjecEmi pondrá display:block en tmp; nada más que hacer. */
+};
 
 window.toggleEjecEmi = function(id){
   const div = document.getElementById(id);
@@ -4206,7 +4266,7 @@ window.toggleEjecCausa = function(id){
       const monSym = monBtn==='US'?'US':'$';
       const esMenor = (id==='prima' || id==='ajuste' || id==='bono' || id==='malus');
       if(!esMenor){
-        equivLine = `<div style="font-size:11px;color:var(--ink-3);font-family:var(--font-mono);text-align:right;margin-top:1px">${monSym} ${valOrig}</div>`;
+        equivLine = `<div style="font-size:11px;color:var(--ink-3);font-family:var(--font-mono);text-align:right;margin-top:1px">${monSym} ${vEquiv}</div>`;
       }
     }
     /* Identificación de la fila: si agrupa varias pólizas (mismo asegurado), mostrar el
@@ -4468,6 +4528,135 @@ window.toggleEjecCausa = function(id){
   }
 
   const titulos = {pendiente:'Pendiente de emisión', pend_prima:'Prima mínima pendiente', pend_ajuste:'Ajuste pendiente', pend_bono:'Bono pendiente', pend_malus:'Malus pendiente', perdidas:'Pólizas que se fueron', prima:'Prima mínima', ajuste:'Ajuste', bono:'Bono', malus:'Malus', menor:'Menores — Prima / Ajuste / Bono / Malus', sinjust:'Pólizas que no crecieron'};
+
+  /* Resumen pre-card de las pólizas involucradas en ESTA causa, antes del
+     desglose por póliza. Mismo formato que en "Emisión 2026": Proyección $/US,
+     Tasa promedio, Sin UV, Sin H, Rubros, Moneda $, Moneda US. Para construirlo
+     usamos las pólizas que aparecen en cualquiera de las dos columnas (ARS y
+     USD) del drill. Para "menor" usamos los 4 sub-conceptos. */
+  const resumenCard = (()=>{
+    let rowsTodos;
+    if(id==='menor'){
+      const acc = [];
+      ['prima','ajuste','bono','malus'].forEach(sub=>{
+        if(sub==='prima'){ acc.push(...collect(false,'prima'), ...collect(true,'prima')); }
+      });
+      /* Para ajuste/bono/malus, colAbm construye su propia colección — replicamos
+         aquí pólizas por concepto. */
+      const conceptoMap = {ajuste:'Ajuste', bono:'Bono', malus:'Malus'};
+      for(const sub of ['ajuste','bono','malus']){
+        for(const p of polFiltradas){
+          const cR = p.conceptos[conceptoMap[sub]];
+          if(!cR) continue;
+          const dv = desvioConceptoABM(p, conceptoMap[sub], mesCorte);
+          if(!dv.entra) continue;
+          acc.push({clave:p.clave, poliza:p.poliza, asegurado:p.asegurado, rubro:p.rubro, moneda:p.moneda,
+                    montoARS:dv.mARS, montoUSD:dv.mUSD});
+        }
+      }
+      rowsTodos = acc;
+    } else {
+      rowsTodos = [...collect(false), ...collect(true)];
+    }
+    /* dedup por clave + poliza */
+    const seen = new Set();
+    const uniq = [];
+    for(const r of rowsTodos){
+      const k = r.clave || r.poliza;
+      if(seen.has(k)) continue;
+      seen.add(k);
+      uniq.push(r);
+    }
+    if(uniq.length===0) return '';
+    /* Lookup póliza completa */
+    const lookup = new Map();
+    state.polizas.forEach(p=>{ lookup.set(p.clave, p); lookup.set(p.poliza, p); });
+    const enriched = uniq.map(r=>{
+      const full = lookup.get(r.clave) || lookup.get(r.poliza) || {};
+      return {...r,
+        moneda: r.moneda || full.moneda,
+        proyARS25: full.proyARS2025||0, proyARS26: full.proyARS2026||0,
+        proyUSD25: full.proyUSD2025||0, proyUSD26: full.proyUSD2026||0,
+        tasa25: full.tasa2025, tasa26: full.tasa2026,
+        sinUV25: full.sinUV2025, sinUV26: full.sinUV2026,
+        sinH25: full.sinH2025,  sinH26: full.sinH2026,
+      };
+    });
+    const sumByMon = (arr, picker)=>{
+      let s25=0, s26=0, n=0;
+      for(const r of arr){
+        const v25 = picker(r,'25'), v26 = picker(r,'26');
+        if(v25==null && v26==null) continue;
+        s25+=v25||0; s26+=v26||0; n++;
+      }
+      return {s25, s26, d:s26-s25, n, pct: s25?(s26-s25)/Math.abs(s25):null};
+    };
+    const avgByMon = (arr, p25, p26)=>{
+      let s25=0, s26=0, n=0;
+      for(const r of arr){ const v25=p25(r), v26=p26(r); if(v25==null||v26==null) continue; s25+=v25; s26+=v26; n++; }
+      return n>0?{v25:s25/n, v26:s26/n, d:(s26-s25)/n, n}:null;
+    };
+    const proyARS = sumByMon(enriched.filter(r=>r.moneda==='$'), (r,k)=>r['proyARS'+k]);
+    const proyUSD = sumByMon(enriched.filter(r=>r.moneda==='US'), (r,k)=>r['proyUSD'+k]);
+    const tasaAvg = avgByMon(enriched, r=>r.tasa25, r=>r.tasa26);
+    const sinUVAvg = avgByMon(enriched, r=>r.sinUV25, r=>r.sinUV26);
+    const sinHAvg  = avgByMon(enriched, r=>r.sinH25, r=>r.sinH26);
+    const rubros = {};
+    for(const r of enriched){ const k=r.rubro||'(sin rubro)'; rubros[k]=(rubros[k]||0)+1; }
+    const rubArr = Object.entries(rubros).sort((a,b)=>b[1]-a[1]);
+    /* Variación de "monto" en cada moneda — para causas con signo (prima/ajuste/...)
+       es el desvío con signo; para pendientes/perdidas es magnitud positiva. */
+    const sumAbs = (arr, key)=> arr.reduce((a,r)=>a+(r[key]||0),0);
+    const monARS = {val:sumAbs(enriched.filter(r=>r.moneda==='$'), 'montoARS'), n:enriched.filter(r=>r.moneda==='$').length};
+    const monUSD = {val:sumAbs(enriched.filter(r=>r.moneda==='US'),'montoUSD'), n:enriched.filter(r=>r.moneda==='US').length};
+    const fmtT = (v)=>v==null?'—':FMT_PCT_TASA(v);
+    const fmtS = (v)=>v==null?'—':FMT_PCT_SIN(v);
+    const cellMonto = (titulo, info, isUS)=>{
+      if(!info || info.n===0) return '';
+      const c = info.d>=0?'var(--pos)':'var(--neg)';
+      return `<div style="background:#fff;border:1px solid var(--line);border-radius:6px;padding:8px 11px">
+        <div style="font-size:11px;color:var(--ink-3);text-transform:uppercase;letter-spacing:.04em;font-weight:700">${titulo}</div>
+        <div style="font-family:var(--font-mono);font-size:13px;color:var(--ink-2);margin-top:3px">${fmtCompact(info.s25,isUS)} → <strong>${fmtCompact(info.s26,isUS)}</strong></div>
+        <div style="font-family:var(--font-mono);font-size:14px;font-weight:800;color:${c};margin-top:2px">${info.d>=0?'+':''}${fmtCompact(info.d,isUS)}${info.pct!=null?' ('+(info.d>=0?'+':'')+FMT_PCT(info.pct)+')':''}</div>
+      </div>`;
+    };
+    const cellPct = (titulo, info, fmt, neg)=>{
+      if(!info || info.n===0) return '';
+      const c = info.d===0?'var(--accent)':(info.d>0?(neg?'var(--neg)':'var(--pos)'):(neg?'var(--pos)':'var(--neg)'));
+      return `<div style="background:#fff;border:1px solid var(--line);border-radius:6px;padding:8px 11px">
+        <div style="font-size:11px;color:var(--ink-3);text-transform:uppercase;letter-spacing:.04em;font-weight:700">${titulo}</div>
+        <div style="font-family:var(--font-mono);font-size:13px;color:var(--ink-2);margin-top:3px">${fmt(info.v25)} → <strong>${fmt(info.v26)}</strong></div>
+        <div style="font-family:var(--font-mono);font-size:14px;font-weight:800;color:${c};margin-top:2px">${info.d>=0?'+':''}${fmt(info.d)}</div>
+      </div>`;
+    };
+    const cellMonAbs = (titulo, info, isUS)=>{
+      if(!info || info.n===0) return '';
+      return `<div style="background:#fff;border:1px solid var(--line);border-radius:6px;padding:8px 11px">
+        <div style="font-size:11px;color:var(--ink-3);text-transform:uppercase;letter-spacing:.04em;font-weight:700">${titulo}</div>
+        <div style="font-family:var(--font-mono);font-size:15px;font-weight:800;color:${info.val<0?'var(--neg)':(info.val>0?'var(--pos)':'var(--ink-2)')};margin-top:3px">${info.val>=0?'':'−'}${fmtCompact(Math.abs(info.val),isUS)} <span style="font-size:11px;color:var(--ink-3);font-weight:600">· ${info.n} pól.</span></div>
+      </div>`;
+    };
+    const rubrosCell = rubArr.length>0 ? `<div style="background:#fff;border:1px solid var(--line);border-radius:6px;padding:8px 11px">
+      <div style="font-size:11px;color:var(--ink-3);text-transform:uppercase;letter-spacing:.04em;font-weight:700">Rubros (${rubArr.length})</div>
+      <div style="font-size:12.5px;color:var(--accent-3);margin-top:4px;line-height:1.55">${rubArr.map(([k,n])=>`<div><strong>${k}:</strong> <span style="color:var(--ink-2)">${n} pól.</span></div>`).join('')}</div>
+    </div>` : '';
+    const proyCells = (proyARS.n>0 || proyUSD.n>0)
+      ? `${cellMonto('Proyección ventas $', proyARS, false)}${cellMonto('Proyección ventas US', proyUSD, true)}`
+      : '<div style="background:#fff;border:1px solid var(--line);border-radius:6px;padding:8px 11px;font-size:12px;color:var(--ink-3);font-style:italic">Proyección de ventas — sin datos</div>';
+    return `<div style="background:var(--bg-2);border-radius:8px;padding:12px 14px;margin-bottom:14px">
+      <div style="font-size:11.5px;color:var(--accent-3);text-transform:uppercase;letter-spacing:.05em;font-weight:800;margin-bottom:8px">Resumen de las pólizas en esta causa · ${enriched.length} pól.</div>
+      <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(200px,1fr));gap:8px">
+        ${proyCells}
+        ${cellPct('Tasa promedio', tasaAvg, fmtT, false)}
+        ${cellPct('Siniestralidad UV', sinUVAvg, fmtS, true)}
+        ${cellPct('Siniestralidad histórica', sinHAvg, fmtS, true)}
+        ${rubrosCell}
+        ${cellMonAbs('Monto $ (esta causa)', monARS, false)}
+        ${cellMonAbs('Monto US (esta causa)', monUSD, true)}
+      </div>
+    </div>`;
+  })();
+
   let contenido;
   /* Mini-gráfico general que muestra la magnitud de los 4 conceptos "menores"
      (Prima Mínima / Ajuste / Bono / Malus) para que se vea de un vistazo cuál
@@ -4532,6 +4721,7 @@ window.toggleEjecCausa = function(id){
 
   panel.innerHTML = `
     <div style="font-size:13px;color:var(--accent-3);text-transform:uppercase;letter-spacing:.06em;margin-bottom:12px;font-weight:700;border-bottom:1px solid var(--line-2);padding-bottom:8px">${titulos[id]||id} — desglose por póliza</div>
+    ${resumenCard}
     ${contenido}`;
   panel.style.display='block';
   panel.dataset.open = id;
