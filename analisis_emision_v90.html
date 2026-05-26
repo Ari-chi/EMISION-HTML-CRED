@@ -2807,6 +2807,9 @@ function drawEjecutivo(){
   drawEjecRubroExtremos(polFiltradas, f);
   drawEjecRubroChart(polFiltradas, f, primary.useUSD);
   drawEjecRubroTabla(polFiltradas, f, primary.useUSD);
+  /* Pie charts de "Lo que se emitió" y Desvío — se renderizan después del innerHTML */
+  if(typeof renderEjecEmiPies === 'function') renderEjecEmiPies();
+  if(typeof renderEjecDesvioPies === 'function') renderEjecDesvioPies();
 
   /* Gráfico mensual con toggle 2025 */
   const drawMensualEjec = ()=>{
@@ -3143,7 +3146,7 @@ function ejecJustificacion(S, useUSD, dual, useUSDprimary){
       <div style="display:flex;align-items:center;gap:6px;font-size:12px;color:var(--accent-3);font-weight:700;margin-bottom:4px"><span style="width:12px;height:12px;border-radius:3px;background:${c.col};flex-shrink:0"></span>${c.lbl}${c.n>0?` <span style="color:var(--ink-3);font-weight:400">(${c.n} pól.)</span>`:''}</div>
       <div style="display:flex;align-items:baseline;gap:10px;flex-wrap:wrap">
         <div style="font-size:23px;font-weight:700;color:${valColor};font-family:var(--font-mono);line-height:1">${sgn}${FMTc(c.val)}</div>
-        <div style="font-size:17px;font-weight:800;color:var(--accent-3);font-family:var(--font-mono)">${pctTxt(c.val)}<span style="font-size:12px;font-weight:600;color:var(--ink-2);margin-left:4px">del desvío</span></div>
+        <div style="font-size:17px;font-weight:800;color:var(--accent-3);font-family:var(--font-mono)">${pctTxt(c.val)}</div>
       </div>
       ${clickable?`<div style="font-size:10px;color:var(--accent);margin-top:6px;text-transform:uppercase;letter-spacing:.05em;font-weight:700">▶ ver pólizas</div>`:''}
     </div>`;
@@ -3160,21 +3163,35 @@ function ejecJustificacion(S, useUSD, dual, useUSDprimary){
       <div style="height:8px;border:1.5px solid ${braceColor};border-bottom:none;border-radius:5px 5px 0 0;opacity:.7"></div>
     </div>` : '';
 
+  /* Pie chart del desvío: cada causa como porción, una porción gris al final
+     si hay una parte "sin justificar". Cache para render post-innerHTML. */
+  const pieIdDes = `ejecDesvioPie_${useUSD?'u':'a'}`;
+  const piePartes = causas.map(c=>({lbl:c.lbl, col:c.col, val:c.val, n:c.n, pctOf:pctDe(c.val)}));
+  if(pctSinCubrir>=0.5){
+    piePartes.push({lbl:'Sin justificar', col:'#c5cdd9', val:sinCubrir, n:0, pctOf:pctSinCubrir});
+  }
+  state._ejecDesvioPies = state._ejecDesvioPies || {};
+  state._ejecDesvioPies[pieIdDes] = {partes:piePartes, useUSD};
+  /* Leyenda compacta a la derecha del pie: puntito + nombre + % */
+  const leyendaDes = piePartes.map(p=>`<div style="display:flex;align-items:baseline;gap:8px;padding:5px 0;font-size:13px;line-height:1.3">
+    <span style="width:11px;height:11px;border-radius:50%;background:${p.col};flex-shrink:0;border:1px solid rgba(0,0,0,.08);display:inline-block;align-self:center"></span>
+    <span style="color:var(--accent-3);font-weight:700;flex:1">${p.lbl}</span>
+    <span style="font-family:var(--font-mono);font-weight:800;color:var(--accent-3);min-width:34px;text-align:right">${Math.round(p.pctOf)}%</span>
+  </div>`).join('');
+
   return `<div style="margin-top:${dual?16:8}px">
     ${dual?`<div style="font-size:11px;color:var(--ink-3);text-transform:uppercase;letter-spacing:.05em;font-weight:700;margin-bottom:10px">${mLbl}</div>`:''}
     <div style="font-size:15px;color:var(--ink-2);margin-bottom:18px;font-weight:600">El desvío de <span style="font-size:22px;color:var(--neg);font-weight:700;font-family:var(--font-mono)">${FMTc(dvAbs)}</span> se compone así:</div>
 
-    <!-- LLAVE minimalista sobre los 4 pendientes -->
-    ${llave}
-    <!-- BARRA ÚNICA: representa el DESVÍO TOTAL; las causas lo rellenan; el resto en gris -->
-    <div style="height:64px;border-radius:10px;background:var(--bg-2);overflow:hidden;display:flex;box-shadow:inset 0 0 0 1px rgba(0,0,0,.06);margin-bottom:14px">
-      ${causas.map((c,i)=>seg(c, false)).join('')}${segGris()}
-    </div>
-    ${pctSinCubrir>=0.5?`<div style="font-size:12.5px;color:var(--ink-3);margin-bottom:28px;display:flex;align-items:center;gap:7px"><span style="width:13px;height:13px;border-radius:3px;background:#c5cdd9;flex-shrink:0"></span>Sin justificar · <strong style="color:#5a6b85;font-family:var(--font-mono)">${FMTc(sinCubrir)}</strong> · <strong style="color:#5a6b85">${Math.round(pctSinCubrir)}%</strong> del desvío</div>`:'<div style="margin-bottom:24px"></div>'}
+    ${causas.length>0 ? `
+    <div style="display:grid;grid-template-columns:minmax(220px,300px) 1fr;gap:24px;align-items:center;margin-bottom:24px">
+      <div style="width:100%;max-width:280px;justify-self:center"><canvas id="${pieIdDes}" style="max-height:260px"></canvas></div>
+      <div>${leyendaDes}</div>
+    </div>` : ''}
 
-    <!-- TARJETAS: primero todo lo pendiente (3 columnas) y luego, BIEN separado, las otras causas en columna vertical -->
+    <!-- TARJETAS: primero todo lo pendiente (3 columnas) y luego, BIEN separado, las otras causas -->
     ${causasPend.length?`
-    <div style="font-size:13px;color:var(--accent-3);text-transform:uppercase;letter-spacing:.06em;font-weight:800;margin-bottom:10px;display:flex;align-items:center;gap:8px"><span style="width:14px;height:14px;border-radius:3px;background:#4ba3c7"></span>Pendiente de emisión</div>
+    <div style="font-size:13px;color:var(--accent-3);text-transform:uppercase;letter-spacing:.06em;font-weight:800;margin-bottom:10px">Pendiente de emisión</div>
     <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(220px,1fr));gap:12px;margin-bottom:${causasOtras.length?32:0}px">
       ${causasPend.map(tarjeta).join('')}
     </div>`:''}
@@ -3184,6 +3201,35 @@ function ejecJustificacion(S, useUSD, dual, useUSDprimary){
       ${causasOtras.map(tarjeta).join('')}
     </div>`:''}
   </div>`;
+}
+
+/* Renderiza los pie charts del Desvío de Emisión guardados en state._ejecDesvioPies. */
+function renderEjecDesvioPies(){
+  if(typeof Chart === 'undefined') return;
+  const pies = state._ejecDesvioPies || {};
+  for(const id of Object.keys(pies)){
+    const canvas = document.getElementById(id);
+    if(!canvas) continue;
+    const {partes, useUSD} = pies[id];
+    drawChart(id, {
+      type:'doughnut',
+      data:{
+        labels: partes.map(p=>p.lbl),
+        datasets:[{
+          data: partes.map(p=>p.val),
+          backgroundColor: partes.map(p=>p.col),
+          borderColor:'#fff', borderWidth:2,
+        }]
+      },
+      options:{
+        responsive:true, maintainAspectRatio:false, cutout:'55%',
+        plugins:{
+          legend:{display:false},
+          tooltip:{callbacks:{label:(ctx)=> `${ctx.label}: ${fmtCompact(ctx.parsed, useUSD)}`}}
+        }
+      }
+    });
+  }
 }
 
 /* Incrementos / compensaciones (desvío negativo) o detalle sobre-cumplimiento (positivo) */
@@ -3265,6 +3311,24 @@ function ejecEmitido(S, useUSD, dual){
     state._ejecEmitido[id] = (S.emitidoCats && S.emitidoCats[c.key]) ? {data:S.emitidoCats[c.key], useUSD, dual} : {data:{total:0,polizas:[]}, useUSD, dual};
   });
 
+  /* Pie chart id único por moneda para evitar colisiones cuando se renderiza
+     en modo dual. Se dibuja con Chart.js después de inyectar el HTML. */
+  const pieId = `ejecEmiPie_${sufijo}`;
+  /* Leyenda a la derecha del pie: cada item con su puntito de color, el
+     nombre y el % que aporta. */
+  const leyenda = items.map(it=>{
+    const pct = Math.round(it.absVal/totalAbs*100);
+    return `<div style="display:flex;align-items:baseline;gap:8px;padding:5px 0;font-size:13px;line-height:1.3">
+      <span style="width:11px;height:11px;border-radius:50%;background:${it.col};flex-shrink:0;border:1px solid rgba(0,0,0,.08);display:inline-block;align-self:center"></span>
+      <span style="color:var(--accent-3);font-weight:700;flex:1">${it.lbl}</span>
+      <span style="font-family:var(--font-mono);font-weight:800;color:var(--accent-3);min-width:34px;text-align:right">${pct}%</span>
+    </div>`;
+  }).join('');
+
+  /* Guardar datos del pie para renderlo después */
+  state._ejecEmiPies = state._ejecEmiPies || {};
+  state._ejecEmiPies[pieId] = {items, useUSD};
+
   return `<div style="margin-top:${dual?14:8}px">
     ${dual?`<div style="font-size:11px;color:var(--ink-3);text-transform:uppercase;letter-spacing:.05em;font-weight:700;margin-bottom:8px">${mLbl}</div>`:''}
     <div style="background:rgba(45,155,106,.10);border-radius:10px;padding:14px 18px;margin-bottom:14px;border-left:4px solid var(--pos)">
@@ -3272,15 +3336,42 @@ function ejecEmitido(S, useUSD, dual){
       <div style="font-size:30px;font-weight:700;color:var(--pos);font-family:var(--font-mono);line-height:1.1">${FMTc(sumItems)}</div>
     </div>
     ${items.length>0 ? `
-    <!-- Barra horizontal apilada con la composición de la emisión -->
-    <div style="height:48px;border-radius:8px;background:var(--bg-2);overflow:hidden;display:flex;box-shadow:inset 0 0 0 1px rgba(0,0,0,.06);margin-bottom:8px">
-      ${items.map(seg).join('')}
-    </div>
-    <div style="display:flex;flex-wrap:wrap;gap:10px 14px;margin-bottom:14px;padding:0 4px">
-      ${items.map(chip).join('')}
+    <div style="display:grid;grid-template-columns:minmax(220px,300px) 1fr;gap:24px;align-items:center;margin-bottom:14px">
+      <div style="width:100%;max-width:280px;justify-self:center"><canvas id="${pieId}" style="max-height:240px"></canvas></div>
+      <div>${leyenda}</div>
     </div>` : ''}
     ${cards||'<div style="font-size:12px;color:var(--ink-3);font-style:italic">— sin emisión registrada —</div>'}
   </div>`;
+}
+
+/* Renderiza los pie charts de "Lo que se emitió" guardados en state._ejecEmiPies.
+   Se llama después de inyectar el HTML del Resumen Ejecutivo. */
+function renderEjecEmiPies(){
+  if(typeof Chart === 'undefined') return;
+  const pies = state._ejecEmiPies || {};
+  for(const id of Object.keys(pies)){
+    const canvas = document.getElementById(id);
+    if(!canvas) continue;
+    const {items, useUSD} = pies[id];
+    drawChart(id, {
+      type:'doughnut',
+      data:{
+        labels: items.map(it=>it.lbl),
+        datasets:[{
+          data: items.map(it=>it.absVal),
+          backgroundColor: items.map(it=>it.col),
+          borderColor:'#fff', borderWidth:2,
+        }]
+      },
+      options:{
+        responsive:true, maintainAspectRatio:false, cutout:'55%',
+        plugins:{
+          legend:{display:false},
+          tooltip:{callbacks:{label:(ctx)=> `${ctx.label}: ${fmtCompact(ctx.parsed, useUSD)}`}}
+        }
+      }
+    });
+  }
 }
 
 window.toggleEjecEmi = function(id){
@@ -3925,50 +4016,48 @@ window.toggleEjecCausa = function(id){
   /* helpers para campos pm/v/proy en una u otra moneda */
   const fBtn = (r,base)=> btnUSD ? (r[base+'USD']||0) : (r[base+'ARS']||0);
 
-  /* fila genérica — monto en moneda del botón + equivalente original en gris.
-     Para filas con variación con signo (signo:true), el valor en la moneda del botón
-     puede ser NEGATIVO (bajó → agrava el desvío, rojo, "−") o POSITIVO (subió en esta
-     moneda → a favor, verde, "+"). Una póliza puede bajar en su moneda original y subir
-     en la otra (TC distinto entre años); por eso el signo se decide por moneda. */
+  /* fila genérica — monto en moneda ORIGINAL + equivalente en la moneda de la
+     vista debajo en gris (cuando difieren). El signo se decide por la variación
+     en la moneda original. */
   function filaPol(r, extra){
     const monOrig = (r.moneda==='US')?'US':'$';
     const monBtn = btnUSD?'US':'$';
+    const vOrig = valOrigR(r);
     const vBtn = valBtnR(r);
     let sgn, color, mostrar;
     if(r.signo){
-      /* vBtn ya viene con signo real: negativo = baja, positivo = suba (en esta moneda). */
+      /* vOrig viene con signo real: negativo = baja, positivo = suba. */
       if(r.esBono){
-        /* Bono = devolución (resta emisión). Una variación POSITIVA de magnitud = devolvió
-           más = desvío (rojo, −). Negativa = devolvió menos = a favor (verde, +). */
-        const esDesvio = vBtn > 0;
+        /* Bono = devolución (resta emisión). Variación POSITIVA = devolvió más
+           = desvío (rojo, −). Negativa = devolvió menos = a favor (verde, +). */
+        const esDesvio = vOrig > 0;
         sgn = esDesvio ? '−' : '+';
         color = esDesvio ? 'var(--neg)' : 'var(--pos)';
       } else {
-        const baja = vBtn < 0;
+        const baja = vOrig < 0;
         sgn = baja ? '−' : '+';
         color = baja ? 'var(--neg)' : 'var(--pos)';
       }
-      mostrar = Math.abs(vBtn);
+      mostrar = Math.abs(vOrig);
     } else {
-      /* pendientes / perdidas: monto positivo. El BONO pendiente SUMA (verde +): es una
-         devolución que todavía no se aplicó. El resto de pendientes resta (rojo). */
+      /* pendientes / perdidas: monto positivo. El BONO pendiente SUMA (verde +). */
       if(id==='pend_bono'){
         sgn = '+'; color = 'var(--pos)';
       } else {
         sgn = esPend ? '' : '−';
         color = 'var(--neg)';
       }
-      mostrar = Math.abs(vBtn);
+      mostrar = Math.abs(vOrig);
     }
-    /* Línea con el valor en moneda original cuando la vista está en la otra moneda.
-       - Prima/Ajuste/Bono/Malus (menores): el desglose (extra) ya muestra el
-         arrow en ambas monedas, así que acá no agregamos nada para no duplicar.
-       - Resto (perdidas, pendientes): solo el monto con prefijo de moneda
-         ($ X / US Y), sin label adicional. */
+    /* Línea de equivalente en la moneda de la VISTA cuando difiere de la original.
+       Para perdidas/pendientes se usa la conversión que viene en r (Excel directo,
+       o TC del botón 7° en el caso de pendientes via convertirPendienteTC).
+       Para "menores" el bloque "extra" ya muestra el desglose 25→26 en ambas
+       monedas, así que no agregamos línea acá para no duplicar. */
     let equivLine = '';
     if(monOrig!==monBtn){
-      const valOrig = fmtCompact(Math.abs(valOrigR(r)), monOrig==='US');
-      const monSym = monOrig==='US'?'US':'$';
+      const vEquiv = fmtCompact(Math.abs(vBtn), btnUSD);
+      const monSym = monBtn==='US'?'US':'$';
       const esMenor = (id==='prima' || id==='ajuste' || id==='bono' || id==='malus');
       if(!esMenor){
         equivLine = `<div style="font-size:11px;color:var(--ink-3);font-family:var(--font-mono);text-align:right;margin-top:1px">${monSym} ${valOrig}</div>`;
@@ -3987,30 +4076,36 @@ window.toggleEjecCausa = function(id){
     return `<tr>
       <td style="padding:9px 8px;border-bottom:1px solid var(--line);font-size:14px">${polDisp}${tipoChip}${extra||''}</td>
       <td style="padding:9px 8px;border-bottom:1px solid var(--line);font-size:12px;color:var(--ink-2)">${r.rubro||'—'}</td>
-      <td style="padding:9px 8px;border-bottom:1px solid var(--line);text-align:right;font-family:var(--font-mono);font-weight:800;font-size:15px;color:${color};white-space:nowrap">${sgn}${fmtCompact(mostrar, btnUSD)}${equivLine}</td>
+      <td style="padding:9px 8px;border-bottom:1px solid var(--line);text-align:right;font-family:var(--font-mono);font-weight:800;font-size:15px;color:${color};white-space:nowrap">${sgn}${fmtCompact(mostrar, monOrig==='US')}${equivLine}</td>
     </tr>`;
   }
   function subTabla(arr, titulo, FMT, modo, destaca){
     if(arr.length===0) return '';
     const tot = arr.reduce((a,r)=>a+valBtnR(r),0);
-    const u = btnUSD; /* mostrar siempre en moneda del botón */
-    /* Devuelve una línea con la variación 25→26 en la MONEDA ORIGINAL de la
-       póliza cuando ésta difiere de la vista. Permite ver la variación real
-       en la moneda en la que se contrató, además del equivalente en la vista. */
-    const arrowOrig = (r, baseKey, label)=>{
-      const monOrigR = (r.moneda==='US')?'US':'$';
-      const monBtnR = u?'US':'$';
-      if(monOrigR === monBtnR) return '';
-      const isUS = monOrigR==='US';
+    const u = btnUSD; /* moneda de la vista (para totales agregados) */
+    /* Helpers de variación: el arrow PRINCIPAL se muestra en moneda ORIGINAL de
+       la póliza; debajo, en gris claro, el equivalente en la moneda de la vista
+       cuando difiere. Sigue la convención del usuario: detalle por póliza en
+       original + equivalente en gris. */
+    const arrowMain = (r, baseKey, label)=>{
+      const isUS = r.moneda==='US';
       const v25 = r[baseKey+'25'+(isUS?'USD':'ARS')] || 0;
       const v26 = r[baseKey+'26'+(isUS?'USD':'ARS')] || 0;
-      return `<div style="font-size:11.5px;color:var(--ink-3);margin-top:2px;font-family:var(--font-mono);font-style:italic">${label} ${fmtCompact(v25,isUS)} → <strong>${fmtCompact(v26,isUS)}</strong> · moneda original</div>`;
+      return `${label} ${fmtCompact(v25,isUS)} → <strong>${fmtCompact(v26,isUS)}</strong>`;
+    };
+    const arrowEquiv = (r, baseKey, label)=>{
+      const monOrigR = r.moneda==='US' ? 'US' : '$';
+      const monBtnR = u ? 'US' : '$';
+      if(monOrigR === monBtnR) return '';
+      const v25 = r[baseKey+'25'+(u?'USD':'ARS')] || 0;
+      const v26 = r[baseKey+'26'+(u?'USD':'ARS')] || 0;
+      return `<div style="font-size:11.5px;color:var(--ink-3);margin-top:2px;font-family:var(--font-mono);font-style:italic">${label} ${fmtCompact(v25,u)} → <strong>${fmtCompact(v26,u)}</strong> <span style="font-style:normal">· equivalente ${monBtnR}</span></div>`;
     };
     const trs = arr.map(r=>{
       let extra='';
       const mini = (cat,det)=>{ const m=miniResumen(cat,det); return m?`<div style="font-size:11.5px;color:var(--ink-3);margin-top:3px;font-style:italic;line-height:1.3">${m}</div>`:''; };
-      if(modo==='prima'){ extra = `<div style="font-size:12.5px;color:var(--ink-2);margin-top:2px">prima mín. ${fmtCompact(fBtn(r,'pm25'),u)} → <strong>${fmtCompact(fBtn(r,'pm26'),u)}</strong></div>${arrowOrig(r,'pm','prima mín.')}`; }
-      else if(modo==='proy'){ extra = `<div style="font-size:12.5px;color:var(--ink-2);margin-top:2px">proyección ${fmtCompact(fBtn(r,'proy25'),u)} → <strong>${fmtCompact(fBtn(r,'proy26'),u)}</strong></div>${arrowOrig(r,'proy','proyección')}${mini(r.proyCat,r.proyDet)}`; }
+      if(modo==='prima'){ extra = `<div style="font-size:12.5px;color:var(--ink-2);margin-top:2px">${arrowMain(r,'pm','prima mín.')}</div>${arrowEquiv(r,'pm','prima mín.')}`; }
+      else if(modo==='proy'){ extra = `<div style="font-size:12.5px;color:var(--ink-2);margin-top:2px">${arrowMain(r,'proy','proyección')}</div>${arrowEquiv(r,'proy','proyección')}${mini(r.proyCat,r.proyDet)}`; }
       else if(modo==='tasa'){ extra = `<div style="font-size:12.5px;color:var(--ink-2);margin-top:2px">tasa ${r.tasa25!=null?FMT_PCT_TASA(r.tasa25):'—'} → <strong>${r.tasa26!=null?FMT_PCT_TASA(r.tasa26):'—'}</strong> · <span style="color:var(--neg)">reduce prima ${fmtCompact(valBtnR(r),u)}</span></div>${mini(r.tasaCat,r.tasaDet)}`; }
       else if(modo==='perd'){ extra = ''; }
       else if(modo==='pend'){
@@ -4026,8 +4121,8 @@ window.toggleEjecCausa = function(id){
           extra = '';
         }
       }
-      else if(modo==='ajuste'){ extra = `<div style="font-size:12.5px;color:var(--ink-2);margin-top:2px">ajuste ${fmtCompact(fBtn(r,'v25'),u)} → <strong>${fmtCompact(fBtn(r,'v26'),u)}</strong></div>${arrowOrig(r,'v','ajuste')}`; }
-      else if(modo==='bono'||modo==='malus'){ extra = `<div style="font-size:12px;color:var(--ink-2);margin-top:2px">${modo} ${fmtCompact(fBtn(r,'v25'),u)} → <strong>${fmtCompact(fBtn(r,'v26'),u)}</strong> · Sin.H ${r.sinH25!=null?FMT_PCT_SIN(r.sinH25):'—'}→${r.sinH26!=null?FMT_PCT_SIN(r.sinH26):'—'} · <strong style="color:var(--accent-3)">Sin.UV ${r.sinUV25!=null?FMT_PCT_SIN(r.sinUV25):'—'}→${r.sinUV26!=null?FMT_PCT_SIN(r.sinUV26):'—'}</strong></div>${arrowOrig(r,'v',modo)}`; }
+      else if(modo==='ajuste'){ extra = `<div style="font-size:12.5px;color:var(--ink-2);margin-top:2px">${arrowMain(r,'v','ajuste')}</div>${arrowEquiv(r,'v','ajuste')}`; }
+      else if(modo==='bono'||modo==='malus'){ extra = `<div style="font-size:12px;color:var(--ink-2);margin-top:2px">${arrowMain(r,'v',modo)} · Sin.H ${r.sinH25!=null?FMT_PCT_SIN(r.sinH25):'—'}→${r.sinH26!=null?FMT_PCT_SIN(r.sinH26):'—'} · <strong style="color:var(--accent-3)">Sin.UV ${r.sinUV25!=null?FMT_PCT_SIN(r.sinUV25):'—'}→${r.sinUV26!=null?FMT_PCT_SIN(r.sinUV26):'—'}</strong></div>${arrowEquiv(r,'v',modo)}`; }
       return filaPol(r, extra);
     }).join('');
     /* Total NETO con signo: suma de variaciones con signo. Negativo = desvío (rojo),
