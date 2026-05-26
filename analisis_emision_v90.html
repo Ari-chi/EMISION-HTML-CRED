@@ -587,10 +587,10 @@ const APP_CONFIG_DEFAULT = {
     presupLabel:31, presupMesInicio:32,
   },
   colores: {
-    pendiente: '#4ba3c7',
-    perdidas:  '#d64550',
+    pendiente: '#7ec8e3',  /* celeste más claro */
+    perdidas:  '#7fc28a',  /* verde claro (pedido del usuario) */
     prima:     '#e0922f',
-    abm:       '#5e54b0',
+    abm:       '#1e3a8a',  /* azul oscuro (pedido del usuario) */
   },
   textos: {
     pend_prima:  'Prima mínima pendiente',
@@ -3180,7 +3180,7 @@ function ejecJustificacion(S, useUSD, dual, useUSDprimary){
     </div>`:''}
     ${causasOtras.length?`
     <div style="font-size:13px;color:var(--accent-3);text-transform:uppercase;letter-spacing:.06em;font-weight:800;margin:10px 0 10px 0;padding-top:14px;border-top:1px dashed var(--line-2)">Otras causas del desvío</div>
-    <div style="display:flex;flex-direction:column;gap:10px">
+    <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(280px,1fr));gap:12px">
       ${causasOtras.map(tarjeta).join('')}
     </div>`:''}
   </div>`;
@@ -3224,7 +3224,7 @@ function ejecEmitido(S, useUSD, dual){
     const pct = _sumRef !== 0 ? (Math.abs(totDisp) / Math.abs(_sumRef) * 100) : null;
     const pctTxt = pct!=null ? Math.round(pct)+'%' : '';
     return `<div style="background:rgba(45,155,106,.05);border-radius:8px;border-left:4px solid var(--pos);margin-bottom:6px">
-      <div style="padding:11px 18px;cursor:pointer;display:grid;grid-template-columns:1fr auto auto auto;column-gap:18px;align-items:center;max-width:980px;margin:0 auto" onclick="toggleEjecEmi('${id}')">
+      <div style="padding:11px 18px;cursor:pointer;display:grid;grid-template-columns:1fr auto auto auto;column-gap:18px;align-items:center;max-width:760px;margin:0 auto" onclick="toggleEjecEmi('${id}')">
         <div style="text-align:left">
           <span style="font-size:14.5px;color:var(--accent-3);font-weight:700">${c.lbl}</span>
           <span style="font-size:11.5px;color:var(--ink-3);margin-left:8px">${n} pól.</span>
@@ -3743,7 +3743,11 @@ window.toggleEjecCausa = function(id){
   /* Recolectar pólizas por causa, por moneda ORIGINAL. Cada registro guarda el
      monto en AMBAS monedas (ars/usd) para poder mostrarlo en la moneda del botón
      + el equivalente original en gris. */
-  function collect(monOrigUSD){
+  function collect(monOrigUSD, effIdOverride){
+    /* effIdOverride permite forzar el "id" de causa al recolectar — usado por
+       el drill "menor" que comparte el panel para 4 sub-conceptos
+       (prima/ajuste/bono/malus). Si no se pasa, usa el id real de la causa. */
+    const effId = effIdOverride || id;
     const rows = [];
     for(const p of polFiltradas){
       if(monOrigUSD && p.moneda!=='US') continue;
@@ -3783,7 +3787,7 @@ window.toggleEjecCausa = function(id){
          Los ids pend_prima/pend_ajuste/pend_bono/pend_malus filtran un solo concepto;
          'pendiente' (legacy) muestra todos. */
       const PEND_CONCEPTO = {pend_prima:'Prima mínima', pend_ajuste:'Ajuste', pend_bono:'Bono', pend_malus:'Malus'};
-      if(id==='pendiente' || PEND_CONCEPTO[id]){
+      if(effId==='pendiente' || PEND_CONCEPTO[effId]){
         const cp = conceptosPendientes(p, mesCorte);
         let items = cp.items.slice();
         /* Fallback consolidado: pendiente sin items detallados → usar la emisión 2025 de
@@ -3796,7 +3800,7 @@ window.toggleEjecCausa = function(id){
         /* El BONO pendiente se excluye por completo del Desvío de Emisión. */
         items = items.filter(it=>it.concepto!=='Bono');
         /* Si es un sub-concepto, quedarse solo con ese concepto. */
-        if(PEND_CONCEPTO[id]) items = items.filter(it=>it.concepto===PEND_CONCEPTO[id]);
+        if(PEND_CONCEPTO[effId]) items = items.filter(it=>it.concepto===PEND_CONCEPTO[effId]);
         if(items.length>0){
           /* TC (solo pendiente): el monto en la moneda propia de la póliza se mantiene;
              el equivalente en la otra moneda se recalcula con el tipo de cambio. */
@@ -3808,7 +3812,7 @@ window.toggleEjecCausa = function(id){
             conceptosPend:itemsConv, mayor2m: est==='desvio_pendiente_mayor_2m'});
         }
       }
-      else if(id==='perdidas' && terminada){
+      else if(effId==='perdidas' && terminada){
         const anio = /2026/.test(p.tipo2026||'') ? '2026' : (/2025/.test(p.tipo2025||'')||/2025/.test(p.tipo2026||'') ? '2025' : '2026');
         /* La emisión perdida es TODO lo que la póliza emitió en 2025 (referencia completa),
            sin aplicar el "Acumulado hasta": una póliza terminada dejó de aportar el total
@@ -3818,7 +3822,7 @@ window.toggleEjecCausa = function(id){
         const e25full = uu?f25full.totUSD:f25full.totARS;
         rows.push({...base, monto:e25full, montoARS:f25full.totARS, montoUSD:f25full.totUSD, anio});
       }
-      else if(id==='prima' && !terminada && !primaMinTienePendiente(p, mesCorte) && (conceptoBajaPareada(p,'Prima Minima',uu,mesCorte).baja || primaNoCorrespondeDesvio(p,mesCorte).entra)){
+      else if(effId==='prima' && !terminada && !primaMinTienePendiente(p, mesCorte) && (conceptoBajaPareada(p,'Prima Minima',uu,mesCorte).baja || primaNoCorrespondeDesvio(p,mesCorte).entra)){
         /* REGLA (usuario) para "Menor prima mínima":
            - Si hay EMISIÓN 2026: comparar contra 2025 (mismas cuotas, moneda original) y, si
              baja, sumar la diferencia.
@@ -3865,12 +3869,12 @@ window.toggleEjecCausa = function(id){
             baja: true, mantiene});
         }
       }
-      else if(id==='ajuste' || id==='bono' || id==='malus'){
+      else if(effId==='ajuste' || effId==='bono' || effId==='malus'){
         /* Caída/variación de Ajuste/Bono/Malus — FUENTE ÚNICA (desvioConceptoABM):
            aplica toda la regla del usuario y devuelve el monto CON SIGNO desde la
            columna Desvío del Excel. "No corresponde" = endoso $0 con desvío 2025
            completo; bono que sube = a favor (+). */
-        const k = id; /* 'ajuste' | 'bono' | 'malus' */
+        const k = effId; /* 'ajuste' | 'bono' | 'malus' */
         const conceptoMap = {ajuste:'Ajuste', bono:'Bono', malus:'Malus'};
         const cR = p.conceptos[conceptoMap[k]];
         const dv = desvioConceptoABM(p, conceptoMap[k], mesCorte);
@@ -4128,7 +4132,9 @@ window.toggleEjecCausa = function(id){
 
   /* Para PRIMA: 3 sub-desgloses (prima / proyección / tasa) con selector */
   function colPrima(monOrigUSD, sub){
-    const rows = collect(monOrigUSD).filter(r=>r.baja);
+    /* effId='prima' fuerza collect a recolectar bajas de prima mínima incluso
+       cuando el drill padre es 'menor' (mismo panel para 4 sub-conceptos). */
+    const rows = collect(monOrigUSD, 'prima').filter(r=>r.baja);
     const moneda = monOrigUSD?'US':'$';
     const uuOrig = monOrigUSD; /* moneda original de la columna */
     /* Sin TC: cada efecto ya viene calculado en ambas monedas reales (efProyARS/USD, etc.) */
@@ -4495,10 +4501,10 @@ function drawEjecVariaciones(polArr, f, useUSD, opts){
   const fmtV = it.pct ? (v=>FMT_PCT_TASA(v)) : (v=>fmtCompact(v,useUSD)); /* K/M/MM */
   grid.style.gridTemplateColumns='1fr';
   grid.innerHTML = `
-    <div style="background:var(--bg-2);border-radius:8px;padding:14px 16px">
-      <div style="font-size:14px;font-weight:800;color:var(--accent-3);margin-bottom:8px">${it.label} · 2025 vs 2026</div>
-      <div class="chart-box" style="height:130px"><canvas id="ejecVar_${it.id}"></canvas></div>
-      <div style="font-family:var(--font-mono);font-size:15px;font-weight:800;color:${c};text-align:center;margin-top:8px">${fmtV(it.v25)} → ${fmtV(it.v26)} &nbsp; <span>${d>=0?'+':''}${fmtV(d)} ${dpct!=null?'('+(d>=0?'+':'')+FMT_PCT(dpct)+')':''}</span></div>
+    <div style="background:var(--bg-2);border-radius:8px;padding:10px 12px;max-width:640px;margin:0 auto">
+      <div style="font-size:13px;font-weight:800;color:var(--accent-3);margin-bottom:6px">${it.label} · 2025 vs 2026</div>
+      <div class="chart-box" style="height:90px"><canvas id="ejecVar_${it.id}"></canvas></div>
+      <div style="font-family:var(--font-mono);font-size:13.5px;font-weight:800;color:${c};text-align:center;margin-top:6px">${fmtV(it.v25)} → ${fmtV(it.v26)} &nbsp; <span>${d>=0?'+':''}${fmtV(d)} ${dpct!=null?'('+(d>=0?'+':'')+FMT_PCT(dpct)+')':''}</span></div>
     </div>`;
   if(document.getElementById(`ejecVar_${it.id}`)){
     /* Barras HORIZONTALES (indexAxis:'y'), valores compactos K/M/MM */
@@ -4506,7 +4512,7 @@ function drawEjecVariaciones(polArr, f, useUSD, opts){
       data:{labels:['2025','2026'],datasets:[{
         data:[it.pct?it.v25*100:it.v25, it.pct?it.v26*100:it.v26],
         backgroundColor:['rgba(94,179,232,.85)','rgba(30,111,217,.90)'],
-        borderColor:['#5eb3e8','#1e6fd9'],borderWidth:1.5,borderRadius:3,barThickness:34
+        borderColor:['#5eb3e8','#1e6fd9'],borderWidth:1.5,borderRadius:3,barThickness:24
       }]},
       options:{indexAxis:'y',responsive:true,maintainAspectRatio:false,
         plugins:{legend:{display:false},
