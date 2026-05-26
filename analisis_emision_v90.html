@@ -2838,6 +2838,9 @@ function drawEjecutivo(){
   /* Charts */
   drawEjecRubroExtremos(polFiltradas, f);
   drawEjecRubroChart(polFiltradas, f, primary.useUSD);
+  /* La tabla de cards por rubro se renderiza on-demand al hacer click en una
+     fila del comparativo de arriba (foto 2 → foto 1). Igual mantenemos el
+     state._ejecRubroItems poblado para el drill. */
   drawEjecRubroTabla(polFiltradas, f, primary.useUSD);
   /* Pie charts de "Lo que se emitió" y Desvío — se renderizan después del innerHTML */
   if(typeof renderEjecEmiPies === 'function') renderEjecEmiPies();
@@ -5416,19 +5419,23 @@ function drawEjecRubroChart(polArr, f, useUSD){
     .sort((a,b)=>b.v26-a.v26);
   const max = Math.max(1, ...items.flatMap(it=>[it.v25, it.v26]));
   const FMTc = (v)=>fmtCompact(v, useUSD);
-  const filas = items.map(it=>{
+  const filas = items.map((it, idx)=>{
     const w25 = Math.round(it.v25/max*100);
     const w26 = Math.round(it.v26/max*100);
     const d = it.v26 - it.v25;
     const dc = d>=0?'var(--pos)':'var(--neg)';
-    return `<div style="display:grid;grid-template-columns:140px 1fr 70px 120px;gap:10px;align-items:center;padding:6px 0;border-bottom:1px solid var(--line)">
-      <div style="font-size:13px;font-weight:700;color:var(--accent-3)">${it.rubro}</div>
-      <div>
-        <div style="display:flex;align-items:center;gap:6px;margin-bottom:3px"><span style="font-size:10.5px;color:var(--ink-3);width:32px;font-weight:700">2025</span><div style="flex:1;height:14px;background:var(--bg-2);border-radius:3px;position:relative"><div style="position:absolute;left:0;top:0;bottom:0;width:${w25}%;background:rgba(94,179,232,.75);border-radius:3px"></div></div><span style="font-family:var(--font-mono);font-size:12px;font-weight:700;width:80px;text-align:right">${FMTc(it.v25)}</span></div>
-        <div style="display:flex;align-items:center;gap:6px"><span style="font-size:10.5px;color:var(--ink-3);width:32px;font-weight:700">2026</span><div style="flex:1;height:14px;background:var(--bg-2);border-radius:3px;position:relative"><div style="position:absolute;left:0;top:0;bottom:0;width:${w26}%;background:rgba(30,111,217,.9);border-radius:3px"></div></div><span style="font-family:var(--font-mono);font-size:12px;font-weight:800;width:80px;text-align:right">${FMTc(it.v26)}</span></div>
+    return `<div style="border-bottom:1px solid var(--line)">
+      <div onclick="toggleEjecRubroChartRow(${idx},'${it.rubro.replace(/'/g,"\\'")}')" style="display:grid;grid-template-columns:18px 140px 1fr 70px 120px;gap:10px;align-items:center;padding:6px 0;cursor:pointer;transition:background .15s" onmouseover="this.style.background='var(--bg-2)'" onmouseout="this.style.background=''">
+        <span id="ejecRubroChartCar_${idx}" style="font-size:11px;color:var(--accent)">▸</span>
+        <div style="font-size:13px;font-weight:700;color:var(--accent-3)">${it.rubro}</div>
+        <div>
+          <div style="display:flex;align-items:center;gap:6px;margin-bottom:3px"><span style="font-size:10.5px;color:var(--ink-3);width:32px;font-weight:700">2025</span><div style="flex:1;height:14px;background:var(--bg-2);border-radius:3px;position:relative"><div style="position:absolute;left:0;top:0;bottom:0;width:${w25}%;background:rgba(94,179,232,.75);border-radius:3px"></div></div><span style="font-family:var(--font-mono);font-size:12px;font-weight:700;width:80px;text-align:right">${FMTc(it.v25)}</span></div>
+          <div style="display:flex;align-items:center;gap:6px"><span style="font-size:10.5px;color:var(--ink-3);width:32px;font-weight:700">2026</span><div style="flex:1;height:14px;background:var(--bg-2);border-radius:3px;position:relative"><div style="position:absolute;left:0;top:0;bottom:0;width:${w26}%;background:rgba(30,111,217,.9);border-radius:3px"></div></div><span style="font-family:var(--font-mono);font-size:12px;font-weight:800;width:80px;text-align:right">${FMTc(it.v26)}</span></div>
+        </div>
+        <div style="font-family:var(--font-mono);font-size:12px;font-weight:700;color:var(--accent-3);text-align:center;background:var(--bg-2);border-radius:4px;padding:5px 6px">${it.n} pól.</div>
+        <div style="font-family:var(--font-mono);font-size:14px;font-weight:800;color:${dc};text-align:right">${d>=0?'+':''}${FMTc(d)}</div>
       </div>
-      <div style="font-family:var(--font-mono);font-size:12px;font-weight:700;color:var(--accent-3);text-align:center;background:var(--bg-2);border-radius:4px;padding:5px 6px">${it.n} pól.</div>
-      <div style="font-family:var(--font-mono);font-size:14px;font-weight:800;color:${dc};text-align:right">${d>=0?'+':''}${FMTc(d)}</div>
+      <div id="ejecRubroChartDet_${idx}" style="display:none;padding:8px 4px 14px"></div>
     </div>`;
   }).join('');
   wrap.innerHTML = `<div style="font-size:13px;color:var(--accent-3);text-transform:uppercase;letter-spacing:.05em;font-weight:800;margin-bottom:10px">Emisión por rubro · 2025 vs 2026 · ${mLbl}</div>
@@ -5464,9 +5471,36 @@ function drawEjecRubroTabla(polArr, f, useUSD){
   state._ejecRubroItems = items;
   state._ejecRubroUseUSD = useUSD;
   state._ejecRubroMesCorte = mesCorte;
-  wrap.innerHTML = `<div style="font-size:13px;color:var(--accent-3);text-transform:uppercase;letter-spacing:.05em;font-weight:800;margin-bottom:10px">Detalle por rubro</div>
-    <div style="display:flex;flex-direction:column;gap:14px">${items.map((it,idx)=>renderRubroCard(it, idx, useUSD, mesCorte)).join('')}</div>`;
+  /* La tabla NO se muestra de entrada — los cards se abren on-demand
+     desde el comparativo "Emisión por rubro · 2025 vs 2026" haciendo
+     click en la fila correspondiente. Igual dejamos el wrapper vacío
+     para que el container exista por compatibilidad. */
+  wrap.innerHTML = '';
 }
+
+/* Toggle del detalle por rubro disparado desde el comparativo (foto 2 →
+   foto 1). Recibe el índice del rubro en `items` del CHART y el nombre
+   para buscar el match en state._ejecRubroItems (que tiene otro orden). */
+window.toggleEjecRubroChartRow = function(idx, rubroName){
+  const detEl = document.getElementById('ejecRubroChartDet_'+idx);
+  const car = document.getElementById('ejecRubroChartCar_'+idx);
+  if(!detEl) return;
+  if(detEl.dataset.open==='1'){
+    detEl.style.display='none'; detEl.dataset.open=''; if(car) car.textContent='▸';
+    return;
+  }
+  const items = state._ejecRubroItems || [];
+  const useUSD = state._ejecRubroUseUSD;
+  const mesCorte = state._ejecRubroMesCorte || 0;
+  /* Buscar el item por nombre — el orden del chart no coincide con el de
+     la tabla (chart por emisión 2026 desc; tabla por |delta| desc). */
+  const realIdx = items.findIndex(it=>it.rubro===rubroName);
+  if(realIdx<0){ detEl.innerHTML = '<div style="font-size:12px;color:var(--ink-3);font-style:italic">— sin detalle disponible —</div>'; }
+  else {
+    detEl.innerHTML = renderRubroCard(items[realIdx], realIdx, useUSD, mesCorte);
+  }
+  detEl.style.display='block'; detEl.dataset.open='1'; if(car) car.textContent='▾';
+};
 
 /* Tarjeta por rubro: header (nombre + n pól. + variación de emisión) + conclusión
    visual + 3 grupos de conceptos (Cadena de prima · Emisión · Siniestralidad). Cada
@@ -9332,13 +9366,14 @@ function buildAggregateMetrics(polizasArr, mesCorte){
       'Malus':{p26:0,p26m:0,p25:0,emit:0,sd25:0,sd26:0,naAjBM:0,p26USD:0,p26ARS:0,p26mUSD:0,p26mARS:0,p25USD:0,p25ARS:0,emitUSD:0,emitARS:0},
     }
   };
-  /* accStat: sólo contabiliza la póliza si AMBOS valores (25 y 26) están presentes,
-     así N es igual en ambos años */
+  /* accStat: contabiliza cada año por separado. Antes pedía que AMBOS años
+     estuvieran presentes (para que n25===n26 en promedios), pero eso dejaba
+     afuera del total a las pólizas con sólo un año cargado (típico en proyección
+     de ventas cuando 2026 todavía no se cargó en algunas). avgStat ya maneja
+     n25 y n26 separadamente, así que el promedio sigue siendo el correcto. */
   const accStat = (target, v25, v26)=>{
-    if(v25!=null && v26!=null){
-      target.s25+=v25; target.n25++;
-      target.s26+=v26; target.n26++;
-    }
+    if(v25!=null){ target.s25+=v25; target.n25++; }
+    if(v26!=null){ target.s26+=v26; target.n26++; }
   };
   for(const p of polizasArr){
     const f25 = calcEmisionFiltrada(p,2025,mesCorte);
