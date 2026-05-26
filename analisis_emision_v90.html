@@ -4301,10 +4301,9 @@ window.toggleEjecCausa = function(id){
     let equivLine = '';
     if(monOrig!==monBtn){
       const vEquiv = fmtCompact(Math.abs(vBtn), btnUSD);
-      const monSym = monBtn==='US'?'US':'$';
       const esMenor = (id==='prima' || id==='ajuste' || id==='bono' || id==='malus');
       if(!esMenor){
-        equivLine = `<div style="font-size:11px;color:var(--ink-3);font-family:var(--font-mono);text-align:right;margin-top:1px">${monSym} ${vEquiv}</div>`;
+        equivLine = `<div style="font-size:11px;color:var(--ink-3);font-family:var(--font-mono);text-align:right;margin-top:1px">${vEquiv}</div>`;
       }
     }
     /* Identificación de la fila: si agrupa varias pólizas (mismo asegurado), mostrar el
@@ -4669,29 +4668,56 @@ window.toggleEjecCausa = function(id){
         <div style="font-family:var(--font-mono);font-size:15px;font-weight:800;color:${c};margin-top:4px">${info.d>=0?'+':''}${fmt(info.d)}</div>
       </div>`;
     };
-    const cellMonAbs = (titulo, info, isUS, accentTone)=>{
+    const cellMonAbs = (titulo, info, isUS, accentTone, forceNeg)=>{
       if(!info || info.n===0) return '<div></div>';
       const bg = accentTone==='ars' ? 'rgba(30,111,217,.06)' : (accentTone==='usd' ? 'rgba(45,155,106,.06)' : '#fff');
       const bd = accentTone==='ars' ? '1px solid rgba(30,111,217,.30)' : (accentTone==='usd' ? '1px solid rgba(45,155,106,.30)' : '1px solid var(--line)');
+      /* Para pendientes/perdidas el monto SIEMPRE resta (representa lo que falta o
+         se perdió) — se fuerza el signo negativo y el color rojo. */
+      const v = forceNeg ? -Math.abs(info.val) : info.val;
+      const color = forceNeg || v<0 ? 'var(--neg)' : (v>0?'var(--pos)':'var(--ink-2)');
+      const sgn = (v<0 || forceNeg) ? '−' : (v>0 ? '+' : '');
       return `<div style="background:${bg};border:${bd};border-radius:6px;padding:10px 13px">
         <div style="font-size:11.5px;color:var(--ink-3);text-transform:uppercase;letter-spacing:.04em;font-weight:700">${titulo}</div>
-        <div style="font-family:var(--font-mono);font-size:16px;font-weight:800;color:${info.val<0?'var(--neg)':(info.val>0?'var(--pos)':'var(--ink-2)')};margin-top:4px">${info.val>=0?'':'−'}${fmtCompact(Math.abs(info.val),isUS)} <span style="font-size:11.5px;color:var(--ink-3);font-weight:600">· ${info.n} pól.</span></div>
+        <div style="font-family:var(--font-mono);font-size:16px;font-weight:800;color:${color};margin-top:4px">${sgn}${fmtCompact(Math.abs(v),isUS)} <span style="font-size:11.5px;color:var(--ink-3);font-weight:600">· ${info.n} pól.</span></div>
+      </div>`;
+    };
+    /* Variante para Proyección en drills de pendiente / perdidas: como la
+       póliza no emitió aún, no tiene sentido mostrar "25 → 26 (-100%)";
+       directamente se muestra el monto 2025 con signo negativo (representa
+       el monto pendiente de proyectarse o perdido). */
+    const cellMonNeg = (titulo, info, isUS, accentTone)=>{
+      if(!info || info.n===0 || (info.s25===0 && info.s26===0)) return '<div></div>';
+      const bg = accentTone==='ars' ? 'rgba(30,111,217,.06)' : (accentTone==='usd' ? 'rgba(45,155,106,.06)' : '#fff');
+      const bd = accentTone==='ars' ? '1px solid rgba(30,111,217,.30)' : (accentTone==='usd' ? '1px solid rgba(45,155,106,.30)' : '1px solid var(--line)');
+      const v = Math.max(Math.abs(info.s25), Math.abs(info.s26||0));
+      return `<div style="background:${bg};border:${bd};border-radius:6px;padding:10px 13px">
+        <div style="font-size:11.5px;color:var(--ink-3);text-transform:uppercase;letter-spacing:.04em;font-weight:700">${titulo}</div>
+        <div style="font-family:var(--font-mono);font-size:16px;font-weight:800;color:var(--neg);margin-top:4px">−${fmtCompact(v,isUS)} <span style="font-size:11.5px;color:var(--ink-3);font-weight:600">· ${info.n} pól.</span></div>
       </div>`;
     };
     const rubrosCell = rubArr.length>0 ? `<div style="background:#fff;border:1px solid var(--line);border-radius:6px;padding:10px 13px">
       <div style="font-size:11.5px;color:var(--ink-3);text-transform:uppercase;letter-spacing:.04em;font-weight:700">Rubros (${rubArr.length})</div>
       <div style="font-size:12.5px;color:var(--accent-3);margin-top:4px;line-height:1.55">${rubArr.map(([k,n])=>`<div><strong>${k}:</strong> <span style="color:var(--ink-2)">${n} pól.</span></div>`).join('')}</div>
     </div>` : '<div></div>';
+    /* Drills donde el monto es PENDIENTE / PERDIDO — siempre resta. */
+    const esPendPerdNoCorr = (id==='pendiente' || /^pend_/.test(id) || id==='perdidas');
     /* Grid 4×2: fila 1 = Proy $ | Proy US | Tasa | Sin UV ;
                   fila 2 = Monto $ | Monto US | Rubros | Sin H. */
+    const proyARSCell = esPendPerdNoCorr
+      ? cellMonNeg('Proyección Vts / Pol. Moneda $', proyARS, false, 'ars')
+      : cellMonto('Proyección Vts / Pol. Moneda $', proyARS, false, 'ars');
+    const proyUSDCell = esPendPerdNoCorr
+      ? cellMonNeg('Proyección Vts / Pol. Moneda US', proyUSD, true, 'usd')
+      : cellMonto('Proyección Vts / Pol. Moneda US', proyUSD, true, 'usd');
     return `<div style="margin-bottom:14px">
       <div style="display:grid;grid-template-columns:repeat(4,1fr);gap:10px">
-        ${cellMonto('Proyección Vts / Pol. Moneda $', proyARS, false, 'ars')}
-        ${cellMonto('Proyección Vts / Pol. Moneda US', proyUSD, true, 'usd')}
+        ${proyARSCell}
+        ${proyUSDCell}
         ${cellPct('Tasa promedio', tasaAvg, fmtT, false)}
         ${cellPct('Siniestralidad UV', sinUVAvg, fmtS, true)}
-        ${cellMonAbs('Monto $ (esta causa)', monARS, false, 'ars')}
-        ${cellMonAbs('Monto US (esta causa)', monUSD, true, 'usd')}
+        ${cellMonAbs('Monto $ (esta causa)', monARS, false, 'ars', esPendPerdNoCorr)}
+        ${cellMonAbs('Monto US (esta causa)', monUSD, true, 'usd', esPendPerdNoCorr)}
         ${rubrosCell}
         ${cellPct('Siniestralidad histórica', sinHAvg, fmtS, true)}
       </div>
