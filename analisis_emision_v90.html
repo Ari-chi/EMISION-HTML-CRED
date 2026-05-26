@@ -3635,22 +3635,26 @@ window.toggleEjecEmi = function(id){
     /* Helpers de formato */
     const fmtTasaPct = (v)=>v==null?'—':FMT_PCT_TASA(v);
     const fmtSinPct = (v)=>v==null?'—':FMT_PCT_SIN(v);
-    const cellMonto = (titulo, info, isUS, accentTone)=>{
-      if(!info || info.n===0) return '';
+    /* Cells sin tinte de fondo. Solo el símbolo $/US se colorea sutil para
+       diferenciar la moneda; al lado, el conteo de pólizas en esa moneda. */
+    const monSymHTML = (sym, n)=>{
+      const c = sym==='US' ? 'var(--pos)' : 'var(--accent)';
+      return `<span style="color:${c};font-weight:900;margin-left:3px">${sym}</span> <span style="color:var(--ink-3);font-weight:600">(${n} pól.)</span>`;
+    };
+    const cellMonto = (titulo, sym, info, isUS)=>{
+      if(!info || info.n===0) return '<div></div>';
       const c = info.d>=0?'var(--pos)':'var(--neg)';
-      const bg = accentTone==='ars' ? 'rgba(30,111,217,.06)' : (accentTone==='usd' ? 'rgba(45,155,106,.06)' : '#fff');
-      const bd = accentTone==='ars' ? '1px solid rgba(30,111,217,.30)' : (accentTone==='usd' ? '1px solid rgba(45,155,106,.30)' : '1px solid var(--line)');
-      return `<div style="background:${bg};border:${bd};border-radius:6px;padding:10px 13px">
-        <div style="font-size:11.5px;color:var(--ink-3);text-transform:uppercase;letter-spacing:.04em;font-weight:700">${titulo}</div>
+      return `<div style="background:#fff;border:1px solid var(--line);border-radius:6px;padding:10px 13px">
+        <div style="font-size:11.5px;color:var(--ink-3);text-transform:uppercase;letter-spacing:.04em;font-weight:700">${titulo}${monSymHTML(sym, info.n)}</div>
         <div style="font-family:var(--font-mono);font-size:13px;color:var(--ink-2);margin-top:4px;line-height:1.4">${fmtCompact(info.s25,isUS)} <span style="color:var(--ink-3)">→</span> <strong style="color:var(--accent-3);font-size:15px">${fmtCompact(info.s26,isUS)}</strong></div>
         <div style="font-family:var(--font-mono);font-size:15px;font-weight:800;color:${c};margin-top:4px">${info.d>=0?'+':''}${fmtCompact(info.d,isUS)}${info.pct!=null?' ('+(info.d>=0?'+':'')+FMT_PCT(info.pct)+')':''}</div>
       </div>`;
     };
     const cellPct = (titulo, info, fmt, neg)=>{
-      if(!info || info.n===0) return '';
+      if(!info || info.n===0) return '<div></div>';
       const c = info.d===0?'var(--accent)':(info.d>0?(neg?'var(--neg)':'var(--pos)'):(neg?'var(--pos)':'var(--neg)'));
       return `<div style="background:#fff;border:1px solid var(--line);border-radius:6px;padding:10px 13px">
-        <div style="font-size:11.5px;color:var(--ink-3);text-transform:uppercase;letter-spacing:.04em;font-weight:700">${titulo}</div>
+        <div style="font-size:11.5px;color:var(--ink-3);text-transform:uppercase;letter-spacing:.04em;font-weight:700">${titulo} <span style="color:var(--ink-3);font-weight:600">(${info.n} pól.)</span></div>
         <div style="font-family:var(--font-mono);font-size:13px;color:var(--ink-2);margin-top:4px;line-height:1.4">${fmt(info.v25)} <span style="color:var(--ink-3)">→</span> <strong style="color:var(--accent-3);font-size:15px">${fmt(info.v26)}</strong></div>
         <div style="font-family:var(--font-mono);font-size:15px;font-weight:800;color:${c};margin-top:4px">${info.d>=0?'+':''}${fmt(info.d)}</div>
       </div>`;
@@ -3659,10 +3663,10 @@ window.toggleEjecEmi = function(id){
       <div style="font-size:11.5px;color:var(--ink-3);text-transform:uppercase;letter-spacing:.04em;font-weight:700">Rubros (${rubArr.length})</div>
       <div style="font-size:12.5px;color:var(--accent-3);margin-top:4px;line-height:1.55">${rubArr.map(([k,n])=>`<div><strong>${k}:</strong> <span style="color:var(--ink-2)">${n} pól.</span></div>`).join('')}</div>
     </div>` : '<div></div>';
-    const proyARSCell = cellMonto('Proyección Vts / Pol. Moneda $', proyARS, false, 'ars');
-    const proyUSDCell = cellMonto('Proyección Vts / Pol. Moneda US', proyUSD, true, 'usd');
-    const monARSCell = cellMonto('Emisión / Pol. Moneda $', monARS, false, 'ars');
-    const monUSDCell = cellMonto('Emisión / Pol. Moneda US', monUSD, true, 'usd');
+    const proyARSCell = cellMonto('Proyección Vts / Pol. Moneda', '$',  proyARS, false);
+    const proyUSDCell = cellMonto('Proyección Vts / Pol. Moneda', 'US', proyUSD, true);
+    const monARSCell  = cellMonto('Emisión / Pol. Moneda',         '$',  monARS, false);
+    const monUSDCell  = cellMonto('Emisión / Pol. Moneda',         'US', monUSD, true);
     /* Grid 4×2: fila 1 = Proy $ | Proy US | Tasa | Sin UV ;
                   fila 2 = Emisión $ | Emisión US | Rubros | Sin H. */
     return `<div style="margin-bottom:14px">
@@ -3710,10 +3714,14 @@ window.toggleEjecEmi = function(id){
         ${a2.map(p=>fila(p)).join('')}
       </div>`;
     };
-    const cabecera = `<div style="display:flex;align-items:center;gap:10px;margin-bottom:12px;padding:13px 16px;background:${headBg};border-radius:8px;border:2px solid ${headColor}">
-      <span style="font-size:26px;font-weight:800;color:${headColor}">${esUS?'US':'$'}</span>
-      <span style="font-size:16px;font-weight:800;color:${headColor};text-transform:uppercase;letter-spacing:.03em">Moneda original ${esUS?'dólares':'pesos'}</span>
-      <span style="margin-left:auto;font-family:var(--font-mono);font-size:20px;font-weight:800;color:${esBono?'var(--neg)':headColor}">${arr.length} pól. · ${sgnTxt}${fmtCompact(tot,useUSD)}</span>
+    /* Cabecera sutil: solo el chip de moneda lleva tinte; el resto de la fila
+       sigue siendo el fondo del card. Al lado del total ponemos cuántas
+       pólizas son de esta moneda — el lector ve "14 pól. — 10 en $ · 4 en US"
+       distribuidas entre las dos columnas. */
+    const monChip = `<span style="display:inline-flex;align-items:center;gap:6px;background:${esUS?'rgba(45,155,106,.10)':'rgba(30,111,217,.10)'};color:${headColor};font-size:13px;font-weight:800;padding:4px 10px;border-radius:5px"><span style="font-size:14px">${esUS?'US':'$'}</span>${esUS?'Pól. en dólares':'Pól. en pesos'}</span>`;
+    const cabecera = `<div style="display:flex;align-items:center;gap:10px;margin-bottom:12px;padding:10px 4px;border-bottom:1px solid var(--line)">
+      ${monChip}
+      <span style="margin-left:auto;font-family:var(--font-mono);font-size:18px;font-weight:800;color:${esBono?'var(--neg)':'var(--accent-3)'}">${arr.length} pól. · ${sgnTxt}${fmtCompact(tot,useUSD)}</span>
     </div>`;
     if(arr.length===0){
       return `<div>${cabecera}<div style="font-size:13px;color:var(--ink-3);font-style:italic">— sin pólizas en esta moneda —</div></div>`;
@@ -3723,8 +3731,9 @@ window.toggleEjecEmi = function(id){
       const sorted = [...arr].sort(ordDesc);
       return `<div>${cabecera}${bloque(sorted, 'Pólizas', headColor, headBg)}</div>`;
     }
-    /* Tres buckets — la variación se calcula en moneda ORIGINAL para coherencia
-       con el umbral (+30% en pesos, +10% en dólares). */
+    /* Dos buckets — la variación se calcula en moneda ORIGINAL para coherencia
+       con el umbral (+30% en pesos, +10% en dólares). "Crecieron" cumple el
+       umbral; "Resto" = el resto (mantienen + cayeron, sin distinguir). */
     const v25orig = (p)=> (p.moneda==='US') ? (p.usd25||0) : (p.ars25||0);
     const v26orig = (p)=> (p.moneda==='US') ? (p.usd26||0) : (p.ars26||0);
     const variacion = (p)=>{
@@ -3734,16 +3743,12 @@ window.toggleEjecEmi = function(id){
       return (b-a)/Math.abs(a);
     };
     const crecieron = arr.filter(p=> variacion(p) > umbral).sort(ordDesc);
-    const cayeron   = arr.filter(p=> variacion(p) < 0).sort(ordDesc);
-    const mantienen = arr.filter(p=>{
-      const v = variacion(p);
-      return v >= 0 && v <= umbral;
-    }).sort(ordDesc);
+    const resto = arr.filter(p=> variacion(p) <= umbral).sort(ordDesc);
     return `<div>
       ${cabecera}
       ${bloque(crecieron, `Crecieron +${umbralPct}% o más`, 'var(--pos)', 'rgba(45,155,106,.10)')}
-      ${bloque(mantienen, `Mantienen (0% a +${umbralPct}%)`, 'var(--accent-3)', 'rgba(30,111,217,.06)')}
-      ${bloque(cayeron,   `Cayeron`, 'var(--neg)', 'rgba(217,71,71,.08)')}
+      ${crecieron.length>0 && resto.length>0 ? '<div style="height:14px"></div>' : ''}
+      ${bloque(resto, 'Resto', 'var(--accent-3)', 'rgba(30,111,217,.06)')}
     </div>`;
   };
 
@@ -4683,13 +4688,17 @@ window.toggleEjecCausa = function(id){
     const monUSD = {val:sumAbs(enriched.filter(r=>r.moneda==='US'),'montoUSD'), n:enriched.filter(r=>r.moneda==='US').length};
     const fmtT = (v)=>v==null?'—':FMT_PCT_TASA(v);
     const fmtS = (v)=>v==null?'—':FMT_PCT_SIN(v);
-    const cellMonto = (titulo, info, isUS, accentTone)=>{
+    /* Cells planos (sin tinte de fondo). El símbolo $/US se colorea sutil
+       como única señal visual de moneda, con el conteo de pólizas al lado. */
+    const monSymHTML = (sym, n)=>{
+      const c = sym==='US' ? 'var(--pos)' : 'var(--accent)';
+      return `<span style="color:${c};font-weight:900;margin-left:3px">${sym}</span> <span style="color:var(--ink-3);font-weight:600">(${n} pól.)</span>`;
+    };
+    const cellMonto = (titulo, sym, info, isUS)=>{
       if(!info || info.n===0) return '<div></div>';
       const c = info.d>=0?'var(--pos)':'var(--neg)';
-      const bg = accentTone==='ars' ? 'rgba(30,111,217,.06)' : (accentTone==='usd' ? 'rgba(45,155,106,.06)' : '#fff');
-      const bd = accentTone==='ars' ? '1px solid rgba(30,111,217,.30)' : (accentTone==='usd' ? '1px solid rgba(45,155,106,.30)' : '1px solid var(--line)');
-      return `<div style="background:${bg};border:${bd};border-radius:6px;padding:10px 13px">
-        <div style="font-size:11.5px;color:var(--ink-3);text-transform:uppercase;letter-spacing:.04em;font-weight:700">${titulo}</div>
+      return `<div style="background:#fff;border:1px solid var(--line);border-radius:6px;padding:10px 13px">
+        <div style="font-size:11.5px;color:var(--ink-3);text-transform:uppercase;letter-spacing:.04em;font-weight:700">${titulo}${monSymHTML(sym, info.n)}</div>
         <div style="font-family:var(--font-mono);font-size:13px;color:var(--ink-2);margin-top:4px;line-height:1.4">${fmtCompact(info.s25,isUS)} <span style="color:var(--ink-3)">→</span> <strong style="color:var(--accent-3);font-size:15px">${fmtCompact(info.s26,isUS)}</strong></div>
         <div style="font-family:var(--font-mono);font-size:15px;font-weight:800;color:${c};margin-top:4px">${info.d>=0?'+':''}${fmtCompact(info.d,isUS)}${info.pct!=null?' ('+(info.d>=0?'+':'')+FMT_PCT(info.pct)+')':''}</div>
       </div>`;
@@ -4698,61 +4707,46 @@ window.toggleEjecCausa = function(id){
       if(!info || info.n===0) return '<div></div>';
       const c = info.d===0?'var(--accent)':(info.d>0?(neg?'var(--neg)':'var(--pos)'):(neg?'var(--pos)':'var(--neg)'));
       return `<div style="background:#fff;border:1px solid var(--line);border-radius:6px;padding:10px 13px">
-        <div style="font-size:11.5px;color:var(--ink-3);text-transform:uppercase;letter-spacing:.04em;font-weight:700">${titulo}</div>
+        <div style="font-size:11.5px;color:var(--ink-3);text-transform:uppercase;letter-spacing:.04em;font-weight:700">${titulo} <span style="color:var(--ink-3);font-weight:600">(${info.n} pól.)</span></div>
         <div style="font-family:var(--font-mono);font-size:13px;color:var(--ink-2);margin-top:4px;line-height:1.4">${fmt(info.v25)} <span style="color:var(--ink-3)">→</span> <strong style="color:var(--accent-3);font-size:15px">${fmt(info.v26)}</strong></div>
         <div style="font-family:var(--font-mono);font-size:15px;font-weight:800;color:${c};margin-top:4px">${info.d>=0?'+':''}${fmt(info.d)}</div>
       </div>`;
     };
-    const cellMonAbs = (titulo, info, isUS, accentTone, forceNeg)=>{
+    const cellMonAbs = (titulo, sym, info, isUS, forceNeg)=>{
       if(!info || info.n===0) return '<div></div>';
-      const bg = accentTone==='ars' ? 'rgba(30,111,217,.06)' : (accentTone==='usd' ? 'rgba(45,155,106,.06)' : '#fff');
-      const bd = accentTone==='ars' ? '1px solid rgba(30,111,217,.30)' : (accentTone==='usd' ? '1px solid rgba(45,155,106,.30)' : '1px solid var(--line)');
-      /* Para pendientes/perdidas el monto SIEMPRE resta (representa lo que falta o
-         se perdió) — se fuerza el signo negativo y el color rojo. */
       const v = forceNeg ? -Math.abs(info.val) : info.val;
       const color = forceNeg || v<0 ? 'var(--neg)' : (v>0?'var(--pos)':'var(--ink-2)');
       const sgn = (v<0 || forceNeg) ? '−' : (v>0 ? '+' : '');
-      return `<div style="background:${bg};border:${bd};border-radius:6px;padding:10px 13px">
-        <div style="font-size:11.5px;color:var(--ink-3);text-transform:uppercase;letter-spacing:.04em;font-weight:700">${titulo}</div>
-        <div style="font-family:var(--font-mono);font-size:16px;font-weight:800;color:${color};margin-top:4px">${sgn}${fmtCompact(Math.abs(v),isUS)} <span style="font-size:11.5px;color:var(--ink-3);font-weight:600">· ${info.n} pól.</span></div>
+      return `<div style="background:#fff;border:1px solid var(--line);border-radius:6px;padding:10px 13px">
+        <div style="font-size:11.5px;color:var(--ink-3);text-transform:uppercase;letter-spacing:.04em;font-weight:700">${titulo}${monSymHTML(sym, info.n)}</div>
+        <div style="font-family:var(--font-mono);font-size:16px;font-weight:800;color:${color};margin-top:4px">${sgn}${fmtCompact(Math.abs(v),isUS)}</div>
       </div>`;
     };
-    /* Variante para Proyección en drills de pendiente / perdidas: como la
-       póliza no emitió aún, no tiene sentido mostrar "25 → 26 (-100%)";
-       directamente se muestra el monto 2025 con signo negativo (representa
-       el monto pendiente de proyectarse o perdido). */
-    const cellMonNeg = (titulo, info, isUS, accentTone)=>{
+    const cellMonNeg = (titulo, sym, info, isUS)=>{
       if(!info || info.n===0 || (info.s25===0 && info.s26===0)) return '<div></div>';
-      const bg = accentTone==='ars' ? 'rgba(30,111,217,.06)' : (accentTone==='usd' ? 'rgba(45,155,106,.06)' : '#fff');
-      const bd = accentTone==='ars' ? '1px solid rgba(30,111,217,.30)' : (accentTone==='usd' ? '1px solid rgba(45,155,106,.30)' : '1px solid var(--line)');
       const v = Math.max(Math.abs(info.s25), Math.abs(info.s26||0));
-      return `<div style="background:${bg};border:${bd};border-radius:6px;padding:10px 13px">
-        <div style="font-size:11.5px;color:var(--ink-3);text-transform:uppercase;letter-spacing:.04em;font-weight:700">${titulo}</div>
-        <div style="font-family:var(--font-mono);font-size:16px;font-weight:800;color:var(--neg);margin-top:4px">−${fmtCompact(v,isUS)} <span style="font-size:11.5px;color:var(--ink-3);font-weight:600">· ${info.n} pól.</span></div>
+      return `<div style="background:#fff;border:1px solid var(--line);border-radius:6px;padding:10px 13px">
+        <div style="font-size:11.5px;color:var(--ink-3);text-transform:uppercase;letter-spacing:.04em;font-weight:700">${titulo}${monSymHTML(sym, info.n)}</div>
+        <div style="font-family:var(--font-mono);font-size:16px;font-weight:800;color:var(--neg);margin-top:4px">−${fmtCompact(v,isUS)}</div>
       </div>`;
     };
     const rubrosCell = rubArr.length>0 ? `<div style="background:#fff;border:1px solid var(--line);border-radius:6px;padding:10px 13px">
       <div style="font-size:11.5px;color:var(--ink-3);text-transform:uppercase;letter-spacing:.04em;font-weight:700">Rubros (${rubArr.length})</div>
       <div style="font-size:12.5px;color:var(--accent-3);margin-top:4px;line-height:1.55">${rubArr.map(([k,n])=>`<div><strong>${k}:</strong> <span style="color:var(--ink-2)">${n} pól.</span></div>`).join('')}</div>
     </div>` : '<div></div>';
-    /* Drills donde el monto es PENDIENTE / PERDIDO — siempre resta. */
     const esPendPerdNoCorr = (id==='pendiente' || /^pend_/.test(id) || id==='perdidas');
-    /* Grid 4×2: fila 1 = Proy $ | Proy US | Tasa | Sin UV ;
-                  fila 2 = Monto $ | Monto US | Rubros | Sin H. */
-    const proyARSCell = esPendPerdNoCorr
-      ? cellMonNeg('Proyección Vts / Pol. Moneda $', proyARS, false, 'ars')
-      : cellMonto('Proyección Vts / Pol. Moneda $', proyARS, false, 'ars');
-    const proyUSDCell = esPendPerdNoCorr
-      ? cellMonNeg('Proyección Vts / Pol. Moneda US', proyUSD, true, 'usd')
-      : cellMonto('Proyección Vts / Pol. Moneda US', proyUSD, true, 'usd');
+    const proyARSCell = esPendPerdNoCorr ? cellMonNeg('Proyección Vts / Pol. Moneda', '$', proyARS, false)
+                                          : cellMonto ('Proyección Vts / Pol. Moneda', '$', proyARS, false);
+    const proyUSDCell = esPendPerdNoCorr ? cellMonNeg('Proyección Vts / Pol. Moneda', 'US', proyUSD, true)
+                                          : cellMonto ('Proyección Vts / Pol. Moneda', 'US', proyUSD, true);
     return `<div style="margin-bottom:14px">
       <div style="display:grid;grid-template-columns:repeat(4,1fr);gap:10px">
         ${proyARSCell}
         ${proyUSDCell}
         ${cellPct('Tasa promedio', tasaAvg, fmtT, false)}
         ${cellPct('Siniestralidad UV', sinUVAvg, fmtS, true)}
-        ${cellMonAbs('Monto $ (esta causa)', monARS, false, 'ars', esPendPerdNoCorr)}
-        ${cellMonAbs('Monto US (esta causa)', monUSD, true, 'usd', esPendPerdNoCorr)}
+        ${cellMonAbs('Monto (esta causa)', '$', monARS, false, esPendPerdNoCorr)}
+        ${cellMonAbs('Monto (esta causa)', 'US', monUSD, true, esPendPerdNoCorr)}
         ${rubrosCell}
         ${cellPct('Siniestralidad histórica', sinHAvg, fmtS, true)}
       </div>
@@ -5224,17 +5218,18 @@ function drawEjecRubroExtremos(polArr, f){
         <div style="font-family:var(--font-mono);font-size:13.5px;font-weight:800;color:${c};white-space:nowrap">${fmtDelta(d)}</div>
       </div>`;
     };
-    const seccion = (titulo, color, items)=>{
+    const seccion = (titulo, color, items, esMejora)=>{
       if(items.length===0) return '';
-      return `<div style="margin-bottom:10px">
-        <div style="font-size:11px;color:${color};text-transform:uppercase;letter-spacing:.05em;font-weight:800;margin-bottom:5px">${titulo}</div>
-        ${items.map(r=>row(r, titulo.includes('Top'))).join('')}
+      const bg = esMejora ? 'rgba(45,155,106,.10)' : 'rgba(217,71,71,.08)';
+      return `<div style="margin-bottom:12px">
+        <div style="display:inline-block;background:${bg};color:${color};font-size:12px;font-weight:800;padding:5px 12px;border-radius:14px;text-transform:uppercase;letter-spacing:.06em;margin-bottom:8px">${titulo}</div>
+        ${items.map(r=>row(r, esMejora)).join('')}
       </div>`;
     };
     return `<div style="background:var(--panel);border:1px solid var(--line-2);border-radius:10px;padding:14px 16px;border-top:4px solid ${color};box-shadow:0 1px 3px rgba(10,31,58,.04)">
       <div style="font-size:13px;color:${color};text-transform:uppercase;letter-spacing:.06em;font-weight:800;margin-bottom:10px">${titulo}</div>
-      ${seccion('Top 3 mejoras', 'var(--pos)', mejoras)}
-      ${seccion('Top 3 bajas',   'var(--neg)', bajas)}
+      ${seccion('▲ Top 3 mejoras', 'var(--pos)', mejoras, true)}
+      ${seccion('▼ Top 3 bajas',   'var(--neg)', bajas, false)}
       ${mejoras.length===0 && bajas.length===0 ? '<div style="font-size:12.5px;color:var(--ink-3);font-style:italic">— sin variaciones —</div>' : ''}
     </div>`;
   };
@@ -8871,8 +8866,8 @@ function renderPolizas(){
   const categoriasList = [...cats].sort();
   sec.innerHTML = `
     <div class="section-head"><h2>Justificación <em>por póliza</em></h2></div>
-    ${sectionFiltersBarMinimalHTML('polizas')}
-    <div id="polizas-nlabel"></div>
+    ${sectionFiltersBarHTML('polizas')}
+    <div id="polizas-nlabel" style="display:none"></div>
     <div class="filters">
       <span class="label">Filtrar</span>
       <input type="text" id="fPolBuscar" placeholder="Buscar póliza, asegurado, motivos…" />
