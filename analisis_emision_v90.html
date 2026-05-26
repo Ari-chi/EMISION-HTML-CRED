@@ -3191,73 +3191,91 @@ function ejecEmitido(S, useUSD, dual){
   const FMTc=(v)=>fmtCompact(v,useUSD);
   const mLbl=useUSD?'USD':'ARS$';
   const sufijo = useUSD?'u':'a';
-  /* Categorías en orden pedido (anualidad anterior abajo de nuevas) */
+  /* Cada categoría con su color identificatorio para la barra apilada. */
   const cats = [
-    {key:'ren', lbl:'Renovaciones'},
-    {key:'seg', lbl:'Segunda anualidad'},
-    {key:'ter', lbl:'Tercera anualidad'},
-    {key:'ajuste', lbl:'Ajuste'},
-    {key:'malus', lbl:'Malus'},
-    {key:'bono', lbl:'Bono'},
-    {key:'nuevas', lbl:'Pólizas nuevas'},
-    {key:'anualant', lbl:'Corresponde a la Anualidad Anterior'},
+    {key:'ren',      lbl:'Renovaciones',                       col:'#2d9b6a', esBono:false},
+    {key:'seg',      lbl:'Segunda anualidad',                  col:'#5eb3e8', esBono:false},
+    {key:'ter',      lbl:'Tercera anualidad',                  col:'#1e6fd9', esBono:false},
+    {key:'ajuste',   lbl:'Ajuste',                             col:'#e0922f', esBono:false},
+    {key:'malus',    lbl:'Malus',                              col:'#a259ff', esBono:false},
+    {key:'bono',     lbl:'Bono',                               col:'#d94747', esBono:true},
+    {key:'nuevas',   lbl:'Pólizas nuevas',                     col:'#7fc28a', esBono:false},
+    {key:'anualant', lbl:'Corresponde a la Anualidad Anterior',col:'#8b8fa3', esBono:false},
   ];
-  /* Total absoluto de la sección "Lo que se emitió" para mostrar el % que aporta
-     cada ítem. El bono RESTA (devolución), así que se usa con signo negativo en la
-     suma, igual que en la tarjeta de Emisión Total 2026. */
-  const _ec = S.emitidoCats || {};
-  const _sumRef = ['ren','seg','ter','ajuste','malus','nuevas','anualant']
-    .reduce((a,k)=> a + ((_ec[k] && _ec[k].total)||0), 0)
-    - ((_ec.bono && _ec.bono.total)||0);
-  const cards = cats.map(c=>{
-    const id = `ejecEmi_${c.key}_${sufijo}`;
+  const colMap = Object.fromEntries(cats.map(c=>[c.key, c]));
+  /* Construir items con datos y filtrar los vacíos. */
+  const items = cats.map(c=>{
     const data = S.emitidoCats ? S.emitidoCats[c.key] : null;
     const tot = data ? data.total : 0;
     const n = data ? data.polizas.length : 0;
-    if(n===0 && tot<=1) return '';
-    /* El BONO siempre se muestra en negativo (pedido del usuario) */
-    const esBono = (c.key==='bono');
-    const totDisp = esBono ? -Math.abs(tot) : tot;
-    const totColor = esBono ? 'var(--neg)' : 'var(--pos)';
-    /* % que el ítem representa sobre el total de "Lo que se emitió" (con signo:
-       el bono cuenta como restando, por eso se compara con |totDisp|/|_sumRef|). */
-    const pct = _sumRef !== 0 ? (Math.abs(totDisp) / Math.abs(_sumRef) * 100) : null;
-    const pctTxt = pct!=null ? Math.round(pct)+'%' : '';
-    return `<div style="background:rgba(45,155,106,.05);border-radius:8px;border-left:4px solid var(--pos);margin-bottom:6px">
-      <div style="padding:11px 18px;cursor:pointer;display:grid;grid-template-columns:1fr auto auto auto;column-gap:18px;align-items:center;max-width:760px;margin:0 auto" onclick="toggleEjecEmi('${id}')">
+    const totSigned = c.esBono ? -Math.abs(tot) : tot;
+    return {...c, tot, n, totSigned, absVal:Math.abs(totSigned)};
+  }).filter(it=> it.n>0 || it.absVal>1);
+  /* Orden de MAYOR a MENOR por valor absoluto (pedido del usuario). */
+  items.sort((a,b)=> b.absVal - a.absVal);
+  /* Total absoluto para % de la barra: suma de magnitudes de cada item. */
+  const totalAbs = items.reduce((a,it)=>a+it.absVal, 0) || 1;
+  /* Emisión Total 2026 (suma con signo: bono resta). */
+  const sumItems = items.reduce((a,it)=>a+it.totSigned, 0);
+
+  /* Barra horizontal apilada — cada segmento muestra su % del total absoluto.
+     Estilo similar al gráfico del Desvío de Emisión. */
+  const fsSeg = (pct)=> pct>=8 ? 17 : (pct>=4 ? 13 : (pct>=2 ? 11 : 9));
+  const seg = (it)=>{
+    const pct = it.absVal/totalAbs*100;
+    if(pct < 0.05) return '';
+    const fs = fsSeg(pct);
+    return `<div title="${it.lbl}: ${Math.round(pct)}%" style="width:${pct}%;background:${it.col};height:100%;display:flex;align-items:center;justify-content:center;border-right:2px solid var(--panel);font-size:${fs}px;font-weight:800;color:#fff;line-height:1;white-space:nowrap">${Math.round(pct)}%</div>`;
+  };
+  const chip = (it)=>{
+    const pct = Math.round(it.absVal/totalAbs*100);
+    return `<span style="display:inline-flex;align-items:center;gap:6px;font-size:12px;color:var(--ink-2);white-space:nowrap">
+      <span style="width:11px;height:11px;border-radius:2px;background:${it.col};flex-shrink:0;border:1px solid rgba(0,0,0,.08)"></span>
+      ${it.lbl} <strong style="color:var(--accent-3);font-family:var(--font-mono)">${pct}%</strong>
+    </span>`;
+  };
+
+  /* Tarjetas compactas (menos padding/altura) por debajo de la barra. */
+  const cards = items.map(it=>{
+    const id = `ejecEmi_${it.key}_${sufijo}`;
+    const totColor = it.esBono ? 'var(--neg)' : 'var(--pos)';
+    const pct = it.absVal/totalAbs*100;
+    const pctTxt = Math.round(pct)+'%';
+    return `<div style="background:rgba(45,155,106,.04);border-radius:6px;border-left:3px solid ${it.col};margin-bottom:3px">
+      <div style="padding:6px 14px;cursor:pointer;display:grid;grid-template-columns:1fr auto auto auto;column-gap:14px;align-items:center;max-width:760px;margin:0 auto" onclick="toggleEjecEmi('${id}')">
         <div style="text-align:left">
-          <span style="font-size:14.5px;color:var(--accent-3);font-weight:700">${c.lbl}</span>
-          <span style="font-size:11.5px;color:var(--ink-3);margin-left:8px">${n} pól.</span>
+          <span style="font-size:13.5px;color:var(--accent-3);font-weight:700">${it.lbl}</span>
+          <span style="font-size:11px;color:var(--ink-3);margin-left:7px">${it.n} pól.</span>
         </div>
-        <span style="font-size:13px;color:var(--ink-3);font-family:var(--font-mono);font-weight:700;min-width:42px;text-align:right">${pctTxt}</span>
-        <span style="font-size:19px;font-weight:700;color:${totColor};font-family:var(--font-mono);min-width:80px;text-align:right">${esBono?'−':''}${FMTc(Math.abs(totDisp))}</span>
-        <span id="${id}_car" style="font-size:12px;color:var(--accent)">▸</span>
+        <span style="font-size:12.5px;color:var(--ink-3);font-family:var(--font-mono);font-weight:700;min-width:36px;text-align:right">${pctTxt}</span>
+        <span style="font-size:17px;font-weight:700;color:${totColor};font-family:var(--font-mono);min-width:76px;text-align:right">${it.esBono?'−':''}${FMTc(Math.abs(it.totSigned))}</span>
+        <span id="${id}_car" style="font-size:11px;color:var(--accent)">▸</span>
       </div>
       <div id="${id}" style="display:none;padding:0 14px 12px"></div>
     </div>`;
   }).join('');
 
-  /* Guardar datos para los desplegables */
+  /* Guardar datos para los desplegables. */
   state._ejecEmitido = state._ejecEmitido || {};
   cats.forEach(c=>{
     const id = `ejecEmi_${c.key}_${sufijo}`;
     state._ejecEmitido[id] = (S.emitidoCats && S.emitidoCats[c.key]) ? {data:S.emitidoCats[c.key], useUSD, dual} : {data:{total:0,polizas:[]}, useUSD, dual};
   });
 
-  /* EMISIÓN TOTAL 2026 = sumatoria de los items mostrados. El BONO RESTA (es una
-     devolución/descuento), por eso se computa en negativo. Así el total coincide
-     con la suma visible de las tarjetas (con el bono restando). */
-  const EC = S.emitidoCats || {};
-  const sumItems = ['ren','seg','ter','ajuste','malus','nuevas','anualant']
-    .reduce((a,k)=> a + ((EC[k] && EC[k].total) || 0), 0)
-    - ((EC.bono && EC.bono.total) || 0);
-
   return `<div style="margin-top:${dual?14:8}px">
     ${dual?`<div style="font-size:11px;color:var(--ink-3);text-transform:uppercase;letter-spacing:.05em;font-weight:700;margin-bottom:8px">${mLbl}</div>`:''}
-    <div style="background:rgba(45,155,106,.10);border-radius:10px;padding:14px 18px;margin-bottom:12px;border-left:4px solid var(--pos)">
+    <div style="background:rgba(45,155,106,.10);border-radius:10px;padding:14px 18px;margin-bottom:14px;border-left:4px solid var(--pos)">
       <div style="font-size:12px;color:var(--pos);text-transform:uppercase;letter-spacing:.05em;font-weight:700">Emisión total 2026</div>
       <div style="font-size:30px;font-weight:700;color:var(--pos);font-family:var(--font-mono);line-height:1.1">${FMTc(sumItems)}</div>
     </div>
+    ${items.length>0 ? `
+    <!-- Barra horizontal apilada con la composición de la emisión -->
+    <div style="height:48px;border-radius:8px;background:var(--bg-2);overflow:hidden;display:flex;box-shadow:inset 0 0 0 1px rgba(0,0,0,.06);margin-bottom:8px">
+      ${items.map(seg).join('')}
+    </div>
+    <div style="display:flex;flex-wrap:wrap;gap:10px 14px;margin-bottom:14px;padding:0 4px">
+      ${items.map(chip).join('')}
+    </div>` : ''}
     ${cards||'<div style="font-size:12px;color:var(--ink-3);font-style:italic">— sin emisión registrada —</div>'}
   </div>`;
 }
