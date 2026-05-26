@@ -3236,6 +3236,7 @@ function renderEjecDesvioPies(){
       },
       options:{
         responsive:true, maintainAspectRatio:false, cutout:'55%',
+        layout:{padding:{top:30,right:50,bottom:30,left:50}},
         plugins:{
           legend:{display:false},
           tooltip:{callbacks:{label:(ctx)=> `${ctx.label}: ${fmtCompact(ctx.parsed, useUSD)}`}}
@@ -3364,6 +3365,7 @@ function renderEjecEmiPies(){
       },
       options:{
         responsive:true, maintainAspectRatio:false, cutout:'55%',
+        layout:{padding:{top:30,right:50,bottom:30,left:50}},
         plugins:{
           legend:{display:false},
           tooltip:{callbacks:{label:(ctx)=> `${ctx.label}: ${fmtCompact(ctx.parsed, useUSD)}`}}
@@ -3375,19 +3377,22 @@ function renderEjecEmiPies(){
 }
 
 /* Plugin para dibujar el % adentro de cada arco del doughnut. Si la porción es
-   chica (<6%) lo dibuja AFUERA con el color del arco. Sin decimales. */
+   chica (<6%) lo dibuja AFUERA con una pequeña línea guía y el color del arco.
+   Para porciones de 1-2% incluso muy chicas, se usa un offset radial mayor para
+   evitar que los textos se solapen. Sin decimales. */
 const pctOnArcPlugin = {
   id: 'pctOnArc',
   afterDatasetsDraw(chart){
     const ds = chart.data.datasets[0];
     const meta = chart.getDatasetMeta(0);
-    const total = ds.data.reduce((a,b)=>a+(b||0),0);
+    const total = ds.data.reduce((a,b)=>a+Math.abs(b||0),0);
     if(!total) return;
     const ctx = chart.ctx;
     ctx.save();
+    /* Calcular % de cada arco para no perder los chicos */
+    const labels = ds.data.map(v=> total ? Math.round(Math.abs(v)/total*100) : 0);
     meta.data.forEach((arc,i)=>{
-      const val = ds.data[i] || 0;
-      const pct = Math.round(val/total*100);
+      const pct = labels[i];
       if(pct < 1) return;
       const p = arc.getProps(['startAngle','endAngle','innerRadius','outerRadius','x','y'], true);
       const angle = (p.startAngle + p.endAngle)/2;
@@ -3400,12 +3405,21 @@ const pctOnArcPlugin = {
         ctx.fillStyle = '#fff';
         ctx.fillText(pct+'%', x, y);
       } else {
-        const rOut = p.outerRadius + 14;
-        const x = p.x + Math.cos(angle)*rOut;
-        const y = p.y + Math.sin(angle)*rOut;
+        /* Fuera del arco con una pequeña línea guía. Offset radial variable
+           para reducir colisión cuando hay varias porciones chicas seguidas. */
+        const offset = pct<=2 ? 22 : 16;
+        const xA = p.x + Math.cos(angle)*p.outerRadius;
+        const yA = p.y + Math.sin(angle)*p.outerRadius;
+        const xB = p.x + Math.cos(angle)*(p.outerRadius+offset);
+        const yB = p.y + Math.sin(angle)*(p.outerRadius+offset);
+        ctx.strokeStyle = ds.backgroundColor[i] || '#888';
+        ctx.lineWidth = 1.2;
+        ctx.beginPath(); ctx.moveTo(xA,yA); ctx.lineTo(xB,yB); ctx.stroke();
         ctx.font = 'bold 11px Calibri,Segoe UI,sans-serif';
         ctx.fillStyle = ds.backgroundColor[i] || '#333';
-        ctx.fillText(pct+'%', x, y);
+        const tw = ctx.measureText(pct+'%').width;
+        const xT = xB + (Math.cos(angle)>=0 ? tw/2+2 : -tw/2-2);
+        ctx.fillText(pct+'%', xT, yB);
       }
     });
     ctx.restore();
@@ -3477,9 +3491,22 @@ window.toggleEjecEmi = function(id){
   const valOrig = (p, campo)=> (p.moneda==='US') ? (p['usd'+campo]||0) : (p['ars'+campo]||0);
   const monStr = (m)=> m==='US'?'US':'$';
 
+  /* Etiqueta del concepto principal según el bucket que se está desplegando.
+     Para Renovaciones/Segunda/Tercera/Pólizas nuevas, el valor es Prima Mín.;
+     para Ajuste/Bono/Malus, el valor es el propio concepto; para Anualidad
+     Anterior se muestra qué concepto(s) son AA en cada póliza (p.concepto). */
+  const bucketKey = id.replace(/^ejecEmi_/, '').replace(/_[ua]$/, '');
+  const conceptoBucketLbl = ({
+    ren:'Prima', seg:'Prima', ter:'Prima', nuevas:'Prima',
+    ajuste:'Ajuste', bono:'Bono', malus:'Malus',
+    anualant:'AA'
+  })[bucketKey] || 'Prima';
+
   /* fila de póliza: poliza/asegurado + rubro a la izquierda, cuadrito gris con
-     variaciones de Prima/PV/Tasa/SinUV/SinH abajo, monto 2026 + % a la derecha
-     (color verde si subió, rojo si bajó, azul tenue si quedó igual). */
+     variaciones del concepto / PV / Tasa / SinUV / SinH abajo, monto 2026 + % a
+     la derecha (verde sube, rojo baja, azul tenue igual). Debajo del monto
+     principal aparece el equivalente en la moneda de la vista (cuando difiere),
+     sin label adicional ni prefijo duplicado (fmtCompact ya inyecta $ / US). */
   const fila = (p)=>{
     const monOrig = (p.moneda==='US')?'US':'$';
     const monBtn = useUSD?'US':'$';
@@ -3492,9 +3519,13 @@ window.toggleEjecEmi = function(id){
     else if(dOrig<0) cc='var(--neg)';
     else cc='var(--accent)';
     const equivLine = (monOrig!==monBtn)
-      ? `<div style="font-size:11.5px;color:var(--ink-3);font-family:var(--font-mono);text-align:right;margin-top:2px">${monStr(monBtn)} ${sgnTxt}${fmtCompact(valBtn(p,'26'), useUSD)} <span style="opacity:.85">· equivalente</span></div>`
+      ? `<div style="font-size:11.5px;color:var(--ink-3);font-family:var(--font-mono);text-align:right;margin-top:2px">${sgnTxt}${fmtCompact(valBtn(p,'26'), useUSD)}</div>`
       : '';
-    const concBadge = p.concepto ? `<span style="font-size:11px;color:var(--accent-3);font-weight:700;background:rgba(124,77,255,.10);padding:1px 6px;border-radius:3px;margin-left:4px">${p.concepto}</span>` : '';
+    /* Etiqueta del concepto AA — viene en p.concepto (ej. "Prima+Ajuste"). */
+    const lblConcepto = bucketKey==='anualant' ? (p.concepto || 'AA') : conceptoBucketLbl;
+    const concBadge = (bucketKey==='anualant' && p.concepto)
+      ? `<span style="font-size:11px;color:var(--accent-3);font-weight:700;background:rgba(124,77,255,.10);padding:1px 6px;border-radius:3px;margin-left:4px">${p.concepto}</span>`
+      : '';
     /* Cuadrito gris con las variaciones de la póliza */
     const varLine = (label, v25, v26, fmt, deltaFmt, neg)=>{
       if(v25==null && v26==null) return '';
@@ -3517,12 +3548,16 @@ window.toggleEjecEmi = function(id){
     const fmtMon = (v)=>v==null?'—':fmtCompact(v, isUS);
     const fmtTasa = (v)=>v==null?'—':FMT_PCT_TASA(v);
     const fmtSin = (v)=>v==null?'—':FMT_PCT_SIN(v);
+    /* Para "Corresponde a la Anualidad Anterior" mostramos SOLO la línea del
+       concepto AA — sin PV/Tasa/Siniestralidad, porque la AA es residuo del
+       período anterior y esas variables no aplican al desvío de este período. */
+    const esAAbucket = (bucketKey==='anualant');
     const varBox = `<div style="background:rgba(0,0,0,.03);border:1px solid var(--line);border-radius:5px;padding:6px 10px;margin-top:6px;max-width:520px">
-      ${varLine('Prima', pmO25, pmO26, fmtMon, fmtMon, false)}
-      ${varLine('PV',    pvO25, pvO26, fmtMon, fmtMon, false)}
-      ${varLine('Tasa',  p.tasa25, p.tasa26, fmtTasa, fmtTasa, false)}
-      ${varLine('Sin UV',p.sinUV25, p.sinUV26, fmtSin, fmtSin, true)}
-      ${varLine('Sin H', p.sinH25, p.sinH26, fmtSin, fmtSin, true)}
+      ${varLine(lblConcepto, pmO25, pmO26, fmtMon, fmtMon, false)}
+      ${esAAbucket?'':varLine('PV',    pvO25, pvO26, fmtMon, fmtMon, false)}
+      ${esAAbucket?'':varLine('Tasa',  p.tasa25, p.tasa26, fmtTasa, fmtTasa, false)}
+      ${esAAbucket?'':varLine('Sin UV',p.sinUV25, p.sinUV26, fmtSin, fmtSin, true)}
+      ${esAAbucket?'':varLine('Sin H', p.sinH25, p.sinH26, fmtSin, fmtSin, true)}
     </div>`;
     return `<div style="padding:10px 4px;border-bottom:1px solid var(--line)">
       <div style="display:flex;justify-content:space-between;gap:14px;align-items:flex-start">
@@ -3537,8 +3572,8 @@ window.toggleEjecEmi = function(id){
         </div>
         <div style="text-align:right;font-family:var(--font-mono);white-space:nowrap;min-width:130px">
           <div style="font-size:16px;font-weight:800;color:${cc}">${sgnTxt}${fmtCompact(v26orig, isUS)}</div>
-          ${dpct!=null?`<div style="font-size:13px;font-weight:800;color:${cc};margin-top:2px">${dOrig>=0?'+':''}${FMT_PCT(dpct)}</div>`:''}
           ${equivLine}
+          ${dpct!=null?`<div style="font-size:13px;font-weight:800;color:${cc};margin-top:2px">${dOrig>=0?'+':''}${FMT_PCT(dpct)}</div>`:''}
         </div>
       </div>
     </div>`;
@@ -3579,43 +3614,46 @@ window.toggleEjecEmi = function(id){
     /* Helpers de formato */
     const fmtTasaPct = (v)=>v==null?'—':FMT_PCT_TASA(v);
     const fmtSinPct = (v)=>v==null?'—':FMT_PCT_SIN(v);
-    const cellMonto = (titulo, info, isUS)=>{
+    const cellMonto = (titulo, info, isUS, accentTone)=>{
       if(!info || info.n===0) return '';
       const c = info.d>=0?'var(--pos)':'var(--neg)';
-      return `<div style="background:#fff;border:1px solid var(--line);border-radius:6px;padding:8px 11px">
-        <div style="font-size:11px;color:var(--ink-3);text-transform:uppercase;letter-spacing:.04em;font-weight:700">${titulo}</div>
-        <div style="font-family:var(--font-mono);font-size:13px;color:var(--ink-2);margin-top:3px">${fmtCompact(info.s25,isUS)} → <strong>${fmtCompact(info.s26,isUS)}</strong></div>
-        <div style="font-family:var(--font-mono);font-size:14px;font-weight:800;color:${c};margin-top:2px">${info.d>=0?'+':''}${fmtCompact(info.d,isUS)}${info.pct!=null?' ('+(info.d>=0?'+':'')+FMT_PCT(info.pct)+')':''}</div>
+      const bg = accentTone==='ars' ? 'rgba(30,111,217,.06)' : (accentTone==='usd' ? 'rgba(45,155,106,.06)' : '#fff');
+      const bd = accentTone==='ars' ? '1px solid rgba(30,111,217,.30)' : (accentTone==='usd' ? '1px solid rgba(45,155,106,.30)' : '1px solid var(--line)');
+      return `<div style="background:${bg};border:${bd};border-radius:6px;padding:10px 13px">
+        <div style="font-size:11.5px;color:var(--ink-3);text-transform:uppercase;letter-spacing:.04em;font-weight:700">${titulo}</div>
+        <div style="font-family:var(--font-mono);font-size:13px;color:var(--ink-2);margin-top:4px;line-height:1.4">${fmtCompact(info.s25,isUS)} <span style="color:var(--ink-3)">→</span> <strong style="color:var(--accent-3);font-size:15px">${fmtCompact(info.s26,isUS)}</strong></div>
+        <div style="font-family:var(--font-mono);font-size:15px;font-weight:800;color:${c};margin-top:4px">${info.d>=0?'+':''}${fmtCompact(info.d,isUS)}${info.pct!=null?' ('+(info.d>=0?'+':'')+FMT_PCT(info.pct)+')':''}</div>
       </div>`;
     };
     const cellPct = (titulo, info, fmt, neg)=>{
       if(!info || info.n===0) return '';
       const c = info.d===0?'var(--accent)':(info.d>0?(neg?'var(--neg)':'var(--pos)'):(neg?'var(--pos)':'var(--neg)'));
-      return `<div style="background:#fff;border:1px solid var(--line);border-radius:6px;padding:8px 11px">
-        <div style="font-size:11px;color:var(--ink-3);text-transform:uppercase;letter-spacing:.04em;font-weight:700">${titulo}</div>
-        <div style="font-family:var(--font-mono);font-size:13px;color:var(--ink-2);margin-top:3px">${fmt(info.v25)} → <strong>${fmt(info.v26)}</strong></div>
-        <div style="font-family:var(--font-mono);font-size:14px;font-weight:800;color:${c};margin-top:2px">${info.d>=0?'+':''}${fmt(info.d)}</div>
+      return `<div style="background:#fff;border:1px solid var(--line);border-radius:6px;padding:10px 13px">
+        <div style="font-size:11.5px;color:var(--ink-3);text-transform:uppercase;letter-spacing:.04em;font-weight:700">${titulo}</div>
+        <div style="font-family:var(--font-mono);font-size:13px;color:var(--ink-2);margin-top:4px;line-height:1.4">${fmt(info.v25)} <span style="color:var(--ink-3)">→</span> <strong style="color:var(--accent-3);font-size:15px">${fmt(info.v26)}</strong></div>
+        <div style="font-family:var(--font-mono);font-size:15px;font-weight:800;color:${c};margin-top:4px">${info.d>=0?'+':''}${fmt(info.d)}</div>
       </div>`;
     };
-    const rubrosCell = rubArr.length>0 ? `<div style="background:#fff;border:1px solid var(--line);border-radius:6px;padding:8px 11px">
-      <div style="font-size:11px;color:var(--ink-3);text-transform:uppercase;letter-spacing:.04em;font-weight:700">Rubros (${rubArr.length})</div>
+    const rubrosCell = rubArr.length>0 ? `<div style="background:#fff;border:1px solid var(--line);border-radius:6px;padding:10px 13px">
+      <div style="font-size:11.5px;color:var(--ink-3);text-transform:uppercase;letter-spacing:.04em;font-weight:700">Rubros (${rubArr.length})</div>
       <div style="font-size:12.5px;color:var(--accent-3);margin-top:4px;line-height:1.55">${rubArr.map(([k,n])=>`<div><strong>${k}:</strong> <span style="color:var(--ink-2)">${n} pól.</span></div>`).join('')}</div>
-    </div>` : '';
-    const proyARSCell = cellMonto('Proyección ventas $', proyARS, false);
-    const proyUSDCell = cellMonto('Proyección ventas US', proyUSD, true);
-    const proyCells = (proyARSCell || proyUSDCell)
-      ? `${proyARSCell}${proyUSDCell}`
-      : `<div style="background:#fff;border:1px solid var(--line);border-radius:6px;padding:8px 11px;font-size:12px;color:var(--ink-3);font-style:italic">Proyección de ventas — sin datos</div>`;
-    return `<div style="background:var(--bg-2);border-radius:8px;padding:12px 14px;margin-bottom:14px">
-      <div style="font-size:11.5px;color:var(--accent-3);text-transform:uppercase;letter-spacing:.05em;font-weight:800;margin-bottom:8px">Resumen del bucket · ${enriched.length} pól.</div>
-      <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(200px,1fr));gap:8px">
-        ${proyCells}
-        ${cellPct('Tasa promedio', tasaAvg, fmtTasaPct, false)}
-        ${cellPct('Siniestralidad UV', sinUVAvg, fmtSinPct, true)}
-        ${cellPct('Siniestralidad histórica', sinHAvg, fmtSinPct, true)}
+    </div>` : '<div></div>';
+    const proyARSCell = cellMonto('Proyección Vts / Pol. Moneda $', proyARS, false, 'ars');
+    const proyUSDCell = cellMonto('Proyección Vts / Pol. Moneda US', proyUSD, true, 'usd');
+    const monARSCell = cellMonto('Emisión / Pol. Moneda $', monARS, false, 'ars');
+    const monUSDCell = cellMonto('Emisión / Pol. Moneda US', monUSD, true, 'usd');
+    /* Grid 4×2: fila 1 = Proy $ | Proy US | Tasa | Sin UV ;
+                  fila 2 = Emisión $ | Emisión US | Rubros | Sin H. */
+    return `<div style="margin-bottom:14px">
+      <div style="display:grid;grid-template-columns:repeat(4,1fr);gap:10px">
+        ${proyARSCell || '<div></div>'}
+        ${proyUSDCell || '<div></div>'}
+        ${cellPct('Tasa promedio', tasaAvg, fmtTasaPct, false) || '<div></div>'}
+        ${cellPct('Siniestralidad UV', sinUVAvg, fmtSinPct, true) || '<div></div>'}
+        ${monARSCell || '<div></div>'}
+        ${monUSDCell || '<div></div>'}
         ${rubrosCell}
-        ${cellMonto('Moneda $', monARS, false)}
-        ${cellMonto('Moneda US', monUSD, true)}
+        ${cellPct('Siniestralidad histórica', sinHAvg, fmtSinPct, true) || '<div></div>'}
       </div>
     </div>`;
   };
@@ -4611,48 +4649,51 @@ window.toggleEjecCausa = function(id){
     const monUSD = {val:sumAbs(enriched.filter(r=>r.moneda==='US'),'montoUSD'), n:enriched.filter(r=>r.moneda==='US').length};
     const fmtT = (v)=>v==null?'—':FMT_PCT_TASA(v);
     const fmtS = (v)=>v==null?'—':FMT_PCT_SIN(v);
-    const cellMonto = (titulo, info, isUS)=>{
-      if(!info || info.n===0) return '';
+    const cellMonto = (titulo, info, isUS, accentTone)=>{
+      if(!info || info.n===0) return '<div></div>';
       const c = info.d>=0?'var(--pos)':'var(--neg)';
-      return `<div style="background:#fff;border:1px solid var(--line);border-radius:6px;padding:8px 11px">
-        <div style="font-size:11px;color:var(--ink-3);text-transform:uppercase;letter-spacing:.04em;font-weight:700">${titulo}</div>
-        <div style="font-family:var(--font-mono);font-size:13px;color:var(--ink-2);margin-top:3px">${fmtCompact(info.s25,isUS)} → <strong>${fmtCompact(info.s26,isUS)}</strong></div>
-        <div style="font-family:var(--font-mono);font-size:14px;font-weight:800;color:${c};margin-top:2px">${info.d>=0?'+':''}${fmtCompact(info.d,isUS)}${info.pct!=null?' ('+(info.d>=0?'+':'')+FMT_PCT(info.pct)+')':''}</div>
+      const bg = accentTone==='ars' ? 'rgba(30,111,217,.06)' : (accentTone==='usd' ? 'rgba(45,155,106,.06)' : '#fff');
+      const bd = accentTone==='ars' ? '1px solid rgba(30,111,217,.30)' : (accentTone==='usd' ? '1px solid rgba(45,155,106,.30)' : '1px solid var(--line)');
+      return `<div style="background:${bg};border:${bd};border-radius:6px;padding:10px 13px">
+        <div style="font-size:11.5px;color:var(--ink-3);text-transform:uppercase;letter-spacing:.04em;font-weight:700">${titulo}</div>
+        <div style="font-family:var(--font-mono);font-size:13px;color:var(--ink-2);margin-top:4px;line-height:1.4">${fmtCompact(info.s25,isUS)} <span style="color:var(--ink-3)">→</span> <strong style="color:var(--accent-3);font-size:15px">${fmtCompact(info.s26,isUS)}</strong></div>
+        <div style="font-family:var(--font-mono);font-size:15px;font-weight:800;color:${c};margin-top:4px">${info.d>=0?'+':''}${fmtCompact(info.d,isUS)}${info.pct!=null?' ('+(info.d>=0?'+':'')+FMT_PCT(info.pct)+')':''}</div>
       </div>`;
     };
     const cellPct = (titulo, info, fmt, neg)=>{
-      if(!info || info.n===0) return '';
+      if(!info || info.n===0) return '<div></div>';
       const c = info.d===0?'var(--accent)':(info.d>0?(neg?'var(--neg)':'var(--pos)'):(neg?'var(--pos)':'var(--neg)'));
-      return `<div style="background:#fff;border:1px solid var(--line);border-radius:6px;padding:8px 11px">
-        <div style="font-size:11px;color:var(--ink-3);text-transform:uppercase;letter-spacing:.04em;font-weight:700">${titulo}</div>
-        <div style="font-family:var(--font-mono);font-size:13px;color:var(--ink-2);margin-top:3px">${fmt(info.v25)} → <strong>${fmt(info.v26)}</strong></div>
-        <div style="font-family:var(--font-mono);font-size:14px;font-weight:800;color:${c};margin-top:2px">${info.d>=0?'+':''}${fmt(info.d)}</div>
+      return `<div style="background:#fff;border:1px solid var(--line);border-radius:6px;padding:10px 13px">
+        <div style="font-size:11.5px;color:var(--ink-3);text-transform:uppercase;letter-spacing:.04em;font-weight:700">${titulo}</div>
+        <div style="font-family:var(--font-mono);font-size:13px;color:var(--ink-2);margin-top:4px;line-height:1.4">${fmt(info.v25)} <span style="color:var(--ink-3)">→</span> <strong style="color:var(--accent-3);font-size:15px">${fmt(info.v26)}</strong></div>
+        <div style="font-family:var(--font-mono);font-size:15px;font-weight:800;color:${c};margin-top:4px">${info.d>=0?'+':''}${fmt(info.d)}</div>
       </div>`;
     };
-    const cellMonAbs = (titulo, info, isUS)=>{
-      if(!info || info.n===0) return '';
-      return `<div style="background:#fff;border:1px solid var(--line);border-radius:6px;padding:8px 11px">
-        <div style="font-size:11px;color:var(--ink-3);text-transform:uppercase;letter-spacing:.04em;font-weight:700">${titulo}</div>
-        <div style="font-family:var(--font-mono);font-size:15px;font-weight:800;color:${info.val<0?'var(--neg)':(info.val>0?'var(--pos)':'var(--ink-2)')};margin-top:3px">${info.val>=0?'':'−'}${fmtCompact(Math.abs(info.val),isUS)} <span style="font-size:11px;color:var(--ink-3);font-weight:600">· ${info.n} pól.</span></div>
+    const cellMonAbs = (titulo, info, isUS, accentTone)=>{
+      if(!info || info.n===0) return '<div></div>';
+      const bg = accentTone==='ars' ? 'rgba(30,111,217,.06)' : (accentTone==='usd' ? 'rgba(45,155,106,.06)' : '#fff');
+      const bd = accentTone==='ars' ? '1px solid rgba(30,111,217,.30)' : (accentTone==='usd' ? '1px solid rgba(45,155,106,.30)' : '1px solid var(--line)');
+      return `<div style="background:${bg};border:${bd};border-radius:6px;padding:10px 13px">
+        <div style="font-size:11.5px;color:var(--ink-3);text-transform:uppercase;letter-spacing:.04em;font-weight:700">${titulo}</div>
+        <div style="font-family:var(--font-mono);font-size:16px;font-weight:800;color:${info.val<0?'var(--neg)':(info.val>0?'var(--pos)':'var(--ink-2)')};margin-top:4px">${info.val>=0?'':'−'}${fmtCompact(Math.abs(info.val),isUS)} <span style="font-size:11.5px;color:var(--ink-3);font-weight:600">· ${info.n} pól.</span></div>
       </div>`;
     };
-    const rubrosCell = rubArr.length>0 ? `<div style="background:#fff;border:1px solid var(--line);border-radius:6px;padding:8px 11px">
-      <div style="font-size:11px;color:var(--ink-3);text-transform:uppercase;letter-spacing:.04em;font-weight:700">Rubros (${rubArr.length})</div>
+    const rubrosCell = rubArr.length>0 ? `<div style="background:#fff;border:1px solid var(--line);border-radius:6px;padding:10px 13px">
+      <div style="font-size:11.5px;color:var(--ink-3);text-transform:uppercase;letter-spacing:.04em;font-weight:700">Rubros (${rubArr.length})</div>
       <div style="font-size:12.5px;color:var(--accent-3);margin-top:4px;line-height:1.55">${rubArr.map(([k,n])=>`<div><strong>${k}:</strong> <span style="color:var(--ink-2)">${n} pól.</span></div>`).join('')}</div>
-    </div>` : '';
-    const proyCells = (proyARS.n>0 || proyUSD.n>0)
-      ? `${cellMonto('Proyección ventas $', proyARS, false)}${cellMonto('Proyección ventas US', proyUSD, true)}`
-      : '<div style="background:#fff;border:1px solid var(--line);border-radius:6px;padding:8px 11px;font-size:12px;color:var(--ink-3);font-style:italic">Proyección de ventas — sin datos</div>';
-    return `<div style="background:var(--bg-2);border-radius:8px;padding:12px 14px;margin-bottom:14px">
-      <div style="font-size:11.5px;color:var(--accent-3);text-transform:uppercase;letter-spacing:.05em;font-weight:800;margin-bottom:8px">Resumen de las pólizas en esta causa · ${enriched.length} pól.</div>
-      <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(200px,1fr));gap:8px">
-        ${proyCells}
+    </div>` : '<div></div>';
+    /* Grid 4×2: fila 1 = Proy $ | Proy US | Tasa | Sin UV ;
+                  fila 2 = Monto $ | Monto US | Rubros | Sin H. */
+    return `<div style="margin-bottom:14px">
+      <div style="display:grid;grid-template-columns:repeat(4,1fr);gap:10px">
+        ${cellMonto('Proyección Vts / Pol. Moneda $', proyARS, false, 'ars')}
+        ${cellMonto('Proyección Vts / Pol. Moneda US', proyUSD, true, 'usd')}
         ${cellPct('Tasa promedio', tasaAvg, fmtT, false)}
         ${cellPct('Siniestralidad UV', sinUVAvg, fmtS, true)}
-        ${cellPct('Siniestralidad histórica', sinHAvg, fmtS, true)}
+        ${cellMonAbs('Monto $ (esta causa)', monARS, false, 'ars')}
+        ${cellMonAbs('Monto US (esta causa)', monUSD, true, 'usd')}
         ${rubrosCell}
-        ${cellMonAbs('Monto $ (esta causa)', monARS, false)}
-        ${cellMonAbs('Monto US (esta causa)', monUSD, true)}
+        ${cellPct('Siniestralidad histórica', sinHAvg, fmtS, true)}
       </div>
     </div>`;
   })();
