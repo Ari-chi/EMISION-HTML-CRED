@@ -562,6 +562,17 @@ function fmtPoliza(n){
   return s.length>3 ? s.slice(-3) : s;
 }
 
+/* Chip de moneda — pequeño badge con el símbolo + label "Pól. en pesos/dólares".
+   Usa la paleta unificada: $ ámbar, US violeta. Aparece en headers de columna
+   de los drills (Emisión 2026 y Desvío) para identificar la moneda original. */
+function monedaChipHTML(esUS){
+  const c  = esUS ? '#8b5cf6' : '#e89b1e';
+  const bg = esUS ? 'rgba(139,92,246,.10)' : 'rgba(232,155,30,.10)';
+  const sym = esUS ? 'US' : '$';
+  const lbl = esUS ? 'Pól. en dólares' : 'Pól. en pesos';
+  return `<span style="display:inline-flex;align-items:center;gap:6px;background:${bg};color:${c};font-size:13px;font-weight:800;padding:4px 10px;border-radius:5px"><span style="font-size:14px">${sym}</span>${lbl}</span>`;
+}
+
 /* ============================================================
    CONFIGURACIÓN EDITABLE  (APP_CONFIG)
    ------------------------------------------------------------
@@ -3851,10 +3862,9 @@ window.toggleEjecEmi = function(id){
       </div>`;
     };
     /* Cabecera sutil: solo el chip de moneda lleva tinte; el resto de la fila
-       sigue siendo el fondo del card. Al lado del total ponemos cuántas
-       pólizas son de esta moneda — el lector ve "14 pól. — 10 en $ · 4 en US"
-       distribuidas entre las dos columnas. */
-    const monChip = `<span style="display:inline-flex;align-items:center;gap:6px;background:${esUS?'rgba(45,155,106,.10)':'rgba(30,111,217,.10)'};color:${headColor};font-size:13px;font-weight:800;padding:4px 10px;border-radius:5px"><span style="font-size:14px">${esUS?'US':'$'}</span>${esUS?'Pól. en dólares':'Pól. en pesos'}</span>`;
+       sigue siendo el fondo del card. Mismos colores que el resumen card
+       ($ → ámbar, US → violeta) para consistencia visual. */
+    const monChip = monedaChipHTML(esUS);
     const cabecera = `<div style="display:flex;align-items:center;gap:10px;margin-bottom:12px;padding:10px 4px;border-bottom:1px solid var(--line)">
       ${monChip}
       <span style="margin-left:auto;font-family:var(--font-mono);font-size:18px;font-weight:800;color:${esBono?'var(--neg)':'var(--accent-3)'}">${arr.length} pól. · ${sgnTxt}${fmtCompact(tot,useUSD)}</span>
@@ -4002,9 +4012,9 @@ window.toggleEjecOtros = function(id){
       const headColor=esUS?'var(--pos)':'var(--accent)';
       const headBg=esUS?'rgba(45,155,106,.12)':'rgba(30,111,217,.10)';
       return `<div>
-        <div style="display:flex;align-items:center;gap:10px;margin-bottom:12px;padding:13px 16px;background:${headBg};border-radius:8px;border:2px solid ${headColor}">
-          <span style="font-size:26px;font-weight:800;color:${headColor}">${esUS?'US':'$'}</span>
-          <div><div style="font-size:16px;font-weight:800;color:${headColor};text-transform:uppercase;letter-spacing:.03em">Moneda original ${esUS?'dólares':'pesos'}</div><div style="font-size:13px;font-weight:700;color:var(--ink-2)">No llega a +${umb}%</div></div>
+        <div style="display:flex;align-items:center;gap:10px;margin-bottom:12px;padding:10px 4px;border-bottom:1px solid var(--line)">
+          ${monedaChipHTML(esUS)}
+          <span style="font-size:12px;color:var(--ink-3);font-weight:700">No llega a +${umb}%</span>
           <span style="margin-left:auto;font-family:var(--font-mono);font-size:20px;font-weight:800;color:${headColor}">${arr.length} pól.</span>
         </div>
         ${arr.sort((a,b)=>a.crec-b.crec).map(p=>filaNC(p)).join('')||'<div style="font-size:13px;color:var(--ink-3);font-style:italic">— sin pólizas en esta moneda —</div>'}
@@ -4034,10 +4044,9 @@ window.toggleEjecOtros = function(id){
       const headColor=esUS?'var(--pos)':'var(--accent)';
       const headBg=esUS?'rgba(45,155,106,.12)':'rgba(30,111,217,.10)';
       return `<div>
-        <div style="display:flex;align-items:center;gap:10px;margin-bottom:12px;padding:13px 16px;background:${headBg};border-radius:8px;border:2px solid ${headColor}">
-          <span style="font-size:26px;font-weight:800;color:${headColor}">${esUS?'US':'$'}</span>
-          <span style="font-size:16px;font-weight:800;color:${headColor};text-transform:uppercase;letter-spacing:.03em">Moneda original ${esUS?'dólares':'pesos'}</span>
-          <span style="margin-left:auto;font-family:var(--font-mono);font-size:20px;font-weight:800;color:${headColor}">${arr.length} pól.</span>
+        <div style="display:flex;align-items:center;gap:10px;margin-bottom:12px;padding:10px 4px;border-bottom:1px solid var(--line)">
+          ${monedaChipHTML(esUS)}
+          <span style="margin-left:auto;font-family:var(--font-mono);font-size:18px;font-weight:800;color:var(--accent-3)">${arr.length} pól.</span>
         </div>
         ${arr.map(p=>filaTasa(p)).join('')||'<div style="font-size:13px;color:var(--ink-3);font-style:italic">— sin pólizas en esta moneda —</div>'}
       </div>`;
@@ -4446,12 +4455,15 @@ window.toggleEjecCausa = function(id){
       }
       mostrar = Math.abs(vOrig);
     } else {
-      /* pendientes / perdidas: monto positivo. El BONO pendiente SUMA (verde +). */
+      /* Pendientes y perdidas: el monto representa lo que FALTA emitir o se
+         perdió → siempre se muestra en negativo. El BONO pendiente SUMA
+         (verde +) porque es una devolución que todavía no se aplicó. Para
+         pendientes NO se muestra variación 25→26 en la fila — el monto es
+         directamente el 2025 expresado como negativo. */
       if(id==='pend_bono'){
         sgn = '+'; color = 'var(--pos)';
       } else {
-        sgn = esPend ? '' : '−';
-        color = 'var(--neg)';
+        sgn = '−'; color = 'var(--neg)';
       }
       mostrar = Math.abs(vOrig);
     }
@@ -4606,7 +4618,7 @@ window.toggleEjecCausa = function(id){
     else { totDisp = tot; totSign = esPend?'':'−'; totColor = headColor; }
     const nPolRealesCol = rows.reduce((s,r)=>s+(r._nGrupo||1),0);
     return `<div>
-      <div style="display:flex;align-items:center;gap:10px;margin-bottom:12px;padding:13px 16px;background:${headBg};border-radius:8px;border:2px solid ${headColor}"><span style="font-size:26px;font-weight:800;color:${headColor}">${moneda==='US'?'US':'$'}</span><span style="font-size:16px;font-weight:800;color:${headColor};text-transform:uppercase;letter-spacing:.03em">Moneda original ${moneda==='US'?'dólares':'pesos'}</span><span style="margin-left:auto;font-family:var(--font-mono);font-size:20px;font-weight:800;color:${totColor}">${nPolRealesCol} pól. · ${totSign}${fmtCompact(Math.abs(totDisp),btnUSD)}</span></div>
+      <div style="display:flex;align-items:center;gap:10px;margin-bottom:12px;padding:10px 4px;border-bottom:1px solid var(--line)">${monedaChipHTML(moneda==='US')}<span style="margin-left:auto;font-family:var(--font-mono);font-size:18px;font-weight:800;color:${totColor}">${nPolRealesCol} pól. · ${totSign}${fmtCompact(Math.abs(totDisp),btnUSD)}</span></div>
       ${inner}
     </div>`;
   }
@@ -4660,7 +4672,7 @@ window.toggleEjecCausa = function(id){
       <td style="padding:9px 8px;border-bottom:1px solid var(--line);text-align:right;font-family:var(--font-mono);font-weight:800;font-size:15px;color:#888780;white-space:nowrap">${fmtCompact(valBtnR(r),btnUSD)}${eq}</td>
     </tr>`;}).join('');
     return `<div>
-      <div style="display:flex;align-items:center;gap:10px;margin-bottom:12px;padding:13px 16px;background:${headBg};border-radius:8px;border:2px solid ${headColor}"><span style="font-size:26px;font-weight:800;color:${headColor}">${moneda==='US'?'US':'$'}</span><div><div style="font-size:16px;font-weight:800;color:${headColor};text-transform:uppercase;letter-spacing:.03em">Moneda original ${moneda==='US'?'dólares':'pesos'}</div><div style="font-size:12.5px;font-weight:700;color:var(--ink-2)">No aumenta ${(umb*100).toFixed(0)}%</div></div><span style="margin-left:auto;font-family:var(--font-mono);font-size:20px;font-weight:800;color:${headColor}">${arr.length} pól. · ${fmtCompact(tot,btnUSD)}</span></div>
+      <div style="display:flex;align-items:center;gap:10px;margin-bottom:12px;padding:10px 4px;border-bottom:1px solid var(--line)">${monedaChipHTML(moneda==='US')}<span style="font-size:12px;color:var(--ink-3);font-weight:700">No aumenta ${(umb*100).toFixed(0)}%</span><span style="margin-left:auto;font-family:var(--font-mono);font-size:18px;font-weight:800;color:var(--accent-3)">${arr.length} pól. · ${fmtCompact(tot,btnUSD)}</span></div>
       ${arr.length?`<table style="width:100%;font-family:var(--font-mono)"><tbody>${trs}</tbody></table>`:'<div style="font-size:13px;color:var(--ink-3);font-style:italic">— sin pólizas en esta moneda —</div>'}
     </div>`;
   }
@@ -4684,7 +4696,7 @@ window.toggleEjecCausa = function(id){
     const totSgn = tot<0?'−':'+';
     const totColor = tot<0?'var(--neg)':'var(--pos)';
     return `<div>
-      <div style="display:flex;align-items:center;gap:10px;margin-bottom:12px;padding:13px 16px;background:${headBg};border-radius:8px;border:2px solid ${headColor}"><span style="font-size:26px;font-weight:800;color:${headColor}">${moneda==='US'?'US':'$'}</span><span style="font-size:16px;font-weight:800;color:${headColor};text-transform:uppercase;letter-spacing:.03em">Moneda original ${moneda==='US'?'dólares':'pesos'}</span><span style="margin-left:auto;font-family:var(--font-mono);font-size:20px;font-weight:800;color:${totColor}">${arr.length} pól. · ${totSgn}${fmtCompact(Math.abs(tot),btnUSD)}</span></div>
+      <div style="display:flex;align-items:center;gap:10px;margin-bottom:12px;padding:10px 4px;border-bottom:1px solid var(--line)">${monedaChipHTML(moneda==='US')}<span style="margin-left:auto;font-family:var(--font-mono);font-size:18px;font-weight:800;color:${totColor}">${arr.length} pól. · ${totSgn}${fmtCompact(Math.abs(tot),btnUSD)}</span></div>
       ${subTabla(arr,titulo,null,modo,true)}
     </div>`;
   }
@@ -4735,7 +4747,7 @@ window.toggleEjecCausa = function(id){
     const totColor = tot<0?'var(--neg)':'var(--pos)';
     const nPolReales = arrG.reduce((s,r)=>s+(r._nGrupo||1),0);
     return `<div>
-      <div style="display:flex;align-items:center;gap:10px;margin-bottom:12px;padding:13px 16px;background:${headBg};border-radius:8px;border:2px solid ${headColor}"><span style="font-size:26px;font-weight:800;color:${headColor}">${moneda==='US'?'US':'$'}</span><span style="font-size:16px;font-weight:800;color:${headColor};text-transform:uppercase;letter-spacing:.03em">Moneda original ${moneda==='US'?'dólares':'pesos'}</span><span style="margin-left:auto;font-family:var(--font-mono);font-size:20px;font-weight:800;color:${totColor}">${nPolReales} pól. · ${totSgn}${fmtCompact(Math.abs(tot),btnUSD)}</span></div>
+      <div style="display:flex;align-items:center;gap:10px;margin-bottom:12px;padding:10px 4px;border-bottom:1px solid var(--line)">${monedaChipHTML(moneda==='US')}<span style="margin-left:auto;font-family:var(--font-mono);font-size:18px;font-weight:800;color:${totColor}">${nPolReales} pól. · ${totSgn}${fmtCompact(Math.abs(tot),btnUSD)}</span></div>
       ${subTabla(arrG, tituloMap[sub], null, sub, true)}
     </div>`;
   }
