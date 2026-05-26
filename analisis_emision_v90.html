@@ -3191,15 +3191,18 @@ function ejecEmitido(S, useUSD, dual){
   const FMTc=(v)=>fmtCompact(v,useUSD);
   const mLbl=useUSD?'USD':'ARS$';
   const sufijo = useUSD?'u':'a';
-  /* Cada categoría con su color identificatorio para la barra apilada. */
+  /* Cada categoría con su color identificatorio para la barra apilada. Paleta
+     armonizada: ámbar para renovaciones (reemplazando el verde), azules más
+     suaves para anualidades, naranja para ajuste, púrpura medio para malus,
+     rojo apagado para bono, verde apagado para pólizas nuevas y gris para AA. */
   const cats = [
-    {key:'ren',      lbl:'Renovaciones',                       col:'#2d9b6a', esBono:false},
-    {key:'seg',      lbl:'Segunda anualidad',                  col:'#5eb3e8', esBono:false},
-    {key:'ter',      lbl:'Tercera anualidad',                  col:'#1e6fd9', esBono:false},
-    {key:'ajuste',   lbl:'Ajuste',                             col:'#e0922f', esBono:false},
-    {key:'malus',    lbl:'Malus',                              col:'#a259ff', esBono:false},
-    {key:'bono',     lbl:'Bono',                               col:'#d94747', esBono:true},
-    {key:'nuevas',   lbl:'Pólizas nuevas',                     col:'#7fc28a', esBono:false},
+    {key:'ren',      lbl:'Renovaciones',                       col:'#e89b1e', esBono:false},
+    {key:'seg',      lbl:'Segunda anualidad',                  col:'#88bfe6', esBono:false},
+    {key:'ter',      lbl:'Tercera anualidad',                  col:'#5887c2', esBono:false},
+    {key:'ajuste',   lbl:'Ajuste',                             col:'#d4751f', esBono:false},
+    {key:'malus',    lbl:'Malus',                              col:'#9b6ec9', esBono:false},
+    {key:'bono',     lbl:'Bono',                               col:'#c95252', esBono:true},
+    {key:'nuevas',   lbl:'Pólizas nuevas',                     col:'#6fb88e', esBono:false},
     {key:'anualant', lbl:'Corresponde a la Anualidad Anterior',col:'#8b8fa3', esBono:false},
   ];
   const colMap = Object.fromEntries(cats.map(c=>[c.key, c]));
