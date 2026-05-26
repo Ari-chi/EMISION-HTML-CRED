@@ -5141,74 +5141,75 @@ function drawEjecRubroExtremos(polArr, f){
   const filas = Object.entries(grupos).map(([rubro, pols])=>{
     let proy25=0, proy26=0, nProy=0;
     let tasaSum25=0, tasaSum26=0, nTasa=0;
-    let sinSum25=0, sinSum26=0, nSin=0;
+    let sinUVSum25=0, sinUVSum26=0, nSinUV=0;
+    let sinHSum25=0, sinHSum26=0, nSinH=0;
     for(const p of pols){
       const uu = p.moneda==='US';
       const pr25 = uu?(p.proyUSD2025||0):(p.proyARS2025||0);
       const pr26 = uu?(p.proyUSD2026||0):(p.proyARS2026||0);
       if(pr25>0||pr26>0){ proy25+=pr25; proy26+=pr26; nProy++; }
       if(p.tasa2025!=null && p.tasa2026!=null){ tasaSum25+=p.tasa2025; tasaSum26+=p.tasa2026; nTasa++; }
-      /* Siniestralidad = promedio simple entre Histórica y UV cuando ambas existen */
-      const sH25=p.sinH2025, sH26=p.sinH2026, sUV25=p.sinUV2025, sUV26=p.sinUV2026;
-      const has25 = sH25!=null || sUV25!=null;
-      const has26 = sH26!=null || sUV26!=null;
-      if(has25 && has26){
-        const v25 = ((sH25||0) + (sUV25||0)) / ((sH25!=null?1:0) + (sUV25!=null?1:0) || 1);
-        const v26 = ((sH26||0) + (sUV26||0)) / ((sH26!=null?1:0) + (sUV26!=null?1:0) || 1);
-        sinSum25+=v25; sinSum26+=v26; nSin++;
-      }
+      if(p.sinUV2025!=null && p.sinUV2026!=null){ sinUVSum25+=p.sinUV2025; sinUVSum26+=p.sinUV2026; nSinUV++; }
+      if(p.sinH2025!=null && p.sinH2026!=null){ sinHSum25+=p.sinH2025; sinHSum26+=p.sinH2026; nSinH++; }
     }
     return {
       rubro,
-      proy: nProy>0 ? {v25:proy25, v26:proy26, d:proy26-proy25, dpct:proy25?(proy26-proy25)/Math.abs(proy25):null, n:nProy} : null,
-      tasa: nTasa>0 ? {v25:tasaSum25/nTasa, v26:tasaSum26/nTasa, d:(tasaSum26-tasaSum25)/nTasa, n:nTasa} : null,
-      sin:  nSin>0  ? {v25:sinSum25/nSin,   v26:sinSum26/nSin,   d:(sinSum26-sinSum25)/nSin,   n:nSin} : null,
+      proy:  nProy>0  ? {v25:proy25, v26:proy26, d:proy26-proy25, dpct:proy25?(proy26-proy25)/Math.abs(proy25):null, n:nProy} : null,
+      tasa:  nTasa>0  ? {v25:tasaSum25/nTasa, v26:tasaSum26/nTasa, d:(tasaSum26-tasaSum25)/nTasa, n:nTasa} : null,
+      sinUV: nSinUV>0 ? {v25:sinUVSum25/nSinUV, v26:sinUVSum26/nSinUV, d:(sinUVSum26-sinUVSum25)/nSinUV, n:nSinUV} : null,
+      sinH:  nSinH>0  ? {v25:sinHSum25/nSinH,  v26:sinHSum26/nSinH,  d:(sinHSum26-sinHSum25)/nSinH,  n:nSinH} : null,
     };
   });
   /* Helpers de presentación */
   const FMTm = (v)=>fmtCompact(v, useUSD);
   const FMTpctTasa = (v)=>FMT_PCT_TASA(v);
   const FMTpctSin = (v)=>FMT_PCT_SIN(v);
-  const card = (titulo, color, bgTint, fields, fmtVal, fmtDelta)=>{
-    const validas = filas.filter(r=>r[fields]);
+  /* Tarjeta con TOP 3 MEJORAS y TOP 3 BAJAS para un concepto. */
+  const card = (titulo, color, fields, fmtVal, fmtDelta)=>{
+    const validas = filas.filter(r=>r[fields] && (r[fields].d!==0));
     if(validas.length===0){
       return `<div style="background:var(--panel);border:1px solid var(--line-2);border-radius:10px;padding:14px 16px;border-top:4px solid ${color}">
         <div style="font-size:12.5px;color:${color};text-transform:uppercase;letter-spacing:.06em;font-weight:800;margin-bottom:10px">${titulo}</div>
-        <div style="font-size:12.5px;color:var(--ink-3);font-style:italic">— sin datos —</div>
+        <div style="font-size:12.5px;color:var(--ink-3);font-style:italic">— sin variaciones —</div>
       </div>`;
     }
     const sortedDesc = [...validas].sort((a,b)=>b[fields].d - a[fields].d);
-    const top = sortedDesc[0];
-    const bot = sortedDesc[sortedDesc.length-1];
-    const row = (r, label, isMax)=>{
+    /* Mejoras = los con mayor delta positivo; bajas = los con mayor delta negativo. */
+    const mejoras = sortedDesc.filter(r=>r[fields].d>0).slice(0,3);
+    const bajas   = sortedDesc.filter(r=>r[fields].d<0).slice(-3).reverse();
+    const row = (r, isMax)=>{
       const v25 = r[fields].v25, v26 = r[fields].v26, d = r[fields].d;
       const c = isMax ? 'var(--pos)' : 'var(--neg)';
-      const bg = isMax ? 'rgba(45,155,106,.08)' : 'rgba(217,71,71,.06)';
-      const chipBg = isMax ? 'var(--pos)' : 'var(--neg)';
-      return `<div style="background:${bg};border-radius:6px;padding:10px 12px;margin-bottom:6px;border-left:3px solid ${c}">
-        <div style="display:flex;align-items:center;gap:8px;margin-bottom:4px">
-          <span style="background:${chipBg};color:#fff;font-size:10.5px;font-weight:800;padding:2px 8px;border-radius:3px;text-transform:uppercase;letter-spacing:.05em">${label}</span>
-          <span style="font-size:14.5px;color:var(--accent-3);font-weight:800">${r.rubro}</span>
-          <span style="font-size:11px;color:var(--ink-3);font-weight:600">${r[fields].n} pól.</span>
+      const bg = isMax ? 'rgba(45,155,106,.06)' : 'rgba(217,71,71,.05)';
+      return `<div style="background:${bg};border-radius:5px;padding:7px 10px;margin-bottom:4px;border-left:3px solid ${c};display:grid;grid-template-columns:1fr auto;gap:8px;align-items:baseline">
+        <div>
+          <div style="font-size:13.5px;color:var(--accent-3);font-weight:700">${r.rubro} <span style="font-size:11px;color:var(--ink-3);font-weight:500">${r[fields].n} pól.</span></div>
+          <div style="font-family:var(--font-mono);font-size:11.5px;color:var(--ink-2);margin-top:1px">${fmtVal(v25)} → <strong>${fmtVal(v26)}</strong></div>
         </div>
-        <div style="font-family:var(--font-mono);font-size:12.5px;color:var(--ink-2);padding-left:2px">
-          ${fmtVal(v25)} → <strong style="color:var(--accent-3)">${fmtVal(v26)}</strong>
-          <span style="color:${c};font-weight:800;margin-left:6px">${fmtDelta(d)}</span>
-        </div>
+        <div style="font-family:var(--font-mono);font-size:13.5px;font-weight:800;color:${c};white-space:nowrap">${fmtDelta(d)}</div>
+      </div>`;
+    };
+    const seccion = (titulo, color, items)=>{
+      if(items.length===0) return '';
+      return `<div style="margin-bottom:10px">
+        <div style="font-size:11px;color:${color};text-transform:uppercase;letter-spacing:.05em;font-weight:800;margin-bottom:5px">${titulo}</div>
+        ${items.map(r=>row(r, titulo.includes('Top'))).join('')}
       </div>`;
     };
     return `<div style="background:var(--panel);border:1px solid var(--line-2);border-radius:10px;padding:14px 16px;border-top:4px solid ${color};box-shadow:0 1px 3px rgba(10,31,58,.04)">
-      <div style="font-size:12.5px;color:${color};text-transform:uppercase;letter-spacing:.06em;font-weight:800;margin-bottom:10px">${titulo}</div>
-      ${row(top,'Mayor',true)}
-      ${top.rubro!==bot.rubro?row(bot,'Menor',false):''}
+      <div style="font-size:13px;color:${color};text-transform:uppercase;letter-spacing:.06em;font-weight:800;margin-bottom:10px">${titulo}</div>
+      ${seccion('Top 3 mejoras', 'var(--pos)', mejoras)}
+      ${seccion('Top 3 bajas',   'var(--neg)', bajas)}
+      ${mejoras.length===0 && bajas.length===0 ? '<div style="font-size:12.5px;color:var(--ink-3);font-style:italic">— sin variaciones —</div>' : ''}
     </div>`;
   };
   wrap.innerHTML = `
-    <div style="font-size:14px;color:var(--accent-3);text-transform:uppercase;letter-spacing:.05em;font-weight:800;margin-bottom:12px;padding:8px 12px;background:linear-gradient(90deg,rgba(30,111,217,.10),rgba(94,179,232,.04));border-left:4px solid var(--accent);border-radius:4px">Rubros con mayor y menor variación 2025 → 2026</div>
-    <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(290px,1fr));gap:12px">
-      ${card('Proyección de ventas','var(--accent)','rgba(30,111,217,.06)','proy', FMTm, (d)=>(d>=0?'+':'')+FMTm(d))}
-      ${card('Tasa promedio','#8b5cf6','rgba(139,92,246,.06)','tasa', FMTpctTasa, (d)=>(d>=0?'+':'')+FMTpctTasa(d))}
-      ${card('Siniestralidad promedio','var(--warn)','rgba(232,155,30,.08)','sin', FMTpctSin, (d)=>(d>=0?'+':'')+FMTpctSin(d))}
+    <div style="font-size:14px;color:var(--accent-3);text-transform:uppercase;letter-spacing:.05em;font-weight:800;margin-bottom:14px;padding:8px 12px;background:linear-gradient(90deg,rgba(30,111,217,.10),rgba(94,179,232,.04));border-left:4px solid var(--accent);border-radius:4px">Rubros con mayor y menor variación 2025 → 2026</div>
+    <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(320px,1fr));gap:14px">
+      ${card('Proyección de ventas','var(--accent)','proy',  FMTm,       (d)=>(d>=0?'+':'')+FMTm(d))}
+      ${card('Tasa promedio',       '#8b5cf6',      'tasa',  FMTpctTasa, (d)=>(d>=0?'+':'')+FMTpctTasa(d))}
+      ${card('Siniestralidad UV',   'var(--warn)',  'sinUV', FMTpctSin,  (d)=>(d>=0?'+':'')+FMTpctSin(d))}
+      ${card('Siniestralidad histórica', '#d4751f', 'sinH',  FMTpctSin,  (d)=>(d>=0?'+':'')+FMTpctSin(d))}
     </div>`;
 }
 
@@ -5240,12 +5241,13 @@ function drawEjecRubroChart(polArr, f, useUSD){
     const w26 = Math.round(it.v26/max*100);
     const d = it.v26 - it.v25;
     const dc = d>=0?'var(--pos)':'var(--neg)';
-    return `<div style="display:grid;grid-template-columns:140px 1fr 120px;gap:10px;align-items:center;padding:6px 0;border-bottom:1px solid var(--line)">
-      <div style="font-size:13px;font-weight:700;color:var(--accent-3)">${it.rubro}<br><span style="font-size:11px;color:var(--ink-3);font-weight:500">${it.n} pól.</span></div>
+    return `<div style="display:grid;grid-template-columns:140px 1fr 70px 120px;gap:10px;align-items:center;padding:6px 0;border-bottom:1px solid var(--line)">
+      <div style="font-size:13px;font-weight:700;color:var(--accent-3)">${it.rubro}</div>
       <div>
         <div style="display:flex;align-items:center;gap:6px;margin-bottom:3px"><span style="font-size:10.5px;color:var(--ink-3);width:32px;font-weight:700">2025</span><div style="flex:1;height:14px;background:var(--bg-2);border-radius:3px;position:relative"><div style="position:absolute;left:0;top:0;bottom:0;width:${w25}%;background:rgba(94,179,232,.75);border-radius:3px"></div></div><span style="font-family:var(--font-mono);font-size:12px;font-weight:700;width:80px;text-align:right">${FMTc(it.v25)}</span></div>
         <div style="display:flex;align-items:center;gap:6px"><span style="font-size:10.5px;color:var(--ink-3);width:32px;font-weight:700">2026</span><div style="flex:1;height:14px;background:var(--bg-2);border-radius:3px;position:relative"><div style="position:absolute;left:0;top:0;bottom:0;width:${w26}%;background:rgba(30,111,217,.9);border-radius:3px"></div></div><span style="font-family:var(--font-mono);font-size:12px;font-weight:800;width:80px;text-align:right">${FMTc(it.v26)}</span></div>
       </div>
+      <div style="font-family:var(--font-mono);font-size:12px;font-weight:700;color:var(--accent-3);text-align:center;background:var(--bg-2);border-radius:4px;padding:5px 6px">${it.n} pól.</div>
       <div style="font-family:var(--font-mono);font-size:14px;font-weight:800;color:${dc};text-align:right">${d>=0?'+':''}${FMTc(d)}</div>
     </div>`;
   }).join('');
@@ -5356,22 +5358,16 @@ function renderRubroCard(it, idx, useUSD, mesCorte){
       </div>
     </div>
     ${conclTxt}
-    <!-- Grupos de conceptos -->
-    <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(280px,1fr));gap:16px;margin-top:14px">
-      <div>
-        ${concDinero('Proyección de ventas','proy', proyAll, V.proyPend)}
-        ${concTasaSin('Tasa promedio','tasa', tasaAvg, tasaAll, true)}
-      </div>
-      <div>
-        ${concDinero('Prima mínima','pm', pmAll, V.pmPend)}
-        ${concDinero('Ajuste','aj', ajAll, V.ajPend)}
-      </div>
-      <div>
-        ${concTasaSin('Siniestralidad histórica','sinh', sinHAvg, sinHAll, false)}
-        ${concTasaSin('Siniestralidad UV','uv', uvAvg, uvAll, false)}
-        ${concDinero('Bono','bo', boAll, V.boPend)}
-        ${concDinero('Malus','ma', maAll, V.maPend)}
-      </div>
+    <!-- Conceptos: cada uno en su propio cuadrito para diferenciarlos -->
+    <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(220px,1fr));gap:10px;margin-top:14px">
+      ${concDinero('Proyección de ventas','proy', proyAll, V.proyPend)}
+      ${concTasaSin('Tasa promedio','tasa', tasaAvg, tasaAll, true)}
+      ${concTasaSin('Siniestralidad histórica','sinh', sinHAvg, sinHAll, false)}
+      ${concTasaSin('Siniestralidad UV','uv', uvAvg, uvAll, false)}
+      ${concDinero('Prima mínima','pm', pmAll, V.pmPend)}
+      ${concDinero('Ajuste','aj', ajAll, V.ajPend)}
+      ${concDinero('Bono','bo', boAll, V.boPend)}
+      ${concDinero('Malus','ma', maAll, V.maPend)}
     </div>
     <!-- Drilldown del concepto seleccionado -->
     <div id="ejrDrill_${idx}" style="margin-top:14px"></div>
@@ -5381,10 +5377,15 @@ function renderRubroCard(it, idx, useUSD, mesCorte){
 /* Fila de concepto dentro del card del rubro. Click → expande el drilldown
    (Aumentos / Disminuciones / Pendientes) en el contenedor del rubro. */
 function concRow(rubroIdx, cid, lbl, n, arrow, dStr, pendChip){
-  return `<div style="display:grid;grid-template-columns:1fr auto auto;gap:10px;align-items:baseline;padding:7px 10px;border-radius:5px;cursor:pointer;border:1px solid transparent" onmouseover="this.style.background='var(--bg-2)';this.style.borderColor='var(--line)'" onmouseout="this.style.background='';this.style.borderColor='transparent'" onclick="toggleEjrConcepto(${rubroIdx},'${cid}')">
-    <span style="font-size:13.5px;color:var(--accent-3);font-weight:700">${lbl}${pendChip}</span>
-    <span style="font-family:var(--font-mono);font-size:12.5px;color:var(--ink-2)">${arrow}</span>
-    <span style="font-family:var(--font-mono);font-size:13px">${dStr}</span>
+  /* Cada concepto va en su propia mini-tarjeta con borde, para que se
+     diferencien visualmente cuando hay 8 en una grid (pedido del usuario). */
+  return `<div style="background:var(--panel);border:1px solid var(--line);border-radius:7px;padding:10px 12px;cursor:pointer;transition:all .15s" onmouseover="this.style.background='var(--bg-2)';this.style.borderColor='var(--accent-2)'" onmouseout="this.style.background='var(--panel)';this.style.borderColor='var(--line)'" onclick="toggleEjrConcepto(${rubroIdx},'${cid}')">
+    <div style="display:flex;align-items:center;gap:6px;flex-wrap:wrap;margin-bottom:6px">
+      <span style="font-size:12px;color:var(--accent-3);font-weight:800;text-transform:uppercase;letter-spacing:.03em">${lbl}</span>
+      ${pendChip}
+    </div>
+    <div style="font-family:var(--font-mono);font-size:12.5px;color:var(--ink-2);margin-bottom:4px;line-height:1.4">${arrow}</div>
+    <div style="font-family:var(--font-mono);font-size:14.5px;font-weight:800;line-height:1">${dStr}</div>
   </div>`;
 }
 
