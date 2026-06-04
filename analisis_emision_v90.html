@@ -69,6 +69,9 @@ main{padding:28px 32px 60px;max-width:2000px;margin:0 auto}
 .sf-bar .sf-row--months .view-toggle{flex-wrap:wrap}
 /* Filas 3°–8°: grupos distribuidos izquierda↔derecha para ocupar menos alto */
 .sf-bar .sf-row--spread{justify-content:space-between;gap:6px 12px}
+/* Layout en columnas de a pares: 1/2 · 3/4 · 5/6 · 7/8 (izquierda→derecha, 2 filas de alto) */
+.sf-bar .sf-cols{display:flex;justify-content:space-between;align-items:flex-start;flex-wrap:wrap;gap:8px 20px}
+.sf-bar .sf-col{display:flex;flex-direction:column;gap:6px}
 /* Desplegables compactos para 1° Mes Corte y 2° Acumulado (en vez de filas largas de meses) */
 .sf-bar .sf-select{padding:3px 22px 3px 8px;font-family:var(--font-mono);font-size:10.5px;font-weight:700;color:var(--accent-3);background:var(--panel);border:1px solid var(--line-2);border-radius:5px;cursor:pointer;letter-spacing:.02em;appearance:none;-webkit-appearance:none;background-image:url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='10' height='6' viewBox='0 0 10 6'><path d='M1 1l4 4 4-4' fill='none' stroke='%231e6fd9' stroke-width='1.6'/></svg>");background-repeat:no-repeat;background-position:right 7px center}
 
@@ -1889,41 +1892,47 @@ function sectionFiltersBarHTML(sectionId, opts={}){
 
   return `<div class="sf-bar" data-sf="${sectionId}">
     ${gMesBanner}
-    <div class="sf-row sf-row--spread">
-      <div class="sf-group">
-        <span class="sf-lbl">1° Mes Corte 2026 <span style="color:var(--ink-3);font-style:italic;font-weight:400;text-transform:none;letter-spacing:0;margin-left:3px;font-size:8.5px">(solo 2026)</span></span>
-        <select id="${gMesId}" class="sf-select">${MESES_OP_G.map(o=>`<option value="${o.value}"${String(state.globalMes2026||0)===o.value?' selected':''}>${o.label}</option>`).join('')}</select>
+    <div class="sf-cols">
+      <div class="sf-col">
+        <div class="sf-group">
+          <span class="sf-lbl">1° Mes Corte 2026 <span style="color:var(--ink-3);font-style:italic;font-weight:400;text-transform:none;letter-spacing:0;margin-left:3px;font-size:8.5px">(solo 2026)</span></span>
+          <select id="${gMesId}" class="sf-select">${MESES_OP_G.map(o=>`<option value="${o.value}"${String(state.globalMes2026||0)===o.value?' selected':''}>${o.label}</option>`).join('')}</select>
+        </div>
+        <div class="sf-group">
+          <span class="sf-lbl">2° Acumulado hasta <span style="color:var(--ink-3);font-style:italic;font-weight:400;text-transform:none;letter-spacing:0;margin-left:3px;font-size:8.5px">(ambos años)</span></span>
+          <select id="${mesId}" class="sf-select">${MESES_OP.map(o=>`<option value="${o.value}"${String(f.mes)===o.value?' selected':''}>${o.label}</option>`).join('')}</select>
+        </div>
       </div>
-      <div class="sf-group">
-        <span class="sf-lbl">2° Acumulado hasta <span style="color:var(--ink-3);font-style:italic;font-weight:400;text-transform:none;letter-spacing:0;margin-left:3px;font-size:8.5px">(ambos años)</span></span>
-        <select id="${mesId}" class="sf-select">${MESES_OP.map(o=>`<option value="${o.value}"${String(f.mes)===o.value?' selected':''}>${o.label}</option>`).join('')}</select>
+      <div class="sf-col">
+        <div class="sf-group">
+          <span class="sf-lbl">3° Universo</span>
+          ${viewToggleHTML(univId,[{value:'todos',label:'Todas las pólizas'},{value:'emit26',label:'Emitidas 2026'}],f.universo)}
+        </div>
+        <div class="sf-group">
+          <span class="sf-lbl">4° Moneda${curDisabledNote}</span>
+          ${curToggleHTML(curId,{def:f.cur, dualLabel})}
+        </div>
       </div>
-      <div class="sf-group">
-        <span class="sf-lbl">3° Universo</span>
-        ${viewToggleHTML(univId,[{value:'todos',label:'Todas las pólizas'},{value:'emit26',label:'Emitidas 2026'}],f.universo)}
+      <div class="sf-col">
+        <div class="sf-group">
+          <span class="sf-lbl">5° Segmento</span>
+          ${viewToggleHTML(segId,[{value:'all',label:'Todas'},{value:'arsArs',label:'Pólizas $ en $'},{value:'usdUsd',label:'Pólizas US en US'},{value:'vs',label:'Comparación US vs $'}],f.segmento)}
+        </div>
+        <div class="sf-group">
+          <span class="sf-lbl">6° Pólizas nuevas 25/26</span>
+          ${viewToggleHTML(nuevId,[{value:'incluir',label:'Sí'},{value:'excluir',label:'No'}],f.polNuevas||'incluir')}
+        </div>
       </div>
-      <div class="sf-group">
-        <span class="sf-lbl">4° Moneda${curDisabledNote}</span>
-        ${curToggleHTML(curId,{def:f.cur, dualLabel})}
-      </div>
-      <div class="sf-group">
-        <span class="sf-lbl">5° Segmento</span>
-        ${viewToggleHTML(segId,[{value:'all',label:'Todas'},{value:'arsArs',label:'Pólizas $ en $'},{value:'usdUsd',label:'Pólizas US en US'},{value:'vs',label:'Comparación US vs $'}],f.segmento)}
-      </div>
-    </div>
-    <div class="sf-row sf-row--spread">
-      <div class="sf-group">
-        <span class="sf-lbl">6° Pólizas nuevas 25/26</span>
-        ${viewToggleHTML(nuevId,[{value:'incluir',label:'Sí'},{value:'excluir',label:'No'}],f.polNuevas||'incluir')}
-      </div>
-      <div class="sf-group">
-        <span class="sf-lbl">7° "Anualidad Anterior" 2026</span>
-        ${viewToggleHTML(aantId,[{value:'incluir',label:'Sí'},{value:'excluir',label:'No'}],f.anualAnt||'incluir')}
-      </div>
-      <div class="sf-group">
-        <span class="sf-lbl">8° TC <span style="color:var(--ink-3);font-style:italic;font-weight:400;text-transform:none;letter-spacing:0;margin-left:3px;font-size:8.5px">(Pendiente)</span></span>
-        <input type="number" id="${sectionId}_SF_tc" min="0" step="any" placeholder="1400" value="${(f.tc!=null && f.tc>0)?f.tc:''}"
-          style="width:72px;padding:2px 6px;font-family:var(--font-mono);font-size:10.5px;border:1px solid var(--line-2);border-radius:5px;color:var(--ink);background:var(--panel)" />
+      <div class="sf-col">
+        <div class="sf-group">
+          <span class="sf-lbl">7° "Anualidad Anterior" 2026</span>
+          ${viewToggleHTML(aantId,[{value:'incluir',label:'Sí'},{value:'excluir',label:'No'}],f.anualAnt||'incluir')}
+        </div>
+        <div class="sf-group">
+          <span class="sf-lbl">8° TC <span style="color:var(--ink-3);font-style:italic;font-weight:400;text-transform:none;letter-spacing:0;margin-left:3px;font-size:8.5px">(Pendiente)</span></span>
+          <input type="number" id="${sectionId}_SF_tc" min="0" step="any" placeholder="1400" value="${(f.tc!=null && f.tc>0)?f.tc:''}"
+            style="width:72px;padding:2px 6px;font-family:var(--font-mono);font-size:10.5px;border:1px solid var(--line-2);border-radius:5px;color:var(--ink);background:var(--panel)" />
+        </div>
       </div>
     </div>
   </div>`;
@@ -2824,14 +2833,14 @@ function drawEjecutivo(){
       ${setU?ejecFlujo(setU,true):''}
       ${setA?ejecFlujo(setA,false):''}
       <!-- Gráfico mensual: solo botón 2025, sin título -->
-      <div style="margin-top:16px">
+      <div style="margin-top:10px">
         ${dual ? `
-          <div style="font-size:11px;color:var(--ink-3);text-transform:uppercase;letter-spacing:.05em;font-weight:700;margin-bottom:6px">USD</div>
-          <div class="chart-box" style="height:260px"><canvas id="ejecChartMensual_u"></canvas></div>
-          <div style="font-size:11px;color:var(--ink-3);text-transform:uppercase;letter-spacing:.05em;font-weight:700;margin:14px 0 6px">ARS$</div>
-          <div class="chart-box" style="height:260px"><canvas id="ejecChartMensual_a"></canvas></div>
+          <div style="font-size:11px;color:var(--ink-3);text-transform:uppercase;letter-spacing:.05em;font-weight:700;margin-bottom:4px">USD</div>
+          <div class="chart-box" style="height:200px"><canvas id="ejecChartMensual_u"></canvas></div>
+          <div style="font-size:11px;color:var(--ink-3);text-transform:uppercase;letter-spacing:.05em;font-weight:700;margin:10px 0 4px">ARS$</div>
+          <div class="chart-box" style="height:200px"><canvas id="ejecChartMensual_a"></canvas></div>
         ` : `
-          <div class="chart-box" style="height:290px"><canvas id="ejecChartMensual"></canvas></div>
+          <div class="chart-box" style="height:235px"><canvas id="ejecChartMensual"></canvas></div>
         `}
         <label style="font-size:11.5px;color:var(--ink-2);cursor:pointer;display:flex;align-items:center;gap:5px;margin-top:8px"><input type="checkbox" id="ejecShow2025" style="cursor:pointer"> Mostrar 2025</label>
       </div>
@@ -2933,24 +2942,24 @@ function ejecFlujo(S, useUSD){
   /* Títulos de las 3 tarjetas más prominentes (pedido del usuario): subir el
      tamaño y el peso, mantener el color sutil de cada bloque. Se quita
      "objetivo del período" debajo del presupuesto. */
-  const tituloCardCss = (col)=>`font-size:15px;color:${col};text-transform:uppercase;letter-spacing:.04em;font-weight:800;margin-bottom:8px;padding-bottom:6px;border-bottom:1px solid ${col};display:inline-block`;
-  return `<div style="margin-top:14px">
-    <div style="font-size:11px;color:var(--ink-3);text-transform:uppercase;letter-spacing:.05em;font-weight:700;margin-bottom:8px">${mLbl}</div>
+  const tituloCardCss = (col)=>`font-size:14px;color:${col};text-transform:uppercase;letter-spacing:.04em;font-weight:800;margin-bottom:5px;padding-bottom:4px;border-bottom:1px solid ${col};display:inline-block`;
+  return `<div style="margin-top:8px">
+    <div style="font-size:11px;color:var(--ink-3);text-transform:uppercase;letter-spacing:.05em;font-weight:700;margin-bottom:5px">${mLbl}</div>
     <div style="display:flex;align-items:stretch;gap:8px">
-      <div style="flex:1;background:rgba(30,111,217,.08);border-radius:10px;padding:16px 14px;display:flex;flex-direction:column;justify-content:flex-start">
+      <div style="flex:1;background:rgba(30,111,217,.08);border-radius:10px;padding:11px 13px;display:flex;flex-direction:column;justify-content:flex-start">
         <div style="${tituloCardCss('var(--accent)')}">Presupuesto 2026</div>
-        <div style="font-size:30px;font-weight:800;color:var(--accent-3);line-height:1;font-family:var(--font-mono);margin-top:4px">${FMTc(S.presup26)}</div>
+        <div style="font-size:25px;font-weight:800;color:var(--accent-3);line-height:1;font-family:var(--font-mono);margin-top:4px">${FMTc(S.presup26)}</div>
       </div>
       <div style="display:flex;align-items:center;color:var(--ink-3);font-size:24px;font-weight:300">→</div>
-      <div style="flex:1;background:rgba(45,155,106,.10);border-radius:10px;padding:16px 14px;display:flex;flex-direction:column;justify-content:flex-start">
+      <div style="flex:1;background:rgba(45,155,106,.10);border-radius:10px;padding:11px 13px;display:flex;flex-direction:column;justify-content:flex-start">
         <div style="${tituloCardCss('var(--pos)')}">Emisión Real 2026</div>
-        <div style="font-size:30px;font-weight:800;color:var(--pos);line-height:1;font-family:var(--font-mono);margin-top:4px">${FMTc(S.emis26)}</div>
+        <div style="font-size:25px;font-weight:800;color:var(--pos);line-height:1;font-family:var(--font-mono);margin-top:4px">${FMTc(S.emis26)}</div>
         <div style="font-size:18px;font-weight:800;color:var(--pos);margin-top:8px;font-family:var(--font-mono)">${S.cumpl!=null?(S.cumpl*100).toFixed(1)+'%':'—'}<span style="font-size:12px;font-weight:600;margin-left:4px">del objetivo</span></div>
       </div>
       <div style="display:flex;align-items:center;color:var(--ink-3);font-size:20px;font-weight:300">=</div>
-      <div style="flex:1;background:${desvio>0?'rgba(217,71,71,.10)':'rgba(45,155,106,.10)'};border-radius:10px;padding:16px 14px;display:flex;flex-direction:column;justify-content:flex-start">
+      <div style="flex:1;background:${desvio>0?'rgba(217,71,71,.10)':'rgba(45,155,106,.10)'};border-radius:10px;padding:11px 13px;display:flex;flex-direction:column;justify-content:flex-start">
         <div style="${tituloCardCss(desvio>0?'var(--neg)':'var(--pos)')}">${desvio>0?'Desvío':'Sobre-cumplimiento'}</div>
-        <div style="font-size:30px;font-weight:800;color:${desvio>0?'var(--neg)':'var(--pos)'};line-height:1;font-family:var(--font-mono);margin-top:4px">${desvio>0?'−':'+'}${FMTc(dvAbs)}</div>
+        <div style="font-size:25px;font-weight:800;color:${desvio>0?'var(--neg)':'var(--pos)'};line-height:1;font-family:var(--font-mono);margin-top:4px">${desvio>0?'−':'+'}${FMTc(dvAbs)}</div>
         <div style="font-size:18px;font-weight:800;color:${desvio>0?'var(--neg)':'var(--pos)'};margin-top:8px;font-family:var(--font-mono)">${desvPct!=null?(desvPct>0?'−':'+')+Math.abs(desvPct).toFixed(1)+'%':''}<span style="font-size:12px;font-weight:600;margin-left:4px">vs presupuesto</span></div>
       </div>
     </div>
@@ -2983,7 +2992,7 @@ function ejecComparacion(S, useUSD, dual){
     <div class="grid-2">
       <div>
         <div class="card-sub" style="margin-bottom:6px">Emisión total — comparativa</div>
-        <div class="chart-box" style="height:230px"><canvas id="${idT}"></canvas></div>
+        <div class="chart-box" style="height:210px"><canvas id="${idT}"></canvas></div>
         <div style="text-align:center;margin-top:10px">
           <div style="font-size:13px;color:var(--ink-3);text-transform:uppercase;letter-spacing:.05em;font-weight:700">Desvío</div>
           <div style="font-family:var(--font-mono);font-size:26px;font-weight:800;color:${cTot};line-height:1.1;margin-top:4px">${dTot>=0?'+':''}${fmtCompact(dTot, useUSD)}</div>
@@ -2992,7 +3001,7 @@ function ejecComparacion(S, useUSD, dual){
       </div>
       <div>
         <div class="card-sub" style="margin-bottom:6px">Emisión por concepto</div>
-        <div class="chart-box" style="height:230px"><canvas id="${idC}"></canvas></div>
+        <div class="chart-box" style="height:210px"><canvas id="${idC}"></canvas></div>
         <div style="display:grid;grid-template-columns:repeat(2,1fr);gap:8px;margin-top:10px;font-size:13.5px">
           ${conceptosVar.map(cv=>{
             const cc = cv.dd>=0?'var(--pos)':'var(--neg)';
@@ -5237,10 +5246,12 @@ function drawEjecChartMensual(canvasId, polArr, presArr, mesCorte, useUSD, show2
   if(show2025){
     datasets.push({label:'Presupuesto 2025', data:presup25, type:'line', borderColor:'#9ab0c8', backgroundColor:'rgba(154,176,200,.10)', borderWidth:2, borderDash:[3,3], pointRadius:2, fill:false, tension:.2, spanGaps:true});
   }
-  datasets.push({label:'Presupuesto 2026', data:presup, type:'line', borderColor:'#e89b1e', backgroundColor:'rgba(232,155,30,.12)', borderWidth:2, borderDash:[5,4], pointRadius:3, fill:false, tension:.2, spanGaps:true});
+  /* Presupuesto 2026: línea AZUL OSCURO (alto contraste sobre las barras celestes) */
+  datasets.push({label:'Presupuesto 2026', data:presup, type:'line', borderColor:'#0a3d7a', backgroundColor:'rgba(10,61,122,.10)', pointBackgroundColor:'#0a3d7a', pointBorderColor:'#0a3d7a', borderWidth:2.5, borderDash:[5,4], pointRadius:3.5, fill:false, tension:.2, spanGaps:true});
   /* Barras: 2025 a la IZQUIERDA (va primero), 2026 a la DERECHA (va después) */
-  if(show2025) datasets.push({label:'Real 2025', data:r25, backgroundColor:'rgba(94,179,232,.7)', borderColor:'#5eb3e8', borderWidth:1.5, borderRadius:3, barPercentage:.7, categoryPercentage:.8});
-  datasets.push({label:'Real 2026', data:r26, backgroundColor:'rgba(30,111,217,.90)', borderColor:'#1e6fd9', borderWidth:1.5, borderRadius:3, barPercentage:.7, categoryPercentage:.8});
+  if(show2025) datasets.push({label:'Real 2025', data:r25, backgroundColor:'rgba(150,170,195,.6)', borderColor:'#9fb2c9', borderWidth:1.5, borderRadius:3, barPercentage:.7, categoryPercentage:.8});
+  /* Emisión Real 2026: barras CELESTE CLARO */
+  datasets.push({label:'Real 2026', data:r26, backgroundColor:'rgba(108,189,237,.88)', borderColor:'#4aa3e0', borderWidth:1.5, borderRadius:3, barPercentage:.7, categoryPercentage:.8});
   /* Opciones base + meses más grandes (pedido del usuario) + margen superior
      para que entren las etiquetas de valor arriba de las barras/puntos. */
   const opts = chartOpts({yMoney:useUSD?'usd':'ars',legend:true});
@@ -5269,7 +5280,7 @@ function drawEjecChartMensual(canvasId, polArr, presArr, mesCorte, useUSD, show2
         const meta = chart.getDatasetMeta(di);
         if(meta.hidden) return;
         const isLine = ds.type === 'line';
-        ctx.fillStyle = isLine ? '#b87c1a' : '#1e6fd9';
+        ctx.fillStyle = isLine ? '#0a3d7a' : '#1565c0';
         ctx.font = isLine ? '700 10.5px Calibri' : '700 11px Calibri';
         meta.data.forEach((el, i)=>{
           const v = ds.data[i];
