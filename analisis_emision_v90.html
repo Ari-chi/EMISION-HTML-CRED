@@ -91,6 +91,9 @@ main{padding:28px 32px 60px;max-width:2000px;margin:0 auto}
   display:flex;align-items:center;gap:10px;position:relative;overflow:hidden;
 }
 .ejec-block-title::before{content:"";position:absolute;left:0;top:0;bottom:0;width:6px;background:var(--accent-2)}
+.ejec-block-title--lg{font-size:30px;padding:20px 26px;gap:22px;flex-wrap:wrap;letter-spacing:.005em}
+.ejec-block-title--lg .ejb-sep{font-weight:600;opacity:.78;font-size:22px;letter-spacing:.06em;text-transform:uppercase}
+.ejec-block-title--lg .ejb-year{font-family:var(--font-mono);font-size:30px;color:#fff;background:rgba(255,255,255,.16);padding:2px 14px;border-radius:6px}
 .ejec-sub-title{
   font-size:18px;font-weight:800;letter-spacing:-.01em;margin:8px 0 10px;
   padding:9px 14px;border-radius:7px;display:inline-flex;align-items:center;gap:8px;
@@ -2411,14 +2414,9 @@ function renderEjecutivo(){
   sec.innerHTML = `
     <div class="section-head"><h2>Resumen <em>ejecutivo</em></h2></div>
     ${sectionFiltersBarHTML('ejecutivo')}
-    <div class="filters" style="margin-top:6px">
-      <span class="label">Presupuesto de referencia</span>
-      ${viewToggleHTML('ejecPresup',[{value:'cont',label:'Continental'},{value:'arg',label:'Argentina'}],'cont')}
-    </div>
     <div id="ejecutivo-nlabel"></div>
     <div id="ejecutivo-body"></div>`;
   bindSectionFilters('ejecutivo', ()=>drawEjecutivo());
-  bindCur('ejecPresup', ()=>drawEjecutivo());
   drawEjecutivo();
 }
 
@@ -2466,7 +2464,11 @@ function drawEjecutivo(){
   const polFiltradas = aplicarFiltrosPolizas(state.polizas, f);
   document.getElementById('ejecutivo-nlabel').innerHTML = '';
 
-  const presupTipo = getCur('ejecPresup','cont');
+  /* Selección oculta del presupuesto: por defecto, Continental. Si el usuario
+     escribe "tina" en el input secreto al pie del bloque 1, se cambia a
+     Argentina. Cualquier otro valor → vuelve a Continental. */
+  const _secret = (state._ejecPresupInput||'').trim().toLowerCase();
+  const presupTipo = (_secret === 'tina') ? 'arg' : 'cont';
   let presArrU = presupTipo==='cont' ? state.presup.cont26_usd : state.presup.arg26_usd;
   let presArrA = presupTipo==='cont' ? state.presup.cont26_ars : state.presup.arg26_ars;
   let presArrU25 = presupTipo==='cont' ? state.presup.cont25_usd : state.presup.arg25_usd;
@@ -2801,24 +2803,31 @@ function drawEjecutivo(){
     cProy:primary.cProy, cTasa:primary.cTasa, cAjuste:primary.cAjuste, cBono:primary.cBono, cMalus:primary.cMalus, cOtros:primary.cOtros};
 
   body.innerHTML = `
-    ${sinPresup?`<div style="background:rgba(232,155,30,.10);border-left:3px solid var(--warn);padding:10px 14px;border-radius:4px;margin-bottom:12px;font-size:12px;color:var(--accent-3)">⚠ No se detectó presupuesto ${presupTipo==='cont'?'Continental':'Argentina'} 2026 cargado. Los bloques de presupuesto mostrarán 0; el resto funciona igual.</div>`:''}
+    ${sinPresup?`<div style="background:rgba(232,155,30,.10);border-left:3px solid var(--warn);padding:10px 14px;border-radius:4px;margin-bottom:12px;font-size:12px;color:var(--accent-3)">⚠ No se detectó presupuesto 2026 cargado. Los bloques de presupuesto mostrarán 0; el resto funciona igual.</div>`:''}
 
     <!-- BLOQUE 1 -->
     <div class="card">
-      <div class="ejec-block-title">Presupuesto vs Emisión real 2026</div>
+      <div class="ejec-block-title ejec-block-title--lg"><span>Presupuesto</span><span class="ejb-sep">vs</span><span>Emisión&nbsp;Real</span><span class="ejb-year">2026</span></div>
       ${setU?ejecFlujo(setU,true):''}
       ${setA?ejecFlujo(setA,false):''}
       <!-- Gráfico mensual: solo botón 2025, sin título -->
       <div style="margin-top:16px">
         ${dual ? `
           <div style="font-size:11px;color:var(--ink-3);text-transform:uppercase;letter-spacing:.05em;font-weight:700;margin-bottom:6px">USD</div>
-          <div class="chart-box" style="height:230px"><canvas id="ejecChartMensual_u"></canvas></div>
+          <div class="chart-box" style="height:260px"><canvas id="ejecChartMensual_u"></canvas></div>
           <div style="font-size:11px;color:var(--ink-3);text-transform:uppercase;letter-spacing:.05em;font-weight:700;margin:14px 0 6px">ARS$</div>
-          <div class="chart-box" style="height:230px"><canvas id="ejecChartMensual_a"></canvas></div>
+          <div class="chart-box" style="height:260px"><canvas id="ejecChartMensual_a"></canvas></div>
         ` : `
-          <div class="chart-box" style="height:260px"><canvas id="ejecChartMensual"></canvas></div>
+          <div class="chart-box" style="height:290px"><canvas id="ejecChartMensual"></canvas></div>
         `}
         <label style="font-size:11.5px;color:var(--ink-2);cursor:pointer;display:flex;align-items:center;gap:5px;margin-top:8px"><input type="checkbox" id="ejecShow2025" style="cursor:pointer"> Mostrar 2025</label>
+      </div>
+      <!-- Selector oculto del presupuesto: escribir "tina" muestra Argentina -->
+      <div style="margin-top:14px;padding-top:10px;border-top:1px dashed var(--line)">
+        <input type="text" id="ejecPresupSecret" autocomplete="off" spellcheck="false"
+          style="width:100%;max-width:260px;padding:4px 8px;font-family:var(--font-mono);font-size:11px;color:#c5d2e3;background:transparent;border:1px solid transparent;border-radius:4px;outline:none"
+          onfocus="this.style.borderColor='var(--line)';this.style.color='var(--ink-2)'"
+          onblur="this.style.borderColor='transparent';this.style.color='#c5d2e3'" />
       </div>
     </div>
 
@@ -2884,6 +2893,22 @@ function drawEjecutivo(){
   const cb = document.getElementById('ejecShow2025');
   if(cb) cb.addEventListener('change', drawMensualEjec);
   drawMensualEjec();
+
+  /* Input secreto del presupuesto: "tina" → Argentina. */
+  const secEl = document.getElementById('ejecPresupSecret');
+  if(secEl){
+    secEl.value = state._ejecPresupInput || '';
+    secEl.addEventListener('input', ()=>{
+      const prev = (state._ejecPresupInput||'').trim().toLowerCase()==='tina';
+      state._ejecPresupInput = secEl.value;
+      const now = (state._ejecPresupInput||'').trim().toLowerCase()==='tina';
+      if(prev !== now){
+        drawEjecutivo();
+        const ne = document.getElementById('ejecPresupSecret');
+        if(ne){ ne.focus(); ne.setSelectionRange(ne.value.length, ne.value.length); }
+      }
+    });
+  }
 }
 
 /* Flujo Presupuesto → Emisión → Desvío para una moneda */
@@ -2892,24 +2917,27 @@ function ejecFlujo(S, useUSD){
   const mLbl = useUSD?'USD':'ARS$';
   const desvio=S.desvio, dvAbs=Math.abs(desvio);
   const desvPct = S.presup26>0 ? (desvio/S.presup26*100) : null;
+  /* Títulos de las 3 tarjetas más prominentes (pedido del usuario): subir el
+     tamaño y el peso, mantener el color sutil de cada bloque. Se quita
+     "objetivo del período" debajo del presupuesto. */
+  const tituloCardCss = (col)=>`font-size:15px;color:${col};text-transform:uppercase;letter-spacing:.04em;font-weight:800;margin-bottom:8px;padding-bottom:6px;border-bottom:1px solid ${col};display:inline-block`;
   return `<div style="margin-top:14px">
     <div style="font-size:11px;color:var(--ink-3);text-transform:uppercase;letter-spacing:.05em;font-weight:700;margin-bottom:8px">${mLbl}</div>
     <div style="display:flex;align-items:stretch;gap:8px">
       <div style="flex:1;background:rgba(30,111,217,.08);border-radius:10px;padding:16px 14px;display:flex;flex-direction:column;justify-content:center">
-        <div style="font-size:11px;color:var(--accent);text-transform:uppercase;letter-spacing:.05em;font-weight:700;margin-bottom:6px">Presupuesto 2026</div>
-        <div style="font-size:28px;font-weight:700;color:var(--accent-3);line-height:1;font-family:var(--font-mono)">${FMTc(S.presup26)}</div>
-        <div style="font-size:15px;font-weight:700;color:var(--accent);margin-top:8px">objetivo del período</div>
+        <div style="${tituloCardCss('var(--accent)')}">Presupuesto 2026</div>
+        <div style="font-size:30px;font-weight:800;color:var(--accent-3);line-height:1;font-family:var(--font-mono);margin-top:4px">${FMTc(S.presup26)}</div>
       </div>
       <div style="display:flex;align-items:center;color:var(--ink-3);font-size:24px;font-weight:300">→</div>
       <div style="flex:1;background:rgba(45,155,106,.10);border-radius:10px;padding:16px 14px;display:flex;flex-direction:column;justify-content:center">
-        <div style="font-size:11px;color:var(--pos);text-transform:uppercase;letter-spacing:.05em;font-weight:700;margin-bottom:6px">Emisión real 2026</div>
-        <div style="font-size:28px;font-weight:700;color:var(--pos);line-height:1;font-family:var(--font-mono)">${FMTc(S.emis26)}</div>
+        <div style="${tituloCardCss('var(--pos)')}">Emisión Real 2026</div>
+        <div style="font-size:30px;font-weight:800;color:var(--pos);line-height:1;font-family:var(--font-mono);margin-top:4px">${FMTc(S.emis26)}</div>
         <div style="font-size:18px;font-weight:800;color:var(--pos);margin-top:8px;font-family:var(--font-mono)">${S.cumpl!=null?(S.cumpl*100).toFixed(1)+'%':'—'}<span style="font-size:12px;font-weight:600;margin-left:4px">del objetivo</span></div>
       </div>
       <div style="display:flex;align-items:center;color:var(--ink-3);font-size:20px;font-weight:300">=</div>
       <div style="flex:1;background:${desvio>0?'rgba(217,71,71,.10)':'rgba(45,155,106,.10)'};border-radius:10px;padding:16px 14px;display:flex;flex-direction:column;justify-content:center">
-        <div style="font-size:11px;color:${desvio>0?'var(--neg)':'var(--pos)'};text-transform:uppercase;letter-spacing:.05em;font-weight:700;margin-bottom:6px">${desvio>0?'Desvío':'Sobre-cumplimiento'}</div>
-        <div style="font-size:28px;font-weight:700;color:${desvio>0?'var(--neg)':'var(--pos)'};line-height:1;font-family:var(--font-mono)">${desvio>0?'−':'+'}${FMTc(dvAbs)}</div>
+        <div style="${tituloCardCss(desvio>0?'var(--neg)':'var(--pos)')}">${desvio>0?'Desvío':'Sobre-cumplimiento'}</div>
+        <div style="font-size:30px;font-weight:800;color:${desvio>0?'var(--neg)':'var(--pos)'};line-height:1;font-family:var(--font-mono);margin-top:4px">${desvio>0?'−':'+'}${FMTc(dvAbs)}</div>
         <div style="font-size:18px;font-weight:800;color:${desvio>0?'var(--neg)':'var(--pos)'};margin-top:8px;font-family:var(--font-mono)">${desvPct!=null?(desvPct>0?'−':'+')+Math.abs(desvPct).toFixed(1)+'%':''}<span style="font-size:12px;font-weight:600;margin-left:4px">vs presupuesto</span></div>
       </div>
     </div>
@@ -5197,7 +5225,38 @@ function drawEjecChartMensual(canvasId, polArr, presArr, mesCorte, useUSD, show2
   /* Barras: 2025 a la IZQUIERDA (va primero), 2026 a la DERECHA (va después) */
   if(show2025) datasets.push({label:'Real 2025', data:r25, backgroundColor:'rgba(94,179,232,.7)', borderColor:'#5eb3e8', borderWidth:1.5, borderRadius:3, barPercentage:.7, categoryPercentage:.8});
   datasets.push({label:'Real 2026', data:r26, backgroundColor:'rgba(30,111,217,.90)', borderColor:'#1e6fd9', borderWidth:1.5, borderRadius:3, barPercentage:.7, categoryPercentage:.8});
-  drawChart(canvasId,{type:'bar', data:{labels,datasets}, options:chartOpts({yMoney:useUSD?'usd':'ars',legend:true})});
+  /* Opciones base + meses más grandes (pedido del usuario) + margen superior
+     para que entren las etiquetas de valor arriba de las barras/puntos. */
+  const opts = chartOpts({yMoney:useUSD?'usd':'ars',legend:true});
+  opts.scales.x.ticks.font = {family:'Calibri', size:13, weight:'700'};
+  opts.scales.x.ticks.color = '#3d5475';
+  opts.layout = {padding:{top:22}};
+  /* Plugin inline: valor encima de cada barra "Real 2026" y de cada punto
+     "Presupuesto 2026", en formato compacto (K/M/MM). */
+  const valueLabelPlugin = {
+    id:'mensualValueLabel',
+    afterDatasetsDraw(chart){
+      const {ctx} = chart;
+      ctx.save();
+      ctx.textAlign = 'center';
+      chart.data.datasets.forEach((ds, di)=>{
+        if(ds.label !== 'Real 2026' && ds.label !== 'Presupuesto 2026') return;
+        const meta = chart.getDatasetMeta(di);
+        if(meta.hidden) return;
+        const isLine = ds.type === 'line';
+        ctx.fillStyle = isLine ? '#b87c1a' : '#1e6fd9';
+        ctx.font = isLine ? '700 10.5px Calibri' : '700 11px Calibri';
+        meta.data.forEach((el, i)=>{
+          const v = ds.data[i];
+          if(v==null || v===0) return;
+          const y = isLine ? (el.y - 8) : (el.y - 5);
+          ctx.fillText(fmtCompact(v, useUSD), el.x, y);
+        });
+      });
+      ctx.restore();
+    }
+  };
+  drawChart(canvasId,{type:'bar', data:{labels,datasets}, options:opts, plugins:[valueLabelPlugin]});
 }
 
 /* Cascada waterfall */
