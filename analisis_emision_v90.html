@@ -69,6 +69,8 @@ main{padding:28px 32px 60px;max-width:2000px;margin:0 auto}
 .sf-bar .sf-row--months .view-toggle{flex-wrap:wrap}
 /* Filas 3°–8°: grupos distribuidos izquierda↔derecha para ocupar menos alto */
 .sf-bar .sf-row--spread{justify-content:space-between;gap:6px 12px}
+/* Desplegables compactos para 1° Mes Corte y 2° Acumulado (en vez de filas largas de meses) */
+.sf-bar .sf-select{padding:3px 22px 3px 8px;font-family:var(--font-mono);font-size:10.5px;font-weight:700;color:var(--accent-3);background:var(--panel);border:1px solid var(--line-2);border-radius:5px;cursor:pointer;letter-spacing:.02em;appearance:none;-webkit-appearance:none;background-image:url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='10' height='6' viewBox='0 0 10 6'><path d='M1 1l4 4 4-4' fill='none' stroke='%231e6fd9' stroke-width='1.6'/></svg>");background-repeat:no-repeat;background-position:right 7px center}
 
 /* Banner con N (cantidad de pólizas mostradas) */
 .n-label-bar{background:linear-gradient(135deg,rgba(30,111,217,.08),rgba(94,179,232,.04));border-left:4px solid var(--accent);padding:8px 14px;margin-bottom:14px;border-radius:5px;font-family:var(--font-mono);font-size:12px;font-weight:700;color:var(--accent-3);letter-spacing:.02em}
@@ -1887,19 +1889,15 @@ function sectionFiltersBarHTML(sectionId, opts={}){
 
   return `<div class="sf-bar" data-sf="${sectionId}">
     ${gMesBanner}
-    <div class="sf-row sf-row--months">
+    <div class="sf-row sf-row--spread">
       <div class="sf-group">
         <span class="sf-lbl">1° Mes Corte 2026 <span style="color:var(--ink-3);font-style:italic;font-weight:400;text-transform:none;letter-spacing:0;margin-left:3px;font-size:8.5px">(solo 2026)</span></span>
-        ${viewToggleHTML(gMesId, MESES_OP_G, String(state.globalMes2026||0))}
+        <select id="${gMesId}" class="sf-select">${MESES_OP_G.map(o=>`<option value="${o.value}"${String(state.globalMes2026||0)===o.value?' selected':''}>${o.label}</option>`).join('')}</select>
       </div>
-    </div>
-    <div class="sf-row sf-row--months">
       <div class="sf-group">
         <span class="sf-lbl">2° Acumulado hasta <span style="color:var(--ink-3);font-style:italic;font-weight:400;text-transform:none;letter-spacing:0;margin-left:3px;font-size:8.5px">(ambos años)</span></span>
-        ${viewToggleHTML(mesId, MESES_OP, String(f.mes))}
+        <select id="${mesId}" class="sf-select">${MESES_OP.map(o=>`<option value="${o.value}"${String(f.mes)===o.value?' selected':''}>${o.label}</option>`).join('')}</select>
       </div>
-    </div>
-    <div class="sf-row sf-row--spread">
       <div class="sf-group">
         <span class="sf-lbl">3° Universo</span>
         ${viewToggleHTML(univId,[{value:'todos',label:'Todas las pólizas'},{value:'emit26',label:'Emitidas 2026'}],f.universo)}
@@ -1943,7 +1941,8 @@ function bindSectionFilters(sectionId, onChange){
   const aantId = `${sectionId}_SF_anualAnt`;
   const trigger = ()=>{
     const f = getSectionFilters(sectionId);
-    f.mes = parseInt(getCur(mesId,'0'),10) || 0;
+    const _mSel = document.getElementById(mesId);
+    f.mes = _mSel ? (parseInt(_mSel.value,10)||0) : (parseInt(getCur(mesId,'0'),10)||0);
     f.universo = getCur(univId,'todos');
     f.cur = getCur(curId,'dual');
     f.segmento = getCur(segId,'all');
@@ -1951,10 +1950,11 @@ function bindSectionFilters(sectionId, onChange){
     f.anualAnt = getCur(aantId,'excluir');
     if(onChange) onChange(f);
   };
-  /* 1° Mes Corte 2026 — afecta a TODAS las secciones (state.globalMes2026).
+  /* 1° Mes Corte 2026 (desplegable) — afecta a TODAS las secciones (state.globalMes2026).
      Cualquier cambio dispara un re-render completo para mantener todo en sincro. */
-  bindCur(gMesId, ()=>{
-    const v = parseInt(getCur(gMesId,'0'),10) || 0;
+  const gSel = document.getElementById(gMesId);
+  if(gSel) gSel.addEventListener('change', ()=>{
+    const v = parseInt(gSel.value,10) || 0;
     if(v === state.globalMes2026) return;
     state.globalMes2026 = v;
     /* Sincronizar el botón legacy de la cabecera (si todavía existe) */
@@ -1963,7 +1963,9 @@ function bindSectionFilters(sectionId, onChange){
     setCur('GLOBAL_mes', String(v));
     if(typeof renderAll==='function') renderAll();
   });
-  bindCur(mesId, trigger);
+  /* 2° Acumulado hasta (desplegable) */
+  const mSel = document.getElementById(mesId);
+  if(mSel) mSel.addEventListener('change', trigger);
   bindCur(univId, trigger);
   bindCur(curId, trigger);
   bindCur(segId, trigger);
