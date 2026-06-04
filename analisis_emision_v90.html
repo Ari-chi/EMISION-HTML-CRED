@@ -97,9 +97,11 @@ main{padding:28px 32px 60px;max-width:2000px;margin:0 auto}
   display:flex;align-items:center;gap:10px;position:relative;overflow:hidden;
 }
 .ejec-block-title::before{content:"";position:absolute;left:0;top:0;bottom:0;width:6px;background:var(--accent-2)}
-.ejec-block-title--lg{font-size:30px;padding:20px 26px;gap:22px;flex-wrap:wrap;letter-spacing:.005em}
-.ejec-block-title--lg .ejb-sep{font-weight:600;opacity:.78;font-size:22px;letter-spacing:.06em;text-transform:uppercase}
-.ejec-block-title--lg .ejb-year{font-family:var(--font-mono);font-size:30px;color:#fff;background:rgba(255,255,255,.16);padding:2px 14px;border-radius:6px}
+/* Mismo tamaño/altura que el resto de los títulos (hereda 23px / padding base);
+   solo conserva la separación entre "Presupuesto vs Emisión Real 2026". */
+.ejec-block-title--lg{gap:16px;flex-wrap:wrap;letter-spacing:.005em}
+.ejec-block-title--lg .ejb-sep{font-weight:600;opacity:.78;font-size:16px;letter-spacing:.06em;text-transform:uppercase}
+.ejec-block-title--lg .ejb-year{font-family:var(--font-mono);font-size:21px;color:#fff;background:rgba(255,255,255,.16);padding:1px 11px;border-radius:6px}
 .ejec-sub-title{
   font-size:18px;font-weight:800;letter-spacing:-.01em;margin:8px 0 10px;
   padding:9px 14px;border-radius:7px;display:inline-flex;align-items:center;gap:8px;
@@ -211,7 +213,7 @@ main{padding:28px 32px 60px;max-width:2000px;margin:0 auto}
 .card{background:var(--panel);border:1px solid var(--line);border-radius:6px;padding:20px;margin-bottom:18px;box-shadow:0 1px 3px rgba(10,31,58,.04)}
 .card h3{font-size:16px;margin-bottom:0;font-weight:600;color:var(--accent-3)}
 .card .card-sub{color:var(--ink-3);font-size:11.5px;margin-bottom:14px}
-.grid-2{display:grid;grid-template-columns:1fr 1fr;gap:18px}
+.grid-2{display:grid;grid-template-columns:repeat(auto-fit,minmax(min(100%,320px),1fr));gap:18px}
 .grid-3{display:grid;grid-template-columns:repeat(3,1fr);gap:18px}
 @media (max-width:1100px){.grid-2,.grid-3{grid-template-columns:1fr}}
 
@@ -638,7 +640,7 @@ const CFGCOL = APP_CONFIG.columnas;
 const MESES = ['Ene','Feb','Mar','Abr','May','Jun','Jul','Ago','Sep','Oct','Nov','Dic'];
 const CONCEPTOS_EMISIBLES = ['Prima Minima','Ajuste','Bono','Malus'];
 const KEYMAP = {'Prima Minima':'primaMin','Ajuste':'ajuste','Bono':'bono','Malus':'malus'};
-const CONCEPTO_LABEL = {'Prima Minima':'Prima Mín.','Ajuste':'Ajuste','Bono':'Bono','Malus':'Malus'};
+const CONCEPTO_LABEL = {'Prima Minima':'Prima Mínima','Ajuste':'Ajuste','Bono':'Bono','Malus':'Malus'};
 
 /* Formato compacto: máximo 3 dígitos visibles.
    - 1-9.99 → 2 decimales (ej. 2.45M)
@@ -2933,18 +2935,18 @@ function ejecFlujo(S, useUSD){
   return `<div style="margin-top:14px">
     <div style="font-size:11px;color:var(--ink-3);text-transform:uppercase;letter-spacing:.05em;font-weight:700;margin-bottom:8px">${mLbl}</div>
     <div style="display:flex;align-items:stretch;gap:8px">
-      <div style="flex:1;background:rgba(30,111,217,.08);border-radius:10px;padding:16px 14px;display:flex;flex-direction:column;justify-content:center">
+      <div style="flex:1;background:rgba(30,111,217,.08);border-radius:10px;padding:16px 14px;display:flex;flex-direction:column;justify-content:flex-start">
         <div style="${tituloCardCss('var(--accent)')}">Presupuesto 2026</div>
         <div style="font-size:30px;font-weight:800;color:var(--accent-3);line-height:1;font-family:var(--font-mono);margin-top:4px">${FMTc(S.presup26)}</div>
       </div>
       <div style="display:flex;align-items:center;color:var(--ink-3);font-size:24px;font-weight:300">→</div>
-      <div style="flex:1;background:rgba(45,155,106,.10);border-radius:10px;padding:16px 14px;display:flex;flex-direction:column;justify-content:center">
+      <div style="flex:1;background:rgba(45,155,106,.10);border-radius:10px;padding:16px 14px;display:flex;flex-direction:column;justify-content:flex-start">
         <div style="${tituloCardCss('var(--pos)')}">Emisión Real 2026</div>
         <div style="font-size:30px;font-weight:800;color:var(--pos);line-height:1;font-family:var(--font-mono);margin-top:4px">${FMTc(S.emis26)}</div>
         <div style="font-size:18px;font-weight:800;color:var(--pos);margin-top:8px;font-family:var(--font-mono)">${S.cumpl!=null?(S.cumpl*100).toFixed(1)+'%':'—'}<span style="font-size:12px;font-weight:600;margin-left:4px">del objetivo</span></div>
       </div>
       <div style="display:flex;align-items:center;color:var(--ink-3);font-size:20px;font-weight:300">=</div>
-      <div style="flex:1;background:${desvio>0?'rgba(217,71,71,.10)':'rgba(45,155,106,.10)'};border-radius:10px;padding:16px 14px;display:flex;flex-direction:column;justify-content:center">
+      <div style="flex:1;background:${desvio>0?'rgba(217,71,71,.10)':'rgba(45,155,106,.10)'};border-radius:10px;padding:16px 14px;display:flex;flex-direction:column;justify-content:flex-start">
         <div style="${tituloCardCss(desvio>0?'var(--neg)':'var(--pos)')}">${desvio>0?'Desvío':'Sobre-cumplimiento'}</div>
         <div style="font-size:30px;font-weight:800;color:${desvio>0?'var(--neg)':'var(--pos)'};line-height:1;font-family:var(--font-mono);margin-top:4px">${desvio>0?'−':'+'}${FMTc(dvAbs)}</div>
         <div style="font-size:18px;font-weight:800;color:${desvio>0?'var(--neg)':'var(--pos)'};margin-top:8px;font-family:var(--font-mono)">${desvPct!=null?(desvPct>0?'−':'+')+Math.abs(desvPct).toFixed(1)+'%':''}<span style="font-size:12px;font-weight:600;margin-left:4px">vs presupuesto</span></div>
@@ -2994,7 +2996,10 @@ function ejecComparacion(S, useUSD, dual){
             const cc = cv.dd>=0?'var(--pos)':'var(--neg)';
             return `<div style="background:var(--bg-2);border-radius:6px;padding:8px 12px;border-left:3px solid ${cc}">
               <div style="color:var(--accent-3);font-weight:700;font-size:13px">${CONCEPTO_LABEL[cv.c]}</div>
-              <div style="font-family:var(--font-mono);font-weight:800;color:${cc};font-size:17px;margin-top:2px">${cv.dd>=0?'+':''}${cv.pp!=null?FMT_PCT(cv.pp):'—'}</div>
+              <div style="display:flex;align-items:baseline;gap:8px;margin-top:2px">
+                <span style="font-family:var(--font-mono);font-weight:800;color:${cc};font-size:17px">${cv.dd>=0?'+':''}${cv.pp!=null?FMT_PCT(cv.pp):'—'}</span>
+                <span style="font-family:var(--font-mono);font-weight:700;color:var(--ink-2);font-size:13px">${cv.dd>=0?'+':''}${fmtCompact(cv.dd, useUSD)}</span>
+              </div>
             </div>`;
           }).join('')}
         </div>
@@ -5246,6 +5251,15 @@ function drawEjecChartMensual(canvasId, polArr, presArr, mesCorte, useUSD, show2
     id:'mensualValueLabel',
     afterDatasetsDraw(chart){
       const {ctx} = chart;
+      /* Tope (y) de cada barra "Real 2026" para esquivar el solapamiento con la
+         etiqueta del punto de presupuesto cuando el punto cae cerca/por debajo del tope. */
+      let barTops = [];
+      chart.data.datasets.forEach((ds, di)=>{
+        if(ds.label === 'Real 2026'){
+          const m = chart.getDatasetMeta(di);
+          if(!m.hidden) barTops = m.data.map(el=>el.y);
+        }
+      });
       ctx.save();
       ctx.textAlign = 'center';
       chart.data.datasets.forEach((ds, di)=>{
@@ -5258,7 +5272,15 @@ function drawEjecChartMensual(canvasId, polArr, presArr, mesCorte, useUSD, show2
         meta.data.forEach((el, i)=>{
           const v = ds.data[i];
           if(v==null || v===0) return;
-          const y = isLine ? (el.y - 8) : (el.y - 5);
+          let y;
+          if(isLine){
+            const barTop = barTops[i];
+            /* Si el punto de presupuesto está cerca o por debajo del tope de la barra,
+               se rotula DEBAJO del punto para no encimar la etiqueta de la barra. */
+            y = (barTop!=null && el.y > barTop - 16) ? (el.y + 14) : (el.y - 8);
+          } else {
+            y = el.y - 5;
+          }
           ctx.fillText(fmtCompact(v, useUSD), el.x, y);
         });
       });
