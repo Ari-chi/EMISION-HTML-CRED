@@ -57,12 +57,12 @@ main{padding:28px 32px 60px;max-width:2000px;margin:0 auto}
 .timeline-filter{background:var(--panel);border:1px solid var(--line);border-radius:6px;padding:12px 16px;margin-bottom:18px;display:flex;align-items:center;gap:12px;flex-wrap:wrap;box-shadow:0 1px 3px rgba(10,31,58,.04);}
 
 /* Bar de filtros por sección (4 filtros) */
-.sf-bar{background:var(--panel);border:1.5px solid var(--accent-2);border-radius:8px;padding:14px 16px;margin-bottom:18px;box-shadow:0 2px 6px rgba(10,31,58,.06)}
-.sf-bar .sf-row{display:flex;flex-wrap:wrap;gap:24px;align-items:center}
-.sf-bar .sf-row + .sf-row{margin-top:10px;padding-top:10px;border-top:1px dashed var(--line)}
-.sf-bar .sf-group{display:flex;align-items:center;gap:8px;flex-wrap:wrap}
-.sf-bar .sf-lbl{font-family:var(--font-mono);font-size:10px;color:var(--accent-3);text-transform:uppercase;letter-spacing:.06em;font-weight:700;white-space:nowrap}
-.sf-bar .view-toggle button{padding:5px 10px;font-size:11px}
+.sf-bar{background:var(--panel);border:1.5px solid var(--accent-2);border-radius:6px;padding:7px 10px;margin-bottom:12px;box-shadow:0 2px 6px rgba(10,31,58,.06);position:sticky;top:48px;z-index:9}
+.sf-bar .sf-row{display:flex;flex-wrap:wrap;gap:14px 18px;align-items:center;row-gap:6px}
+.sf-bar .sf-row + .sf-row{margin-top:5px;padding-top:5px;border-top:1px dashed var(--line)}
+.sf-bar .sf-group{display:flex;align-items:center;gap:6px;flex-wrap:wrap}
+.sf-bar .sf-lbl{font-family:var(--font-mono);font-size:9.5px;color:var(--accent-3);text-transform:uppercase;letter-spacing:.05em;font-weight:700;white-space:nowrap}
+.sf-bar .view-toggle button{padding:3px 8px;font-size:10.5px}
 
 /* Banner con N (cantidad de pólizas mostradas) */
 .n-label-bar{background:linear-gradient(135deg,rgba(30,111,217,.08),rgba(94,179,232,.04));border-left:4px solid var(--accent);padding:8px 14px;margin-bottom:14px;border-radius:5px;font-family:var(--font-mono);font-size:12px;font-weight:700;color:var(--accent-3);letter-spacing:.02em}
@@ -91,6 +91,9 @@ main{padding:28px 32px 60px;max-width:2000px;margin:0 auto}
   display:flex;align-items:center;gap:10px;position:relative;overflow:hidden;
 }
 .ejec-block-title::before{content:"";position:absolute;left:0;top:0;bottom:0;width:6px;background:var(--accent-2)}
+.ejec-block-title--lg{font-size:30px;padding:20px 26px;gap:22px;flex-wrap:wrap;letter-spacing:.005em}
+.ejec-block-title--lg .ejb-sep{font-weight:600;opacity:.78;font-size:22px;letter-spacing:.06em;text-transform:uppercase}
+.ejec-block-title--lg .ejb-year{font-family:var(--font-mono);font-size:30px;color:#fff;background:rgba(255,255,255,.16);padding:2px 14px;border-radius:6px}
 .ejec-sub-title{
   font-size:18px;font-weight:800;letter-spacing:-.01em;margin:8px 0 10px;
   padding:9px 14px;border-radius:7px;display:inline-flex;align-items:center;gap:8px;
@@ -478,8 +481,10 @@ h4.section-title{margin:14px 0 8px 0;font-size:13px;color:var(--accent-3);font-w
     <div class="sub">Comparativa por póliza, rubro, producto, broker y motivo · Dual ARS$ / USD</div>
   </div>
   <div class="header-meta">
-    <!-- Botón compacto del Mes de Corte Global -->
-    <div id="globalMesMenu" style="display:none;position:relative">
+    <!-- Botón compacto del Mes de Corte Global — ahora vive como "1° Mes Corte 2026"
+         dentro del bar de filtros de cada sección, por pedido del usuario. Se deja
+         oculto pero presente para no romper código existente. -->
+    <div id="globalMesMenu" style="display:none !important;position:relative">
       <button id="globalMesBtn" onclick="toggleGlobalMesPanel()" style="background:linear-gradient(135deg,#0a3d7a,#1e6fd9);color:#fff;border:none;padding:8px 14px;font-family:var(--font);font-size:12px;font-weight:700;border-radius:5px;cursor:pointer;letter-spacing:.02em;box-shadow:0 2px 6px rgba(10,31,58,.25);display:inline-flex;align-items:center;gap:8px">
         <span>🌐 Mes Corte 2026</span>
         <span id="globalMesBtnLabel" style="font-family:var(--font-mono);font-size:11px;background:rgba(255,255,255,.18);padding:2px 6px;border-radius:3px">TODO</span>
@@ -1866,41 +1871,50 @@ function sectionFiltersBarHTML(sectionId, opts={}){
   /* Aviso del Mes Corte 2026 eliminado por solicitud del usuario; el control se mantiene en el desplegable global */
   const gMesBanner = '';
 
+  /* 1° Mes Corte 2026 — replicado del control global; setea state.globalMes2026 */
+  const gMesId = `${sectionId}_SF_globalMes`;
+  const MESES_OP_G = [{value:'0',label:'TODO'}].concat(MESES.map((m,i)=>({value:String(i+1),label:m})));
+  setCur(gMesId, String(state.globalMes2026||0));
+
   return `<div class="sf-bar" data-sf="${sectionId}">
     ${gMesBanner}
     <div class="sf-row">
       <div class="sf-group">
-        <span class="sf-lbl">1° Acumulado hasta <span style="color:var(--ink-3);font-style:italic;font-weight:400;text-transform:none;letter-spacing:0;margin-left:4px;font-size:9.5px">(filtra ambos años)</span></span>
-        ${viewToggleHTML(mesId, MESES_OP, String(f.mes))}
+        <span class="sf-lbl">1° Mes Corte 2026 <span style="color:var(--ink-3);font-style:italic;font-weight:400;text-transform:none;letter-spacing:0;margin-left:3px;font-size:9px">(solo 2026)</span></span>
+        ${viewToggleHTML(gMesId, MESES_OP_G, String(state.globalMes2026||0))}
       </div>
       <div class="sf-group">
-        <span class="sf-lbl">2° Universo</span>
-        ${viewToggleHTML(univId,[{value:'todos',label:'Todas las pólizas'},{value:'emit26',label:'Emitidas 2026'}],f.universo)}
+        <span class="sf-lbl">2° Acumulado hasta <span style="color:var(--ink-3);font-style:italic;font-weight:400;text-transform:none;letter-spacing:0;margin-left:3px;font-size:9px">(ambos años)</span></span>
+        ${viewToggleHTML(mesId, MESES_OP, String(f.mes))}
       </div>
     </div>
     <div class="sf-row">
       <div class="sf-group">
-        <span class="sf-lbl">3° Moneda${curDisabledNote}</span>
+        <span class="sf-lbl">3° Universo</span>
+        ${viewToggleHTML(univId,[{value:'todos',label:'Todas las pólizas'},{value:'emit26',label:'Emitidas 2026'}],f.universo)}
+      </div>
+      <div class="sf-group">
+        <span class="sf-lbl">4° Moneda${curDisabledNote}</span>
         ${curToggleHTML(curId,{def:f.cur, dualLabel})}
       </div>
       <div class="sf-group">
-        <span class="sf-lbl">4° Segmento</span>
+        <span class="sf-lbl">5° Segmento</span>
         ${viewToggleHTML(segId,[{value:'all',label:'Todas'},{value:'arsArs',label:'Pólizas $ en $'},{value:'usdUsd',label:'Pólizas US en US'},{value:'vs',label:'Comparación US vs $'}],f.segmento)}
       </div>
     </div>
     <div class="sf-row">
       <div class="sf-group">
-        <span class="sf-lbl">5° Pólizas nuevas 2025/2026</span>
+        <span class="sf-lbl">6° Pólizas nuevas 25/26</span>
         ${viewToggleHTML(nuevId,[{value:'incluir',label:'Sí'},{value:'excluir',label:'No'}],f.polNuevas||'incluir')}
       </div>
       <div class="sf-group">
-        <span class="sf-lbl">6° Emisiones "Anualidad Anterior" 2026</span>
+        <span class="sf-lbl">7° "Anualidad Anterior" 2026</span>
         ${viewToggleHTML(aantId,[{value:'incluir',label:'Sí'},{value:'excluir',label:'No'}],f.anualAnt||'incluir')}
       </div>
       <div class="sf-group">
-        <span class="sf-lbl">7° TC <span style="color:var(--ink-3);font-style:italic;font-weight:400;text-transform:none;letter-spacing:0;margin-left:4px;font-size:9.5px">(solo Pendiente · convierte equivalente)</span></span>
-        <input type="number" id="${sectionId}_SF_tc" min="0" step="any" placeholder="ej. 1400" value="${(f.tc!=null && f.tc>0)?f.tc:''}"
-          style="width:110px;padding:5px 9px;font-family:var(--font-mono);font-size:12px;border:1px solid var(--line-2);border-radius:5px;color:var(--ink);background:var(--panel)" />
+        <span class="sf-lbl">8° TC <span style="color:var(--ink-3);font-style:italic;font-weight:400;text-transform:none;letter-spacing:0;margin-left:3px;font-size:9px">(Pendiente)</span></span>
+        <input type="number" id="${sectionId}_SF_tc" min="0" step="any" placeholder="1400" value="${(f.tc!=null && f.tc>0)?f.tc:''}"
+          style="width:78px;padding:3px 7px;font-family:var(--font-mono);font-size:11px;border:1px solid var(--line-2);border-radius:5px;color:var(--ink);background:var(--panel)" />
       </div>
     </div>
   </div>`;
@@ -1909,6 +1923,7 @@ function sectionFiltersBarHTML(sectionId, opts={}){
    IMPORTANTE: el "Acumulado hasta" es PER-SECCIÓN (filtra ambos años 2025 y 2026).
    El "Mes Corte 2026" (botón global en cabecera) es DISTINTO y solo filtra 2026. */
 function bindSectionFilters(sectionId, onChange){
+  const gMesId = `${sectionId}_SF_globalMes`;
   const mesId  = `${sectionId}_SF_mes`;
   const univId = `${sectionId}_SF_universo`;
   const curId  = `${sectionId}_SF_cur`;
@@ -1925,6 +1940,18 @@ function bindSectionFilters(sectionId, onChange){
     f.anualAnt = getCur(aantId,'excluir');
     if(onChange) onChange(f);
   };
+  /* 1° Mes Corte 2026 — afecta a TODAS las secciones (state.globalMes2026).
+     Cualquier cambio dispara un re-render completo para mantener todo en sincro. */
+  bindCur(gMesId, ()=>{
+    const v = parseInt(getCur(gMesId,'0'),10) || 0;
+    if(v === state.globalMes2026) return;
+    state.globalMes2026 = v;
+    /* Sincronizar el botón legacy de la cabecera (si todavía existe) */
+    const lbl = document.getElementById('globalMesBtnLabel');
+    if(lbl) lbl.textContent = v===0 ? 'TODO' : MESES[v-1].toUpperCase();
+    setCur('GLOBAL_mes', String(v));
+    if(typeof renderAll==='function') renderAll();
+  });
   bindCur(mesId, trigger);
   bindCur(univId, trigger);
   bindCur(curId, trigger);
@@ -2387,14 +2414,9 @@ function renderEjecutivo(){
   sec.innerHTML = `
     <div class="section-head"><h2>Resumen <em>ejecutivo</em></h2></div>
     ${sectionFiltersBarHTML('ejecutivo')}
-    <div class="filters" style="margin-top:6px">
-      <span class="label">Presupuesto de referencia</span>
-      ${viewToggleHTML('ejecPresup',[{value:'cont',label:'Continental'},{value:'arg',label:'Argentina'}],'cont')}
-    </div>
     <div id="ejecutivo-nlabel"></div>
     <div id="ejecutivo-body"></div>`;
   bindSectionFilters('ejecutivo', ()=>drawEjecutivo());
-  bindCur('ejecPresup', ()=>drawEjecutivo());
   drawEjecutivo();
 }
 
@@ -2442,7 +2464,11 @@ function drawEjecutivo(){
   const polFiltradas = aplicarFiltrosPolizas(state.polizas, f);
   document.getElementById('ejecutivo-nlabel').innerHTML = '';
 
-  const presupTipo = getCur('ejecPresup','cont');
+  /* Selección oculta del presupuesto: por defecto, Continental. Si el usuario
+     escribe "tina" en el input secreto al pie del bloque 1, se cambia a
+     Argentina. Cualquier otro valor → vuelve a Continental. */
+  const _secret = (state._ejecPresupInput||'').trim().toLowerCase();
+  const presupTipo = (_secret === 'tina') ? 'arg' : 'cont';
   let presArrU = presupTipo==='cont' ? state.presup.cont26_usd : state.presup.arg26_usd;
   let presArrA = presupTipo==='cont' ? state.presup.cont26_ars : state.presup.arg26_ars;
   let presArrU25 = presupTipo==='cont' ? state.presup.cont25_usd : state.presup.arg25_usd;
@@ -2777,24 +2803,31 @@ function drawEjecutivo(){
     cProy:primary.cProy, cTasa:primary.cTasa, cAjuste:primary.cAjuste, cBono:primary.cBono, cMalus:primary.cMalus, cOtros:primary.cOtros};
 
   body.innerHTML = `
-    ${sinPresup?`<div style="background:rgba(232,155,30,.10);border-left:3px solid var(--warn);padding:10px 14px;border-radius:4px;margin-bottom:12px;font-size:12px;color:var(--accent-3)">⚠ No se detectó presupuesto ${presupTipo==='cont'?'Continental':'Argentina'} 2026 cargado. Los bloques de presupuesto mostrarán 0; el resto funciona igual.</div>`:''}
+    ${sinPresup?`<div style="background:rgba(232,155,30,.10);border-left:3px solid var(--warn);padding:10px 14px;border-radius:4px;margin-bottom:12px;font-size:12px;color:var(--accent-3)">⚠ No se detectó presupuesto 2026 cargado. Los bloques de presupuesto mostrarán 0; el resto funciona igual.</div>`:''}
 
     <!-- BLOQUE 1 -->
     <div class="card">
-      <div class="ejec-block-title">Presupuesto vs Emisión real 2026</div>
+      <div class="ejec-block-title ejec-block-title--lg"><span>Presupuesto</span><span class="ejb-sep">vs</span><span>Emisión&nbsp;Real</span><span class="ejb-year">2026</span></div>
       ${setU?ejecFlujo(setU,true):''}
       ${setA?ejecFlujo(setA,false):''}
       <!-- Gráfico mensual: solo botón 2025, sin título -->
       <div style="margin-top:16px">
         ${dual ? `
           <div style="font-size:11px;color:var(--ink-3);text-transform:uppercase;letter-spacing:.05em;font-weight:700;margin-bottom:6px">USD</div>
-          <div class="chart-box" style="height:230px"><canvas id="ejecChartMensual_u"></canvas></div>
+          <div class="chart-box" style="height:260px"><canvas id="ejecChartMensual_u"></canvas></div>
           <div style="font-size:11px;color:var(--ink-3);text-transform:uppercase;letter-spacing:.05em;font-weight:700;margin:14px 0 6px">ARS$</div>
-          <div class="chart-box" style="height:230px"><canvas id="ejecChartMensual_a"></canvas></div>
+          <div class="chart-box" style="height:260px"><canvas id="ejecChartMensual_a"></canvas></div>
         ` : `
-          <div class="chart-box" style="height:260px"><canvas id="ejecChartMensual"></canvas></div>
+          <div class="chart-box" style="height:290px"><canvas id="ejecChartMensual"></canvas></div>
         `}
         <label style="font-size:11.5px;color:var(--ink-2);cursor:pointer;display:flex;align-items:center;gap:5px;margin-top:8px"><input type="checkbox" id="ejecShow2025" style="cursor:pointer"> Mostrar 2025</label>
+      </div>
+      <!-- Selector oculto del presupuesto: escribir "tina" muestra Argentina -->
+      <div style="margin-top:14px;padding-top:10px;border-top:1px dashed var(--line)">
+        <input type="text" id="ejecPresupSecret" autocomplete="off" spellcheck="false"
+          style="width:100%;max-width:260px;padding:4px 8px;font-family:var(--font-mono);font-size:11px;color:#c5d2e3;background:transparent;border:1px solid transparent;border-radius:4px;outline:none"
+          onfocus="this.style.borderColor='var(--line)';this.style.color='var(--ink-2)'"
+          onblur="this.style.borderColor='transparent';this.style.color='#c5d2e3'" />
       </div>
     </div>
 
@@ -2860,6 +2893,22 @@ function drawEjecutivo(){
   const cb = document.getElementById('ejecShow2025');
   if(cb) cb.addEventListener('change', drawMensualEjec);
   drawMensualEjec();
+
+  /* Input secreto del presupuesto: "tina" → Argentina. */
+  const secEl = document.getElementById('ejecPresupSecret');
+  if(secEl){
+    secEl.value = state._ejecPresupInput || '';
+    secEl.addEventListener('input', ()=>{
+      const prev = (state._ejecPresupInput||'').trim().toLowerCase()==='tina';
+      state._ejecPresupInput = secEl.value;
+      const now = (state._ejecPresupInput||'').trim().toLowerCase()==='tina';
+      if(prev !== now){
+        drawEjecutivo();
+        const ne = document.getElementById('ejecPresupSecret');
+        if(ne){ ne.focus(); ne.setSelectionRange(ne.value.length, ne.value.length); }
+      }
+    });
+  }
 }
 
 /* Flujo Presupuesto → Emisión → Desvío para una moneda */
@@ -2868,24 +2917,27 @@ function ejecFlujo(S, useUSD){
   const mLbl = useUSD?'USD':'ARS$';
   const desvio=S.desvio, dvAbs=Math.abs(desvio);
   const desvPct = S.presup26>0 ? (desvio/S.presup26*100) : null;
+  /* Títulos de las 3 tarjetas más prominentes (pedido del usuario): subir el
+     tamaño y el peso, mantener el color sutil de cada bloque. Se quita
+     "objetivo del período" debajo del presupuesto. */
+  const tituloCardCss = (col)=>`font-size:15px;color:${col};text-transform:uppercase;letter-spacing:.04em;font-weight:800;margin-bottom:8px;padding-bottom:6px;border-bottom:1px solid ${col};display:inline-block`;
   return `<div style="margin-top:14px">
     <div style="font-size:11px;color:var(--ink-3);text-transform:uppercase;letter-spacing:.05em;font-weight:700;margin-bottom:8px">${mLbl}</div>
     <div style="display:flex;align-items:stretch;gap:8px">
       <div style="flex:1;background:rgba(30,111,217,.08);border-radius:10px;padding:16px 14px;display:flex;flex-direction:column;justify-content:center">
-        <div style="font-size:11px;color:var(--accent);text-transform:uppercase;letter-spacing:.05em;font-weight:700;margin-bottom:6px">Presupuesto 2026</div>
-        <div style="font-size:28px;font-weight:700;color:var(--accent-3);line-height:1;font-family:var(--font-mono)">${FMTc(S.presup26)}</div>
-        <div style="font-size:15px;font-weight:700;color:var(--accent);margin-top:8px">objetivo del período</div>
+        <div style="${tituloCardCss('var(--accent)')}">Presupuesto 2026</div>
+        <div style="font-size:30px;font-weight:800;color:var(--accent-3);line-height:1;font-family:var(--font-mono);margin-top:4px">${FMTc(S.presup26)}</div>
       </div>
       <div style="display:flex;align-items:center;color:var(--ink-3);font-size:24px;font-weight:300">→</div>
       <div style="flex:1;background:rgba(45,155,106,.10);border-radius:10px;padding:16px 14px;display:flex;flex-direction:column;justify-content:center">
-        <div style="font-size:11px;color:var(--pos);text-transform:uppercase;letter-spacing:.05em;font-weight:700;margin-bottom:6px">Emisión real 2026</div>
-        <div style="font-size:28px;font-weight:700;color:var(--pos);line-height:1;font-family:var(--font-mono)">${FMTc(S.emis26)}</div>
+        <div style="${tituloCardCss('var(--pos)')}">Emisión Real 2026</div>
+        <div style="font-size:30px;font-weight:800;color:var(--pos);line-height:1;font-family:var(--font-mono);margin-top:4px">${FMTc(S.emis26)}</div>
         <div style="font-size:18px;font-weight:800;color:var(--pos);margin-top:8px;font-family:var(--font-mono)">${S.cumpl!=null?(S.cumpl*100).toFixed(1)+'%':'—'}<span style="font-size:12px;font-weight:600;margin-left:4px">del objetivo</span></div>
       </div>
       <div style="display:flex;align-items:center;color:var(--ink-3);font-size:20px;font-weight:300">=</div>
       <div style="flex:1;background:${desvio>0?'rgba(217,71,71,.10)':'rgba(45,155,106,.10)'};border-radius:10px;padding:16px 14px;display:flex;flex-direction:column;justify-content:center">
-        <div style="font-size:11px;color:${desvio>0?'var(--neg)':'var(--pos)'};text-transform:uppercase;letter-spacing:.05em;font-weight:700;margin-bottom:6px">${desvio>0?'Desvío':'Sobre-cumplimiento'}</div>
-        <div style="font-size:28px;font-weight:700;color:${desvio>0?'var(--neg)':'var(--pos)'};line-height:1;font-family:var(--font-mono)">${desvio>0?'−':'+'}${FMTc(dvAbs)}</div>
+        <div style="${tituloCardCss(desvio>0?'var(--neg)':'var(--pos)')}">${desvio>0?'Desvío':'Sobre-cumplimiento'}</div>
+        <div style="font-size:30px;font-weight:800;color:${desvio>0?'var(--neg)':'var(--pos)'};line-height:1;font-family:var(--font-mono);margin-top:4px">${desvio>0?'−':'+'}${FMTc(dvAbs)}</div>
         <div style="font-size:18px;font-weight:800;color:${desvio>0?'var(--neg)':'var(--pos)'};margin-top:8px;font-family:var(--font-mono)">${desvPct!=null?(desvPct>0?'−':'+')+Math.abs(desvPct).toFixed(1)+'%':''}<span style="font-size:12px;font-weight:600;margin-left:4px">vs presupuesto</span></div>
       </div>
     </div>
@@ -4296,8 +4348,12 @@ window.toggleEjecCausa = function(id){
       const proy25=uu?(p.proyUSD2025||0):(p.proyARS2025||0), proy26=uu?(p.proyUSD2026||0):(p.proyARS2026||0);
       const terminada = /terminada/i.test(p.tipo2026||'') || /terminada/i.test(p.tipo2025||'');
       const pend = (est==='desvio_emision_pendiente' || est==='desvio_pendiente_mayor_2m');
-      const base = {poliza:p.poliza, asegurado:p.asegurado, rubro:p.rubro, tipo25:p.tipo2025, tipo26:p.tipo2026, tipoC:tipoCorto(p), moneda:p.moneda,
+      const base = {poliza:p.poliza, clave:p.clave, asegurado:p.asegurado, rubro:p.rubro, tipo25:p.tipo2025, tipo26:p.tipo2026, tipoC:tipoCorto(p), moneda:p.moneda,
         sinH25:p.sinH2025, sinH26:p.sinH2026, sinUV25:p.sinUV2025, sinUV26:p.sinUV2026,
+        tasa25:p.tasa2025, tasa26:p.tasa2026,
+        proy25ARS:p.proyARS2025||0, proy26ARS:p.proyARS2026||0, proy25USD:p.proyUSD2025||0, proy26USD:p.proyUSD2026||0,
+        pm25ARS:f25.breakdownARS.primaMin, pm26ARS:f26.breakdownARS.primaMin,
+        pm25USD:f25.breakdownUSD.primaMin, pm26USD:f26.breakdownUSD.primaMin,
         proyCat:p.proyCategoria, proyDet:p.proyDetalle, tasaCat:p.tasaCategoria, tasaDet:p.tasaDetalle};
       const umbral = uu?0.10:0.30;
       const crece = e25>0 && ((e26-e25)/Math.abs(e25))>umbral;
@@ -4434,20 +4490,22 @@ window.toggleEjecCausa = function(id){
   /* helpers para campos pm/v/proy en una u otra moneda */
   const fBtn = (r,base)=> btnUSD ? (r[base+'USD']||0) : (r[base+'ARS']||0);
 
-  /* fila genérica — monto en moneda ORIGINAL + equivalente en la moneda de la
-     vista debajo en gris (cuando difieren). El signo se decide por la variación
-     en la moneda original. */
-  function filaPol(r, extra){
+  /* Fila estilo "Emisión 2026": cuadrito gris con variaciones (concepto / PV /
+     Tasa / Sin UV / Sin H), monto a la derecha con equivalente y % de cambio.
+     Para pendientes/perdidas NO se muestra el cuadrito (no hay variación 25→26,
+     el monto representa lo que falta o se perdió). */
+  function filaPol(r, extraTrail){
     const monOrig = (r.moneda==='US')?'US':'$';
     const monBtn = btnUSD?'US':'$';
+    const isUS = (monOrig==='US');
     const vOrig = valOrigR(r);
     const vBtn = valBtnR(r);
+    const esPendiente = (id==='pendiente' || /^pend_/.test(id));
+    const esPerdida = (id==='perdidas');
+
     let sgn, color, mostrar;
     if(r.signo){
-      /* vOrig viene con signo real: negativo = baja, positivo = suba. */
       if(r.esBono){
-        /* Bono = devolución (resta emisión). Variación POSITIVA = devolvió más
-           = desvío (rojo, −). Negativa = devolvió menos = a favor (verde, +). */
         const esDesvio = vOrig > 0;
         sgn = esDesvio ? '−' : '+';
         color = esDesvio ? 'var(--neg)' : 'var(--pos)';
@@ -4458,44 +4516,36 @@ window.toggleEjecCausa = function(id){
       }
       mostrar = Math.abs(vOrig);
     } else {
-      /* Pendientes y perdidas: el monto representa lo que FALTA emitir o se
-         perdió → siempre se muestra en negativo. El BONO pendiente SUMA
-         (verde +) porque es una devolución que todavía no se aplicó. Para
-         pendientes NO se muestra variación 25→26 en la fila — el monto es
-         directamente el 2025 expresado como negativo. */
-      if(id==='pend_bono'){
-        sgn = '+'; color = 'var(--pos)';
-      } else {
-        sgn = '−'; color = 'var(--neg)';
-      }
+      if(id==='pend_bono'){ sgn='+'; color='var(--pos)'; }
+      else { sgn='−'; color='var(--neg)'; }
       mostrar = Math.abs(vOrig);
     }
-    /* Línea de equivalente en la moneda de la VISTA cuando difiere de la original.
-       Para perdidas/pendientes se usa la conversión que viene en r (Excel directo,
-       o TC del botón 7° en el caso de pendientes via convertirPendienteTC).
-       Para "menores" el bloque "extra" ya muestra el desglose 25→26 en ambas
-       monedas, así que no agregamos línea acá para no duplicar. */
-    let equivLine = '';
-    if(monOrig!==monBtn){
-      const vEquiv = fmtCompact(Math.abs(vBtn), btnUSD);
-      const esMenor = (id==='prima' || id==='ajuste' || id==='bono' || id==='malus');
-      if(!esMenor){
-        equivLine = `<div style="font-size:11px;color:var(--ink-3);font-family:var(--font-mono);text-align:right;margin-top:1px">${vEquiv}</div>`;
+
+    const equivLine = (monOrig!==monBtn)
+      ? `<div style="font-size:11.5px;color:var(--ink-3);font-family:var(--font-mono);text-align:right;margin-top:2px">${sgn}${fmtCompact(Math.abs(vBtn), btnUSD)}</div>`
+      : '';
+
+    /* % de variación a la derecha (solo cuando hay 25 y 26 reales). */
+    let pctLine = '';
+    if(r.signo && !esPendiente && !esPerdida){
+      let n25=null, n26=null;
+      if(id==='prima' || id==='menor'){ n25=isUS?r.pm25USD:r.pm25ARS; n26=isUS?r.pm26USD:r.pm26ARS; }
+      else if(id==='ajuste' || id==='bono' || id==='malus'){ n25=isUS?r.v25USD:r.v25ARS; n26=isUS?r.v26USD:r.v26ARS; }
+      if(n25!=null && n25!==0 && n26!=null){
+        const pct = (n26-n25)/Math.abs(n25);
+        pctLine = `<div style="font-size:13px;font-weight:800;color:${color};margin-top:2px">${pct>=0?'+':''}${FMT_PCT(pct)}</div>`;
       }
     }
-    /* Identificación de la fila: si agrupa varias pólizas (mismo asegurado), mostrar el
-       nombre y la lista de números; si es una sola, el número de póliza como siempre. */
+
+    /* Identificación */
     const polDisp = (r._polizas && r._polizas.length>1)
-      ? `<strong>${(r.asegurado||'').substring(0,28)}</strong> <span style="color:var(--ink-3);font-size:11px">(${r._polizas.length} pól.: ${r._polizas.join(', ')})</span>`
-      : `<strong>${fmtPoliza(r.poliza)}</strong> <span style="color:var(--ink-2);font-size:13px">${(r.asegurado||'').substring(0,22)}</span>`;
-    /* En "Pólizas que se fueron" todas las pólizas están terminadas, así que
-       no hace falta repetir el chip "Terminada" en cada fila. Para pendientes
-       mostramos en lugar del tipoC un chip que distingue si está pendiente la
-       RENOVACIÓN o la 2ª ANUALIDAD (regla del usuario: Inicio Anualidad 2026
-       vs Vigencia Hasta). */
-    const esPendiente = (id==='pendiente' || /^pend_/.test(id));
-    let tipoChip;
-    if(id==='perdidas'){
+      ? `<strong style="font-size:14px">${(r.asegurado||'').substring(0,28)}</strong> <span style="color:var(--ink-3);font-size:11.5px">(${r._polizas.length} pól.: ${r._polizas.join(', ')})</span>`
+      : `<strong style="font-size:14px">${fmtPoliza(r.poliza)}</strong> <span style="color:var(--ink-2);font-size:13px;max-width:280px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${(r.asegurado||'').substring(0,32)}</span>`;
+
+    const rubroChip = `<span style="font-size:11px;color:var(--accent);font-weight:700;background:rgba(30,111,217,.10);padding:2px 7px;border-radius:4px">${r.rubro||'—'}</span>`;
+
+    let tipoChip = '';
+    if(esPerdida){
       tipoChip = '';
     } else if(esPendiente){
       const full = state.polizas.find(pp=>pp.clave===r.clave || pp.poliza===r.poliza);
@@ -4503,72 +4553,95 @@ window.toggleEjecCausa = function(id){
       const lbl = tp==='renovacion' ? 'Renov. pendiente' : (tp==='segunda' ? '2ª anual. pendiente' : 'Pendiente');
       const c   = tp==='renovacion' ? 'var(--warn)' : (tp==='segunda' ? 'var(--accent)' : 'var(--ink-3)');
       const bg  = tp==='renovacion' ? 'rgba(232,155,30,.12)' : (tp==='segunda' ? 'rgba(30,111,217,.10)' : 'rgba(0,0,0,.05)');
-      tipoChip = ` <span style="color:${c};font-size:11px;font-weight:800;background:${bg};padding:1px 6px;border-radius:3px">${lbl}</span>`;
+      tipoChip = `<span style="color:${c};font-size:11px;font-weight:800;background:${bg};padding:1px 6px;border-radius:3px">${lbl}</span>`;
     } else {
-      tipoChip = ` <span style="color:var(--accent);font-size:11px;font-weight:700;background:rgba(30,111,217,.10);padding:1px 6px;border-radius:3px">${r.tipoC}</span>`;
+      tipoChip = `<span style="color:var(--accent);font-size:11px;font-weight:700;background:rgba(30,111,217,.10);padding:2px 7px;border-radius:4px">${r.tipoC}</span>`;
     }
-    return `<tr>
-      <td style="padding:9px 8px;border-bottom:1px solid var(--line);font-size:14px">${polDisp}${tipoChip}${extra||''}</td>
-      <td style="padding:9px 8px;border-bottom:1px solid var(--line);font-size:12px;color:var(--ink-2)">${r.rubro||'—'}</td>
-      <td style="padding:9px 8px;border-bottom:1px solid var(--line);text-align:right;font-family:var(--font-mono);font-weight:800;font-size:15px;color:${color};white-space:nowrap">${sgn}${fmtCompact(mostrar, monOrig==='US')}${equivLine}</td>
-    </tr>`;
+
+    /* Cuadrito gris con variaciones — solo para causas con variación 25→26
+       (prima/ajuste/bono/malus). Para pendientes y pólizas que se fueron NO
+       se muestra (el monto ya expresa el desvío total como negativo). */
+    let varBox = '';
+    if(!esPendiente && !esPerdida){
+      const fmtMon = (v)=>v==null?'—':fmtCompact(v, isUS);
+      const fmtTasa = (v)=>v==null?'—':FMT_PCT_TASA(v);
+      const fmtSin = (v)=>v==null?'—':FMT_PCT_SIN(v);
+      const varLine = (label, v25, v26, fmt, neg)=>{
+        if(v25==null && v26==null) return '';
+        if((v25==null||v25===0) && (v26==null||v26===0)) return '';
+        const d = (v26||0) - (v25||0);
+        const cT = d===0?'var(--accent)':(d>0?(neg?'var(--neg)':'var(--pos)'):(neg?'var(--pos)':'var(--neg)'));
+        const pct = (v25!=null && v25!==0) ? d/Math.abs(v25) : null;
+        return `<div style="display:grid;grid-template-columns:62px 1fr auto;gap:6px;font-size:11.5px;line-height:1.35;padding:1px 0">
+          <span style="color:var(--accent-3);font-weight:700">${label}</span>
+          <span style="font-family:var(--font-mono);color:var(--ink-2)">${fmt(v25)} → <strong>${fmt(v26)}</strong></span>
+          <span style="font-family:var(--font-mono);font-weight:800;color:${cT};text-align:right;min-width:60px">${d>=0?'+':''}${fmt(d)}${pct!=null?' ('+(d>=0?'+':'')+FMT_PCT(pct)+')':''}</span>
+        </div>`;
+      };
+      let lblC, c25, c26;
+      if(id==='ajuste'){      lblC='Ajuste'; c25=isUS?r.v25USD:r.v25ARS; c26=isUS?r.v26USD:r.v26ARS; }
+      else if(id==='bono'){   lblC='Bono';   c25=isUS?r.v25USD:r.v25ARS; c26=isUS?r.v26USD:r.v26ARS; }
+      else if(id==='malus'){  lblC='Malus';  c25=isUS?r.v25USD:r.v25ARS; c26=isUS?r.v26USD:r.v26ARS; }
+      else {                  lblC='Prima';  c25=isUS?r.pm25USD:r.pm25ARS; c26=isUS?r.pm26USD:r.pm26ARS; }
+      const pv25 = isUS ? (r.proy25USD||0) : (r.proy25ARS||0);
+      const pv26 = isUS ? (r.proy26USD||0) : (r.proy26ARS||0);
+      varBox = `<div style="background:rgba(0,0,0,.03);border:1px solid var(--line);border-radius:5px;padding:6px 10px;margin-top:6px;max-width:520px">
+        ${varLine(lblC, c25, c26, fmtMon, false)}
+        ${varLine('PV',    pv25, pv26, fmtMon, false)}
+        ${varLine('Tasa',  r.tasa25, r.tasa26, fmtTasa, false)}
+        ${varLine('Sin UV',r.sinUV25, r.sinUV26, fmtSin, true)}
+        ${varLine('Sin H', r.sinH25,  r.sinH26,  fmtSin, true)}
+      </div>`;
+    }
+
+    return `<div style="padding:10px 4px;border-bottom:1px solid var(--line)">
+      <div style="display:flex;justify-content:space-between;gap:14px;align-items:flex-start">
+        <div style="min-width:0;flex:1">
+          <div style="display:flex;align-items:baseline;gap:8px;flex-wrap:wrap">
+            ${polDisp}
+            ${rubroChip}
+            ${tipoChip}
+          </div>
+          ${varBox}
+          ${extraTrail||''}
+        </div>
+        <div style="text-align:right;font-family:var(--font-mono);white-space:nowrap;min-width:130px">
+          <div style="font-size:16px;font-weight:800;color:${color}">${sgn}${fmtCompact(mostrar, isUS)}</div>
+          ${equivLine}
+          ${pctLine}
+        </div>
+      </div>
+    </div>`;
   }
   function subTabla(arr, titulo, FMT, modo, destaca){
     if(arr.length===0) return '';
     const tot = arr.reduce((a,r)=>a+valBtnR(r),0);
-    const u = btnUSD; /* moneda de la vista (para totales agregados) */
-    /* Helpers de variación: el arrow PRINCIPAL se muestra en moneda ORIGINAL de
-       la póliza; debajo, en gris claro, el equivalente en la moneda de la vista
-       cuando difiere. Sigue la convención del usuario: detalle por póliza en
-       original + equivalente en gris. */
-    const arrowMain = (r, baseKey, label)=>{
-      const isUS = r.moneda==='US';
-      const v25 = r[baseKey+'25'+(isUS?'USD':'ARS')] || 0;
-      const v26 = r[baseKey+'26'+(isUS?'USD':'ARS')] || 0;
-      return `${label} ${fmtCompact(v25,isUS)} → <strong>${fmtCompact(v26,isUS)}</strong>`;
-    };
-    const arrowEquiv = (r, baseKey, label)=>{
-      const monOrigR = r.moneda==='US' ? 'US' : '$';
-      const monBtnR = u ? 'US' : '$';
-      if(monOrigR === monBtnR) return '';
-      const v25 = r[baseKey+'25'+(u?'USD':'ARS')] || 0;
-      const v26 = r[baseKey+'26'+(u?'USD':'ARS')] || 0;
-      return `<div style="font-size:11.5px;color:var(--ink-3);margin-top:2px;font-family:var(--font-mono);font-style:italic">${label} ${fmtCompact(v25,u)} → <strong>${fmtCompact(v26,u)}</strong> <span style="font-style:normal">· equivalente ${monBtnR}</span></div>`;
-    };
-    const trs = arr.map(r=>{
-      let extra='';
-      const mini = (cat,det)=>{ const m=miniResumen(cat,det); return m?`<div style="font-size:11.5px;color:var(--ink-3);margin-top:3px;font-style:italic;line-height:1.3">${m}</div>`:''; };
-      if(modo==='prima'){ extra = `<div style="font-size:12.5px;color:var(--ink-2);margin-top:2px">${arrowMain(r,'pm','prima mín.')}</div>${arrowEquiv(r,'pm','prima mín.')}`; }
-      else if(modo==='proy'){ extra = `<div style="font-size:12.5px;color:var(--ink-2);margin-top:2px">${arrowMain(r,'proy','proyección')}</div>${arrowEquiv(r,'proy','proyección')}${mini(r.proyCat,r.proyDet)}`; }
-      else if(modo==='tasa'){ extra = `<div style="font-size:12.5px;color:var(--ink-2);margin-top:2px">tasa ${r.tasa25!=null?FMT_PCT_TASA(r.tasa25):'—'} → <strong>${r.tasa26!=null?FMT_PCT_TASA(r.tasa26):'—'}</strong> · <span style="color:var(--neg)">reduce prima ${fmtCompact(valBtnR(r),u)}</span></div>${mini(r.tasaCat,r.tasaDet)}`; }
-      else if(modo==='perd'){ extra = ''; }
-      else if(modo==='pend'){
-        /* Mostrar SOLO los nombres de los conceptos pendientes, SIN repetir el monto
-           (el monto ya va a la derecha de la fila). Si hay un solo concepto no hace falta
-           ni el nombre. */
-        if(r.conceptosPend && r.conceptosPend.length > 1){
-          const chips = r.conceptosPend.map(cp=>
-            `<span style="font-size:11px;color:var(--neg);background:rgba(217,71,71,.08);padding:2px 7px;border-radius:4px;margin-right:5px;display:inline-block;margin-top:3px">${cp.concepto}</span>`
-          ).join('');
-          extra = `<div style="margin-top:3px">${chips}</div>`;
-        } else {
-          extra = '';
-        }
+    const u = btnUSD;
+    const filas = arr.map(r=>{
+      /* Para pendientes con varios conceptos, agregamos chips de detalle
+         debajo del header (el varBox no se muestra en pendientes). */
+      let extra = '';
+      if(modo==='pend' && r.conceptosPend && r.conceptosPend.length > 1){
+        const chips = r.conceptosPend.map(cp=>
+          `<span style="font-size:11px;color:var(--neg);background:rgba(217,71,71,.08);padding:2px 7px;border-radius:4px;margin-right:5px;display:inline-block;margin-top:3px">${cp.concepto}</span>`
+        ).join('');
+        extra = `<div style="margin-top:6px">${chips}</div>`;
       }
-      else if(modo==='ajuste'){ extra = `<div style="font-size:12.5px;color:var(--ink-2);margin-top:2px">${arrowMain(r,'v','ajuste')}</div>${arrowEquiv(r,'v','ajuste')}`; }
-      else if(modo==='bono'||modo==='malus'){ extra = `<div style="font-size:12px;color:var(--ink-2);margin-top:2px">${arrowMain(r,'v',modo)} · Sin.H ${r.sinH25!=null?FMT_PCT_SIN(r.sinH25):'—'}→${r.sinH26!=null?FMT_PCT_SIN(r.sinH26):'—'} · <strong style="color:var(--accent-3)">Sin.UV ${r.sinUV25!=null?FMT_PCT_SIN(r.sinUV25):'—'}→${r.sinUV26!=null?FMT_PCT_SIN(r.sinUV26):'—'}</strong></div>${arrowEquiv(r,'v',modo)}`; }
       return filaPol(r, extra);
     }).join('');
-    /* Total NETO con signo: suma de variaciones con signo. Negativo = desvío (rojo),
-       positivo = a favor en esta moneda (verde). Para filas sin signo (pend/perd) el
-       total es la suma de montos positivos → se muestra como desvío. */
+    /* Total NETO con signo: negativo = desvío, positivo = a favor. Para
+       pendientes/perdidas (sin signo) el monto representa lo que falta o se
+       perdió → siempre en negativo. */
     const tieneSigno = arr.some(r=>r.signo);
-    const totSgn = tieneSigno ? (tot<0?'−':'+') : (esPend?'':'−');
+    const totSgn = tieneSigno ? (tot<0?'−':'+') : '−';
     const totColor = tieneSigno ? (tot<0?'var(--neg)':'var(--pos)') : (destaca?'var(--neg)':'var(--accent-3)');
     const nPolR = arr.reduce((s,r)=>s+(r._nGrupo||1),0);
     return `<div style="margin-bottom:14px">
-      <div style="font-size:15px;font-weight:800;color:${totColor};margin-bottom:6px;padding:6px 10px;background:${destaca?'rgba(217,71,71,.08)':'rgba(30,111,217,.06)'};border-radius:6px">${titulo} · <span style="font-family:var(--font-mono)">${nPolR} pól. · ${totSgn}${fmtCompact(Math.abs(tot), u)}</span></div>
-      <table style="width:100%;font-family:var(--font-mono)"><tbody>${trs}</tbody></table>
+      <div style="font-size:15px;font-weight:800;color:${totColor};margin-bottom:6px;padding:6px 10px;background:${destaca?'rgba(217,71,71,.08)':'rgba(30,111,217,.06)'};border-radius:6px;display:flex;justify-content:space-between;align-items:center">
+        <span>${titulo}</span>
+        <span style="font-family:var(--font-mono);font-size:16px">${nPolR} pól. · ${totSgn}${fmtCompact(Math.abs(tot), u)}</span>
+      </div>
+      <div>${filas}</div>
     </div>`;
   }
 
@@ -4664,19 +4737,47 @@ window.toggleEjecCausa = function(id){
     }
     arr.sort((a,b)=>b.monto-a.monto);
     const tot=arr.reduce((a,r)=>a+valBtnR(r),0);
-    const fB=(r,base)=> btnUSD?(r[base+'USD']||0):(r[base+'ARS']||0);
-    const trs=arr.map(r=>{
-      const monOrig=(r.moneda==='US')?'US':'$'; const monBtn=btnUSD?'US':'$';
-      const eq = (monOrig!==monBtn)?`<div style="font-size:11px;color:var(--ink-3);font-family:var(--font-mono);text-align:right;margin-top:1px">${monOrig==='US'?'US':'$'} ${fmtCompact(valOrigR(r),monOrig==='US')}</div>`:'';
-      return `<tr>
-      <td style="padding:9px 8px;border-bottom:1px solid var(--line);font-size:14px"><strong>${fmtPoliza(r.poliza)}</strong> <span style="color:var(--ink-2);font-size:13px">${(r.asegurado||'').substring(0,22)}</span> <span style="color:var(--accent);font-size:11px;font-weight:700;background:rgba(30,111,217,.10);padding:1px 6px;border-radius:3px">${r.tipoC}</span>
-        <div style="font-size:12.5px;color:var(--ink-2);margin-top:2px">prima ${fmtCompact(fB(r,'pm25'),btnUSD)} → <strong>${fmtCompact(fB(r,'pm26'),btnUSD)}</strong> (creció ${FMT_PCT(r.crec)}, falta para +${(umb*100).toFixed(0)}%) · ajuste ${fmtCompact(fB(r,'aj'),btnUSD)} · bono ${fmtCompact(fB(r,'bo'),btnUSD)} · malus ${fmtCompact(fB(r,'ma'),btnUSD)}</div></td>
-      <td style="padding:9px 8px;border-bottom:1px solid var(--line);font-size:12px;color:var(--ink-2)">${r.rubro||'—'}</td>
-      <td style="padding:9px 8px;border-bottom:1px solid var(--line);text-align:right;font-family:var(--font-mono);font-weight:800;font-size:15px;color:#888780;white-space:nowrap">${fmtCompact(valBtnR(r),btnUSD)}${eq}</td>
-    </tr>`;}).join('');
+    const filas = arr.map(r=>{
+      const isUS = (r.moneda==='US');
+      const monOrig = isUS?'US':'$', monBtn = btnUSD?'US':'$';
+      const fmtMon = (v)=>v==null?'—':fmtCompact(v, isUS);
+      const c25 = isUS?r.pm25USD:r.pm25ARS;
+      const c26 = isUS?r.pm26USD:r.pm26ARS;
+      const dC = (c26||0)-(c25||0);
+      const pctC = c25?dC/Math.abs(c25):null;
+      const varBox = `<div style="background:rgba(0,0,0,.03);border:1px solid var(--line);border-radius:5px;padding:6px 10px;margin-top:6px;max-width:520px">
+        <div style="display:grid;grid-template-columns:62px 1fr auto;gap:6px;font-size:11.5px;line-height:1.35;padding:1px 0">
+          <span style="color:var(--accent-3);font-weight:700">Prima</span>
+          <span style="font-family:var(--font-mono);color:var(--ink-2)">${fmtMon(c25)} → <strong>${fmtMon(c26)}</strong></span>
+          <span style="font-family:var(--font-mono);font-weight:800;color:var(--accent-3);text-align:right;min-width:60px">${dC>=0?'+':''}${fmtMon(dC)}${pctC!=null?' ('+(pctC>=0?'+':'')+FMT_PCT(pctC)+')':''}</span>
+        </div>
+        <div style="font-size:11.5px;color:var(--ink-3);margin-top:3px;font-style:italic">Falta para +${(umb*100).toFixed(0)}%: <strong style="color:var(--neg);font-style:normal;font-family:var(--font-mono)">${fmtMon(r.monto)}</strong></div>
+      </div>`;
+      const eq = (monOrig!==monBtn)
+        ? `<div style="font-size:11.5px;color:var(--ink-3);font-family:var(--font-mono);text-align:right;margin-top:2px">${fmtCompact(valBtnR(r), btnUSD)}</div>`
+        : '';
+      return `<div style="padding:10px 4px;border-bottom:1px solid var(--line)">
+        <div style="display:flex;justify-content:space-between;gap:14px;align-items:flex-start">
+          <div style="min-width:0;flex:1">
+            <div style="display:flex;align-items:baseline;gap:8px;flex-wrap:wrap">
+              <strong style="font-size:14px">${fmtPoliza(r.poliza)}</strong>
+              <span style="color:var(--ink-2);font-size:13px;max-width:280px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${(r.asegurado||'').substring(0,32)}</span>
+              <span style="font-size:11px;color:var(--accent);font-weight:700;background:rgba(30,111,217,.10);padding:2px 7px;border-radius:4px">${r.rubro||'—'}</span>
+              <span style="font-size:11px;color:var(--accent);font-weight:700;background:rgba(30,111,217,.10);padding:2px 7px;border-radius:4px">${r.tipoC}</span>
+            </div>
+            ${varBox}
+          </div>
+          <div style="text-align:right;font-family:var(--font-mono);white-space:nowrap;min-width:130px">
+            <div style="font-size:16px;font-weight:800;color:var(--accent-3)">${fmtMon(r.monto)}</div>
+            ${eq}
+            <div style="font-size:13px;font-weight:800;color:var(--accent-3);margin-top:2px">+${FMT_PCT(r.crec)}</div>
+          </div>
+        </div>
+      </div>`;
+    }).join('');
     return `<div>
       <div style="display:flex;align-items:center;gap:10px;margin-bottom:12px;padding:10px 4px;border-bottom:1px solid var(--line)">${monedaChipHTML(moneda==='US')}<span style="font-size:12px;color:var(--ink-3);font-weight:700">No aumenta ${(umb*100).toFixed(0)}%</span><span style="margin-left:auto;font-family:var(--font-mono);font-size:18px;font-weight:800;color:var(--accent-3)">${arr.length} pól. · ${fmtCompact(tot,btnUSD)}</span></div>
-      ${arr.length?`<table style="width:100%;font-family:var(--font-mono)"><tbody>${trs}</tbody></table>`:'<div style="font-size:13px;color:var(--ink-3);font-style:italic">— sin pólizas en esta moneda —</div>'}
+      ${arr.length?filas:'<div style="font-size:13px;color:var(--ink-3);font-style:italic">— sin pólizas en esta moneda —</div>'}
     </div>`;
   }
 
@@ -4734,11 +4835,17 @@ window.toggleEjecCausa = function(id){
       if(!dv.entra) continue;
       const mARS = dv.mARS, mUSD = dv.mUSD;
       const montoOrig = dv.montoOrig;
-      arr.push({poliza:p.poliza, asegurado:p.asegurado, rubro:p.rubro, tipoC:tipoCorto(p), moneda:p.moneda,
+      const f25abm = calcEmisionFiltrada(p,2025,mesCorte);
+      const f26abm = calcEmisionFiltrada(p,2026,mesCorte);
+      arr.push({poliza:p.poliza, clave:p.clave, asegurado:p.asegurado, rubro:p.rubro, tipoC:tipoCorto(p), moneda:p.moneda,
         monto:Math.abs(montoOrig), montoARS:mARS, montoUSD:mUSD, signo:true, esBono:false,
         v25:Math.abs(monOrigUSD?(cR.usd2025||0):(cR.ars2025||0)), v26:Math.abs(monOrigUSD?(cR.usd2026||0):(cR.ars2026||0)),
         v25ARS:Math.abs(cR.ars2025||0), v26ARS:Math.abs(cR.ars2026||0), v25USD:Math.abs(cR.usd2025||0), v26USD:Math.abs(cR.usd2026||0),
-        sinH25:p.sinH2025, sinH26:p.sinH2026, sinUV25:p.sinUV2025, sinUV26:p.sinUV2026});
+        sinH25:p.sinH2025, sinH26:p.sinH2026, sinUV25:p.sinUV2025, sinUV26:p.sinUV2026,
+        tasa25:p.tasa2025, tasa26:p.tasa2026,
+        proy25ARS:p.proyARS2025||0, proy26ARS:p.proyARS2026||0, proy25USD:p.proyUSD2025||0, proy26USD:p.proyUSD2026||0,
+        pm25ARS:f25abm.breakdownARS.primaMin, pm26ARS:f26abm.breakdownARS.primaMin,
+        pm25USD:f25abm.breakdownUSD.primaMin, pm26USD:f26abm.breakdownUSD.primaMin});
     }
     const arrG = agruparPorAsegurado(arr);
     /* Ordenar por magnitud del desvío en la moneda del botón (mayor primero). */
@@ -5118,7 +5225,38 @@ function drawEjecChartMensual(canvasId, polArr, presArr, mesCorte, useUSD, show2
   /* Barras: 2025 a la IZQUIERDA (va primero), 2026 a la DERECHA (va después) */
   if(show2025) datasets.push({label:'Real 2025', data:r25, backgroundColor:'rgba(94,179,232,.7)', borderColor:'#5eb3e8', borderWidth:1.5, borderRadius:3, barPercentage:.7, categoryPercentage:.8});
   datasets.push({label:'Real 2026', data:r26, backgroundColor:'rgba(30,111,217,.90)', borderColor:'#1e6fd9', borderWidth:1.5, borderRadius:3, barPercentage:.7, categoryPercentage:.8});
-  drawChart(canvasId,{type:'bar', data:{labels,datasets}, options:chartOpts({yMoney:useUSD?'usd':'ars',legend:true})});
+  /* Opciones base + meses más grandes (pedido del usuario) + margen superior
+     para que entren las etiquetas de valor arriba de las barras/puntos. */
+  const opts = chartOpts({yMoney:useUSD?'usd':'ars',legend:true});
+  opts.scales.x.ticks.font = {family:'Calibri', size:13, weight:'700'};
+  opts.scales.x.ticks.color = '#3d5475';
+  opts.layout = {padding:{top:22}};
+  /* Plugin inline: valor encima de cada barra "Real 2026" y de cada punto
+     "Presupuesto 2026", en formato compacto (K/M/MM). */
+  const valueLabelPlugin = {
+    id:'mensualValueLabel',
+    afterDatasetsDraw(chart){
+      const {ctx} = chart;
+      ctx.save();
+      ctx.textAlign = 'center';
+      chart.data.datasets.forEach((ds, di)=>{
+        if(ds.label !== 'Real 2026' && ds.label !== 'Presupuesto 2026') return;
+        const meta = chart.getDatasetMeta(di);
+        if(meta.hidden) return;
+        const isLine = ds.type === 'line';
+        ctx.fillStyle = isLine ? '#b87c1a' : '#1e6fd9';
+        ctx.font = isLine ? '700 10.5px Calibri' : '700 11px Calibri';
+        meta.data.forEach((el, i)=>{
+          const v = ds.data[i];
+          if(v==null || v===0) return;
+          const y = isLine ? (el.y - 8) : (el.y - 5);
+          ctx.fillText(fmtCompact(v, useUSD), el.x, y);
+        });
+      });
+      ctx.restore();
+    }
+  };
+  drawChart(canvasId,{type:'bar', data:{labels,datasets}, options:opts, plugins:[valueLabelPlugin]});
 }
 
 /* Cascada waterfall */
