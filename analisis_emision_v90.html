@@ -2862,17 +2862,13 @@ function drawEjecutivo(){
 
     <!-- BLOQUE 3 = JUSTIFICACIÓN UNIFICADA -->
     <div class="card">
-      <div class="ejec-block-title">Justificación</div>
-
-      <!-- 3.1 Emisión 2026 -->
-      <div class="ejec-sub-title pos">▸ Emisión 2026</div>
+      <!-- 3.1 Emisión 2026 (título grande, formato bloque) -->
+      <div class="ejec-block-title">Emisión 2026</div>
       ${setU?ejecEmitido(setU,true,dual):''}
       ${setA?ejecEmitido(setA,false,dual):''}
 
-      <!-- 3.2 El desvío -->
-      <div style="margin-top:24px;border-top:1px solid var(--line-2);padding-top:18px">
-        <div class="ejec-sub-title ${primary.desvio>0?'neg':'pos'}" style="margin:0 0 10px">▸ ${primary.desvio>0?'Desvío de Emisión':'Desvío de Emisión (a favor)'}</div>
-      </div>
+      <!-- 3.2 El desvío (título grande, mismo formato) -->
+      <div class="ejec-block-title" style="margin-top:26px">${primary.desvio>0?'Desvío':'Desvío (a favor)'}</div>
       <div class="card-sub" style="margin-bottom:8px">${primary.desvio>0?'Cómo se descompone el desvío. Click en una causa para ver el desglose de pólizas.':'El desvío es a favor: se superó el presupuesto. Click en una causa para ver qué sumó de más.'}</div>
       ${setU?ejecJustificacion(setU,true,dual,primary.useUSD):''}
       ${setA?ejecJustificacion(setA,false,dual,primary.useUSD):''}
@@ -3535,47 +3531,44 @@ window.toggleEjecCrecimiento = function(sufijo){
     const isUS = r.moneda==='US';
     const pct = FMT_PCT(r.crec);
     const umbPct = (r.umbral*100).toFixed(0)+'%';
-    return `<div style="padding:9px 4px;border-bottom:1px solid var(--line);display:grid;grid-template-columns:1fr auto;gap:14px;align-items:flex-start">
+    return `<div style="padding:11px 12px;margin-bottom:8px;background:#fff;border:1px solid var(--line);border-left:3px solid var(--warn);border-radius:7px;display:grid;grid-template-columns:1fr auto;gap:14px;align-items:center">
       <div>
-        <div style="display:flex;align-items:baseline;gap:8px;flex-wrap:wrap">
-          <strong style="font-size:14px">${fmtPoliza(r.poliza)}</strong>
-          <span style="color:var(--ink-2);font-size:13px">${(r.asegurado||'').substring(0,32)}</span>
+        <div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap;margin-bottom:6px">
+          <span style="font-size:15px;font-weight:800;color:var(--accent-3);background:var(--bg-2);padding:2px 9px;border-radius:5px">${fmtPoliza(r.poliza)}</span>
+          <span style="color:var(--ink-1);font-size:13.5px;font-weight:600">${(r.asegurado||'').substring(0,34)}</span>
           <span style="font-size:11px;color:var(--accent);font-weight:700;background:rgba(30,111,217,.10);padding:2px 7px;border-radius:4px">${r.rubro||'—'}</span>
           <span style="font-size:11px;color:var(--ink-3);font-weight:600">${r.tipo2026||''}</span>
         </div>
-        <div style="font-family:var(--font-mono);font-size:12.5px;color:var(--ink-2);margin-top:4px;line-height:1.45">
-          2025 ${fmtMon(r.t25, isUS)} → 2026 <strong>${fmtMon(r.t26, isUS)}</strong>
-          <span style="color:var(--neg);font-weight:700;margin-left:6px">(creció ${pct})</span>
-          · objetivo +${umbPct}: <strong style="color:var(--accent-3)">${fmtMon(r.objetivo, isUS)}</strong>
+        <div style="font-family:var(--font-mono);font-size:12.5px;color:var(--ink-2);line-height:1.5;display:flex;flex-wrap:wrap;gap:3px 16px">
+          <span>2025 ${fmtMon(r.t25, isUS)} <span style="color:var(--ink-3)">→</span> 2026 <strong style="color:var(--accent-3)">${fmtMon(r.t26, isUS)}</strong> <span style="color:var(--neg);font-weight:700">(creció ${pct})</span></span>
+          <span style="color:var(--ink-3)">objetivo +${umbPct}: <strong style="color:var(--accent-3)">${fmtMon(r.objetivo, isUS)}</strong></span>
         </div>
       </div>
-      <div style="text-align:right;font-family:var(--font-mono);white-space:nowrap;min-width:130px">
-        <div style="font-size:11px;color:var(--ink-3);text-transform:uppercase;letter-spacing:.05em;font-weight:700">Falta</div>
-        <div style="font-size:16px;font-weight:800;color:var(--warn)">+${fmtMon(r.faltante, isUS)}</div>
+      <div style="text-align:right;font-family:var(--font-mono);white-space:nowrap;min-width:120px">
+        <div style="font-size:10px;color:var(--ink-3);text-transform:uppercase;letter-spacing:.05em;font-weight:700">Falta</div>
+        <div style="font-size:18px;font-weight:800;color:var(--warn)">+${fmtMon(r.faltante, isUS)}</div>
       </div>
     </div>`;
   };
   const col = (arr, monLbl, isUS)=>{
     const sym = isUS ? 'US' : '$';
-    const symColor = isUS ? '#8b5cf6' : '#e89b1e';
+    const symColor = isUS ? '#7c4ddb' : '#b9760f';
+    const symBg = isUS ? 'rgba(139,92,246,.12)' : 'rgba(232,155,30,.14)';
+    const symBorder = isUS ? '#8b5cf6' : '#e89b1e';
     const tot = arr.reduce((a,r)=>a+r.faltante,0);
-    if(arr.length===0){
-      return `<div>
-        <div style="font-size:13px;font-weight:800;color:var(--accent-3);margin-bottom:8px;padding-bottom:6px;border-bottom:1px solid var(--line)">
-          <span style="color:${symColor}">${sym}</span> ${monLbl} <span style="color:var(--ink-3);font-weight:500">· 0 pól.</span>
-        </div>
-        <div style="font-size:12.5px;color:var(--ink-3);font-style:italic;padding:6px 0">— todas las pólizas alcanzaron el umbral —</div>
-      </div>`;
-    }
-    return `<div>
-      <div style="display:flex;align-items:baseline;justify-content:space-between;gap:10px;margin-bottom:8px;padding-bottom:6px;border-bottom:1px solid var(--line)">
-        <div style="font-size:13px;font-weight:800;color:var(--accent-3)">
-          <span style="color:${symColor}">${sym}</span> ${monLbl} <span style="color:var(--ink-3);font-weight:500">· ${arr.length} pól.</span>
-        </div>
-        <div style="font-family:var(--font-mono);font-size:14px;font-weight:800;color:var(--warn)">Falta total: +${fmtMon(tot, isUS)}</div>
+    const header = `<div style="display:flex;align-items:center;justify-content:space-between;gap:10px;margin-bottom:12px;padding:10px 14px;background:${symBg};border:1.5px solid ${symBorder};border-radius:8px">
+      <div style="font-size:15px;font-weight:800;color:${symColor};text-transform:uppercase;letter-spacing:.03em">
+        <span style="font-size:18px">${sym}</span> ${monLbl} <span style="color:var(--ink-3);font-weight:600;font-size:13px">· ${arr.length} pól.</span>
       </div>
-      ${arr.map(fila).join('')}
+      <div style="text-align:right">
+        <div style="font-size:10px;color:var(--ink-3);text-transform:uppercase;letter-spacing:.06em;font-weight:700">Falta total</div>
+        <div style="font-family:var(--font-mono);font-size:17px;font-weight:800;color:var(--warn)">+${fmtMon(tot, isUS)}</div>
+      </div>
     </div>`;
+    if(arr.length===0){
+      return `<div>${header}<div style="font-size:12.5px;color:var(--ink-3);font-style:italic;padding:6px 2px">— todas las pólizas alcanzaron el umbral —</div></div>`;
+    }
+    return `<div>${header}${arr.map(fila).join('')}</div>`;
   };
   area.innerHTML = `<div style="background:var(--panel);border:1px solid var(--line);border-radius:8px;padding:14px 16px">
     <div style="font-size:12px;color:var(--ink-3);font-style:italic;margin-bottom:12px;line-height:1.4">
@@ -3868,8 +3861,16 @@ window.toggleEjecEmi = function(id){
       const c = sym==='US' ? '#8b5cf6' : '#e89b1e';
       return `<span style="color:${c};font-weight:900;margin-left:3px">${sym}</span> <span style="color:var(--ink-3);font-weight:600">(${n} pól.)</span>`;
     };
+    /* Encabezado de categoría (recuadro de color) para agrupar las cards. */
+    const catHead = (label, bg, txt, border)=>`<div style="font-size:12px;font-weight:800;text-transform:uppercase;letter-spacing:.05em;padding:7px 10px;border-radius:7px;text-align:center;background:${bg};color:${txt};border:1.5px solid ${border};white-space:nowrap">${label}</div>`;
     const cellMonto = (titulo, sym, info, isUS)=>{
-      if(!info || info.n===0) return '<div></div>';
+      if(!info || info.n===0){
+        return `<div style="background:#fff;border:1px solid var(--line);border-radius:6px;padding:10px 13px;opacity:.6">
+          <div style="font-size:11.5px;color:var(--ink-3);text-transform:uppercase;letter-spacing:.04em;font-weight:700">${titulo}${monSymHTML(sym, 0)}</div>
+          <div style="font-family:var(--font-mono);font-size:13px;color:var(--ink-3);margin-top:4px;line-height:1.4">${fmtCompact(0,isUS)} <span style="color:var(--ink-3)">→</span> <strong style="color:var(--ink-2);font-size:15px">${fmtCompact(0,isUS)}</strong></div>
+          <div style="font-family:var(--font-mono);font-size:15px;font-weight:800;color:var(--ink-3);margin-top:4px">0</div>
+        </div>`;
+      }
       const c = info.d>=0?'var(--pos)':'var(--neg)';
       return `<div style="background:#fff;border:1px solid var(--line);border-radius:6px;padding:10px 13px">
         <div style="font-size:11.5px;color:var(--ink-3);text-transform:uppercase;letter-spacing:.04em;font-weight:700">${titulo}${monSymHTML(sym, info.n)}</div>
@@ -3878,7 +3879,13 @@ window.toggleEjecEmi = function(id){
       </div>`;
     };
     const cellPct = (titulo, info, fmt, neg)=>{
-      if(!info || info.n===0) return '<div></div>';
+      if(!info || info.n===0){
+        return `<div style="background:#fff;border:1px solid var(--line);border-radius:6px;padding:10px 13px;opacity:.6">
+          <div style="font-size:11.5px;color:var(--ink-3);text-transform:uppercase;letter-spacing:.04em;font-weight:700">${titulo} <span style="color:var(--ink-3);font-weight:600">(0 pól.)</span></div>
+          <div style="font-family:var(--font-mono);font-size:13px;color:var(--ink-3);margin-top:4px;line-height:1.4">${fmt(0)} <span style="color:var(--ink-3)">→</span> <strong style="color:var(--ink-2);font-size:15px">${fmt(0)}</strong></div>
+          <div style="font-family:var(--font-mono);font-size:15px;font-weight:800;color:var(--ink-3);margin-top:4px">0</div>
+        </div>`;
+      }
       const c = info.d===0?'var(--accent)':(info.d>0?(neg?'var(--neg)':'var(--pos)'):(neg?'var(--pos)':'var(--neg)'));
       return `<div style="background:#fff;border:1px solid var(--line);border-radius:6px;padding:10px 13px">
         <div style="font-size:11.5px;color:var(--ink-3);text-transform:uppercase;letter-spacing:.04em;font-weight:700">${titulo} <span style="color:var(--ink-3);font-weight:600">(${info.n} pól.)</span></div>
@@ -3886,26 +3893,39 @@ window.toggleEjecEmi = function(id){
         <div style="font-family:var(--font-mono);font-size:15px;font-weight:800;color:${c};margin-top:4px">${info.d>=0?'+':''}${fmt(info.d)}</div>
       </div>`;
     };
-    const rubrosCell = rubArr.length>0 ? `<div style="background:#fff;border:1px solid var(--line);border-radius:6px;padding:10px 13px">
+    const rubrosCell = `<div style="background:#fff;border:1px solid var(--line);border-radius:6px;padding:10px 13px${rubArr.length>0?'':';opacity:.6'}">
       <div style="font-size:11.5px;color:var(--ink-3);text-transform:uppercase;letter-spacing:.04em;font-weight:700">Rubros (${rubArr.length})</div>
-      <div style="font-size:12.5px;color:var(--accent-3);margin-top:4px;line-height:1.55">${rubArr.map(([k,n])=>`<div><strong>${k}:</strong> <span style="color:var(--ink-2)">${n} pól.</span></div>`).join('')}</div>
-    </div>` : '<div></div>';
-    const proyARSCell = cellMonto('Proyección Vts / Pol. Moneda', '$',  proyARS, false);
-    const proyUSDCell = cellMonto('Proyección Vts / Pol. Moneda', 'US', proyUSD, true);
-    const monARSCell  = cellMonto('Emisión / Pol. Moneda',         '$',  monARS, false);
-    const monUSDCell  = cellMonto('Emisión / Pol. Moneda',         'US', monUSD, true);
-    /* Grid 4×2: fila 1 = Proy $ | Proy US | Tasa | Sin UV ;
-                  fila 2 = Emisión $ | Emisión US | Rubros | Sin H. */
+      <div style="font-size:12.5px;color:var(--accent-3);margin-top:4px;line-height:1.55">${rubArr.length>0 ? rubArr.map(([k,n])=>`<div><strong>${k}:</strong> <span style="color:var(--ink-2)">${n} pól.</span></div>`).join('') : '<span style="color:var(--ink-3);font-style:italic">— sin rubros —</span>'}</div>
+    </div>`;
+    /* Cards por categoría (sin el nombre largo: la categoría la da el encabezado de color) */
+    const proyARSCell = cellMonto('', '$',  proyARS, false);
+    const proyUSDCell = cellMonto('', 'US', proyUSD, true);
+    const monARSCell  = cellMonto('', '$',  monARS, false);
+    const monUSDCell  = cellMonto('', 'US', monUSD, true);
+    /* Agrupado en columnas: Emisión · Proyección · Siniestralidad · Tasa/Rubros.
+       Cada columna con encabezado de color y sus 2 cards (arriba/abajo). */
     return `<div style="margin-bottom:14px">
-      <div style="display:grid;grid-template-columns:repeat(4,1fr);gap:10px">
-        ${proyARSCell || '<div></div>'}
-        ${proyUSDCell || '<div></div>'}
-        ${cellPct('Tasa promedio', tasaAvg, fmtTasaPct, false) || '<div></div>'}
-        ${cellPct('Siniestralidad UV', sinUVAvg, fmtSinPct, true) || '<div></div>'}
-        ${monARSCell || '<div></div>'}
-        ${monUSDCell || '<div></div>'}
-        ${rubrosCell}
-        ${cellPct('Siniestralidad histórica', sinHAvg, fmtSinPct, true) || '<div></div>'}
+      <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(185px,1fr));gap:12px;align-items:start">
+        <div style="display:flex;flex-direction:column;gap:8px">
+          ${catHead('Emisión','#2d9b6a','#fff','#2d9b6a')}
+          ${monARSCell}
+          ${monUSDCell}
+        </div>
+        <div style="display:flex;flex-direction:column;gap:8px">
+          ${catHead('Proyección','rgba(30,111,217,.10)','#1e6fd9','#1e6fd9')}
+          ${proyARSCell}
+          ${proyUSDCell}
+        </div>
+        <div style="display:flex;flex-direction:column;gap:8px">
+          ${catHead('Siniestralidad','rgba(232,155,30,.14)','#b9760f','#e89b1e')}
+          ${cellPct('UV', sinUVAvg, fmtSinPct, true)}
+          ${cellPct('Histórica', sinHAvg, fmtSinPct, true)}
+        </div>
+        <div style="display:flex;flex-direction:column;gap:8px">
+          ${catHead('Tasa / Rubros','rgba(139,92,246,.12)','#7c4ddb','#8b5cf6')}
+          ${cellPct('Tasa promedio', tasaAvg, fmtTasaPct, false)}
+          ${rubrosCell}
+        </div>
       </div>
     </div>`;
   };
@@ -4719,7 +4739,7 @@ window.toggleEjecCausa = function(id){
     else { totDisp = tot; totSign = esPend?'':'−'; totColor = headColor; }
     const nPolRealesCol = rows.reduce((s,r)=>s+(r._nGrupo||1),0);
     return `<div>
-      <div style="display:flex;align-items:center;gap:10px;margin-bottom:12px;padding:10px 4px;border-bottom:1px solid var(--line)">${monedaChipHTML(moneda==='US')}<span style="margin-left:auto;font-family:var(--font-mono);font-size:18px;font-weight:800;color:${totColor}">${nPolRealesCol} pól. · ${totSign}${fmtCompact(Math.abs(totDisp),btnUSD)}</span></div>
+      <div style="display:flex;align-items:center;gap:10px;margin-bottom:12px;padding:10px 14px;background:${moneda==='US'?'rgba(139,92,246,.12)':'rgba(232,155,30,.14)'};border:1.5px solid ${moneda==='US'?'#8b5cf6':'#e89b1e'};border-radius:8px">${monedaChipHTML(moneda==='US')}<span style="margin-left:auto;font-family:var(--font-mono);font-size:18px;font-weight:800;color:${totColor}">${nPolRealesCol} pól. · ${totSign}${fmtCompact(Math.abs(totDisp),btnUSD)}</span></div>
       ${inner}
     </div>`;
   }
@@ -4801,7 +4821,7 @@ window.toggleEjecCausa = function(id){
       </div>`;
     }).join('');
     return `<div>
-      <div style="display:flex;align-items:center;gap:10px;margin-bottom:12px;padding:10px 4px;border-bottom:1px solid var(--line)">${monedaChipHTML(moneda==='US')}<span style="font-size:12px;color:var(--ink-3);font-weight:700">No aumenta ${(umb*100).toFixed(0)}%</span><span style="margin-left:auto;font-family:var(--font-mono);font-size:18px;font-weight:800;color:var(--accent-3)">${arr.length} pól. · ${fmtCompact(tot,btnUSD)}</span></div>
+      <div style="display:flex;align-items:center;gap:10px;margin-bottom:12px;padding:10px 14px;background:${moneda==='US'?'rgba(139,92,246,.12)':'rgba(232,155,30,.14)'};border:1.5px solid ${moneda==='US'?'#8b5cf6':'#e89b1e'};border-radius:8px">${monedaChipHTML(moneda==='US')}<span style="font-size:12px;color:var(--ink-3);font-weight:700">No aumenta ${(umb*100).toFixed(0)}%</span><span style="margin-left:auto;font-family:var(--font-mono);font-size:18px;font-weight:800;color:var(--accent-3)">${arr.length} pól. · ${fmtCompact(tot,btnUSD)}</span></div>
       ${arr.length?filas:'<div style="font-size:13px;color:var(--ink-3);font-style:italic">— sin pólizas en esta moneda —</div>'}
     </div>`;
   }
@@ -4825,7 +4845,7 @@ window.toggleEjecCausa = function(id){
     const totSgn = tot<0?'−':'+';
     const totColor = tot<0?'var(--neg)':'var(--pos)';
     return `<div>
-      <div style="display:flex;align-items:center;gap:10px;margin-bottom:12px;padding:10px 4px;border-bottom:1px solid var(--line)">${monedaChipHTML(moneda==='US')}<span style="margin-left:auto;font-family:var(--font-mono);font-size:18px;font-weight:800;color:${totColor}">${arr.length} pól. · ${totSgn}${fmtCompact(Math.abs(tot),btnUSD)}</span></div>
+      <div style="display:flex;align-items:center;gap:10px;margin-bottom:12px;padding:10px 14px;background:${moneda==='US'?'rgba(139,92,246,.12)':'rgba(232,155,30,.14)'};border:1.5px solid ${moneda==='US'?'#8b5cf6':'#e89b1e'};border-radius:8px">${monedaChipHTML(moneda==='US')}<span style="margin-left:auto;font-family:var(--font-mono);font-size:18px;font-weight:800;color:${totColor}">${arr.length} pól. · ${totSgn}${fmtCompact(Math.abs(tot),btnUSD)}</span></div>
       ${subTabla(arr,titulo,null,modo,true)}
     </div>`;
   }
@@ -4882,7 +4902,7 @@ window.toggleEjecCausa = function(id){
     const totColor = tot<0?'var(--neg)':'var(--pos)';
     const nPolReales = arrG.reduce((s,r)=>s+(r._nGrupo||1),0);
     return `<div>
-      <div style="display:flex;align-items:center;gap:10px;margin-bottom:12px;padding:10px 4px;border-bottom:1px solid var(--line)">${monedaChipHTML(moneda==='US')}<span style="margin-left:auto;font-family:var(--font-mono);font-size:18px;font-weight:800;color:${totColor}">${nPolReales} pól. · ${totSgn}${fmtCompact(Math.abs(tot),btnUSD)}</span></div>
+      <div style="display:flex;align-items:center;gap:10px;margin-bottom:12px;padding:10px 14px;background:${moneda==='US'?'rgba(139,92,246,.12)':'rgba(232,155,30,.14)'};border:1.5px solid ${moneda==='US'?'#8b5cf6':'#e89b1e'};border-radius:8px">${monedaChipHTML(moneda==='US')}<span style="margin-left:auto;font-family:var(--font-mono);font-size:18px;font-weight:800;color:${totColor}">${nPolReales} pól. · ${totSgn}${fmtCompact(Math.abs(tot),btnUSD)}</span></div>
       ${subTabla(arrG, tituloMap[sub], null, sub, true)}
     </div>`;
   }
@@ -5246,8 +5266,9 @@ function drawEjecChartMensual(canvasId, polArr, presArr, mesCorte, useUSD, show2
   if(show2025){
     datasets.push({label:'Presupuesto 2025', data:presup25, type:'line', borderColor:'#9ab0c8', backgroundColor:'rgba(154,176,200,.10)', borderWidth:2, borderDash:[3,3], pointRadius:2, fill:false, tension:.2, spanGaps:true});
   }
-  /* Presupuesto 2026: línea AZUL OSCURO (alto contraste sobre las barras celestes) */
-  datasets.push({label:'Presupuesto 2026', data:presup, type:'line', borderColor:'#0a3d7a', backgroundColor:'rgba(10,61,122,.10)', pointBackgroundColor:'#0a3d7a', pointBorderColor:'#0a3d7a', borderWidth:2.5, borderDash:[5,4], pointRadius:3.5, fill:false, tension:.2, spanGaps:true});
+  /* Presupuesto 2026: línea AZUL OSCURO (alto contraste sobre las barras celestes),
+     punteado fino y bolitas chicas (más prolijo, menos "grotesco"). */
+  datasets.push({label:'Presupuesto 2026', data:presup, type:'line', borderColor:'#0a3d7a', backgroundColor:'rgba(10,61,122,.08)', pointBackgroundColor:'#0a3d7a', pointBorderColor:'#fff', pointBorderWidth:1, borderWidth:1.8, borderDash:[2,3], pointRadius:2.4, pointHoverRadius:4, fill:false, tension:.25, spanGaps:true});
   /* Barras: 2025 a la IZQUIERDA (va primero), 2026 a la DERECHA (va después) */
   if(show2025) datasets.push({label:'Real 2025', data:r25, backgroundColor:'rgba(150,170,195,.6)', borderColor:'#9fb2c9', borderWidth:1.5, borderRadius:3, barPercentage:.7, categoryPercentage:.8});
   /* Emisión Real 2026: barras CELESTE CLARO */
@@ -5290,7 +5311,7 @@ function drawEjecChartMensual(canvasId, polArr, presArr, mesCorte, useUSD, show2
             const barTop = barTops[i];
             /* Si el punto de presupuesto está cerca o por debajo del tope de la barra,
                se rotula DEBAJO del punto para no encimar la etiqueta de la barra. */
-            y = (barTop!=null && el.y > barTop - 16) ? (el.y + 14) : (el.y - 8);
+            y = (barTop!=null && el.y > barTop - 18) ? (el.y + 18) : (el.y - 13);
           } else {
             y = el.y - 5;
           }
