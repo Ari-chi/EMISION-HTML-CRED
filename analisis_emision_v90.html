@@ -57,12 +57,12 @@ main{padding:28px 32px 60px;max-width:2000px;margin:0 auto}
 .timeline-filter{background:var(--panel);border:1px solid var(--line);border-radius:6px;padding:12px 16px;margin-bottom:18px;display:flex;align-items:center;gap:12px;flex-wrap:wrap;box-shadow:0 1px 3px rgba(10,31,58,.04);}
 
 /* Bar de filtros por sección (4 filtros) */
-.sf-bar{background:var(--panel);border:1.5px solid var(--accent-2);border-radius:8px;padding:14px 16px;margin-bottom:18px;box-shadow:0 2px 6px rgba(10,31,58,.06)}
-.sf-bar .sf-row{display:flex;flex-wrap:wrap;gap:24px;align-items:center}
-.sf-bar .sf-row + .sf-row{margin-top:10px;padding-top:10px;border-top:1px dashed var(--line)}
-.sf-bar .sf-group{display:flex;align-items:center;gap:8px;flex-wrap:wrap}
-.sf-bar .sf-lbl{font-family:var(--font-mono);font-size:10px;color:var(--accent-3);text-transform:uppercase;letter-spacing:.06em;font-weight:700;white-space:nowrap}
-.sf-bar .view-toggle button{padding:5px 10px;font-size:11px}
+.sf-bar{background:var(--panel);border:1.5px solid var(--accent-2);border-radius:6px;padding:7px 10px;margin-bottom:12px;box-shadow:0 2px 6px rgba(10,31,58,.06);position:sticky;top:48px;z-index:9}
+.sf-bar .sf-row{display:flex;flex-wrap:wrap;gap:14px 18px;align-items:center;row-gap:6px}
+.sf-bar .sf-row + .sf-row{margin-top:5px;padding-top:5px;border-top:1px dashed var(--line)}
+.sf-bar .sf-group{display:flex;align-items:center;gap:6px;flex-wrap:wrap}
+.sf-bar .sf-lbl{font-family:var(--font-mono);font-size:9.5px;color:var(--accent-3);text-transform:uppercase;letter-spacing:.05em;font-weight:700;white-space:nowrap}
+.sf-bar .view-toggle button{padding:3px 8px;font-size:10.5px}
 
 /* Banner con N (cantidad de pólizas mostradas) */
 .n-label-bar{background:linear-gradient(135deg,rgba(30,111,217,.08),rgba(94,179,232,.04));border-left:4px solid var(--accent);padding:8px 14px;margin-bottom:14px;border-radius:5px;font-family:var(--font-mono);font-size:12px;font-weight:700;color:var(--accent-3);letter-spacing:.02em}
@@ -478,8 +478,10 @@ h4.section-title{margin:14px 0 8px 0;font-size:13px;color:var(--accent-3);font-w
     <div class="sub">Comparativa por póliza, rubro, producto, broker y motivo · Dual ARS$ / USD</div>
   </div>
   <div class="header-meta">
-    <!-- Botón compacto del Mes de Corte Global -->
-    <div id="globalMesMenu" style="display:none;position:relative">
+    <!-- Botón compacto del Mes de Corte Global — ahora vive como "1° Mes Corte 2026"
+         dentro del bar de filtros de cada sección, por pedido del usuario. Se deja
+         oculto pero presente para no romper código existente. -->
+    <div id="globalMesMenu" style="display:none !important;position:relative">
       <button id="globalMesBtn" onclick="toggleGlobalMesPanel()" style="background:linear-gradient(135deg,#0a3d7a,#1e6fd9);color:#fff;border:none;padding:8px 14px;font-family:var(--font);font-size:12px;font-weight:700;border-radius:5px;cursor:pointer;letter-spacing:.02em;box-shadow:0 2px 6px rgba(10,31,58,.25);display:inline-flex;align-items:center;gap:8px">
         <span>🌐 Mes Corte 2026</span>
         <span id="globalMesBtnLabel" style="font-family:var(--font-mono);font-size:11px;background:rgba(255,255,255,.18);padding:2px 6px;border-radius:3px">TODO</span>
@@ -1866,41 +1868,50 @@ function sectionFiltersBarHTML(sectionId, opts={}){
   /* Aviso del Mes Corte 2026 eliminado por solicitud del usuario; el control se mantiene en el desplegable global */
   const gMesBanner = '';
 
+  /* 1° Mes Corte 2026 — replicado del control global; setea state.globalMes2026 */
+  const gMesId = `${sectionId}_SF_globalMes`;
+  const MESES_OP_G = [{value:'0',label:'TODO'}].concat(MESES.map((m,i)=>({value:String(i+1),label:m})));
+  setCur(gMesId, String(state.globalMes2026||0));
+
   return `<div class="sf-bar" data-sf="${sectionId}">
     ${gMesBanner}
     <div class="sf-row">
       <div class="sf-group">
-        <span class="sf-lbl">1° Acumulado hasta <span style="color:var(--ink-3);font-style:italic;font-weight:400;text-transform:none;letter-spacing:0;margin-left:4px;font-size:9.5px">(filtra ambos años)</span></span>
-        ${viewToggleHTML(mesId, MESES_OP, String(f.mes))}
+        <span class="sf-lbl">1° Mes Corte 2026 <span style="color:var(--ink-3);font-style:italic;font-weight:400;text-transform:none;letter-spacing:0;margin-left:3px;font-size:9px">(solo 2026)</span></span>
+        ${viewToggleHTML(gMesId, MESES_OP_G, String(state.globalMes2026||0))}
       </div>
       <div class="sf-group">
-        <span class="sf-lbl">2° Universo</span>
-        ${viewToggleHTML(univId,[{value:'todos',label:'Todas las pólizas'},{value:'emit26',label:'Emitidas 2026'}],f.universo)}
+        <span class="sf-lbl">2° Acumulado hasta <span style="color:var(--ink-3);font-style:italic;font-weight:400;text-transform:none;letter-spacing:0;margin-left:3px;font-size:9px">(ambos años)</span></span>
+        ${viewToggleHTML(mesId, MESES_OP, String(f.mes))}
       </div>
     </div>
     <div class="sf-row">
       <div class="sf-group">
-        <span class="sf-lbl">3° Moneda${curDisabledNote}</span>
+        <span class="sf-lbl">3° Universo</span>
+        ${viewToggleHTML(univId,[{value:'todos',label:'Todas las pólizas'},{value:'emit26',label:'Emitidas 2026'}],f.universo)}
+      </div>
+      <div class="sf-group">
+        <span class="sf-lbl">4° Moneda${curDisabledNote}</span>
         ${curToggleHTML(curId,{def:f.cur, dualLabel})}
       </div>
       <div class="sf-group">
-        <span class="sf-lbl">4° Segmento</span>
+        <span class="sf-lbl">5° Segmento</span>
         ${viewToggleHTML(segId,[{value:'all',label:'Todas'},{value:'arsArs',label:'Pólizas $ en $'},{value:'usdUsd',label:'Pólizas US en US'},{value:'vs',label:'Comparación US vs $'}],f.segmento)}
       </div>
     </div>
     <div class="sf-row">
       <div class="sf-group">
-        <span class="sf-lbl">5° Pólizas nuevas 2025/2026</span>
+        <span class="sf-lbl">6° Pólizas nuevas 25/26</span>
         ${viewToggleHTML(nuevId,[{value:'incluir',label:'Sí'},{value:'excluir',label:'No'}],f.polNuevas||'incluir')}
       </div>
       <div class="sf-group">
-        <span class="sf-lbl">6° Emisiones "Anualidad Anterior" 2026</span>
+        <span class="sf-lbl">7° "Anualidad Anterior" 2026</span>
         ${viewToggleHTML(aantId,[{value:'incluir',label:'Sí'},{value:'excluir',label:'No'}],f.anualAnt||'incluir')}
       </div>
       <div class="sf-group">
-        <span class="sf-lbl">7° TC <span style="color:var(--ink-3);font-style:italic;font-weight:400;text-transform:none;letter-spacing:0;margin-left:4px;font-size:9.5px">(solo Pendiente · convierte equivalente)</span></span>
-        <input type="number" id="${sectionId}_SF_tc" min="0" step="any" placeholder="ej. 1400" value="${(f.tc!=null && f.tc>0)?f.tc:''}"
-          style="width:110px;padding:5px 9px;font-family:var(--font-mono);font-size:12px;border:1px solid var(--line-2);border-radius:5px;color:var(--ink);background:var(--panel)" />
+        <span class="sf-lbl">8° TC <span style="color:var(--ink-3);font-style:italic;font-weight:400;text-transform:none;letter-spacing:0;margin-left:3px;font-size:9px">(Pendiente)</span></span>
+        <input type="number" id="${sectionId}_SF_tc" min="0" step="any" placeholder="1400" value="${(f.tc!=null && f.tc>0)?f.tc:''}"
+          style="width:78px;padding:3px 7px;font-family:var(--font-mono);font-size:11px;border:1px solid var(--line-2);border-radius:5px;color:var(--ink);background:var(--panel)" />
       </div>
     </div>
   </div>`;
@@ -1909,6 +1920,7 @@ function sectionFiltersBarHTML(sectionId, opts={}){
    IMPORTANTE: el "Acumulado hasta" es PER-SECCIÓN (filtra ambos años 2025 y 2026).
    El "Mes Corte 2026" (botón global en cabecera) es DISTINTO y solo filtra 2026. */
 function bindSectionFilters(sectionId, onChange){
+  const gMesId = `${sectionId}_SF_globalMes`;
   const mesId  = `${sectionId}_SF_mes`;
   const univId = `${sectionId}_SF_universo`;
   const curId  = `${sectionId}_SF_cur`;
@@ -1925,6 +1937,18 @@ function bindSectionFilters(sectionId, onChange){
     f.anualAnt = getCur(aantId,'excluir');
     if(onChange) onChange(f);
   };
+  /* 1° Mes Corte 2026 — afecta a TODAS las secciones (state.globalMes2026).
+     Cualquier cambio dispara un re-render completo para mantener todo en sincro. */
+  bindCur(gMesId, ()=>{
+    const v = parseInt(getCur(gMesId,'0'),10) || 0;
+    if(v === state.globalMes2026) return;
+    state.globalMes2026 = v;
+    /* Sincronizar el botón legacy de la cabecera (si todavía existe) */
+    const lbl = document.getElementById('globalMesBtnLabel');
+    if(lbl) lbl.textContent = v===0 ? 'TODO' : MESES[v-1].toUpperCase();
+    setCur('GLOBAL_mes', String(v));
+    if(typeof renderAll==='function') renderAll();
+  });
   bindCur(mesId, trigger);
   bindCur(univId, trigger);
   bindCur(curId, trigger);
