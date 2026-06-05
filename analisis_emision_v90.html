@@ -5157,8 +5157,9 @@ window.toggleEjecCausa = function(id){
        es el desvío con signo; para pendientes/perdidas es magnitud positiva. */
     const sumAbs = (arr, key)=> arr.reduce((a,r)=>a+(r[key]||0),0);
     const _$r = enriched.filter(r=>r.moneda==='$'), _usr = enriched.filter(r=>r.moneda==='US');
-    const monARS = {val:sumAbs(_$r, 'montoARS'), n:_$r.length, s25:sumAbs(_$r,'v25ARS'), s26:sumAbs(_$r,'v26ARS')};
-    const monUSD = {val:sumAbs(_usr,'montoUSD'), n:_usr.length, s25:sumAbs(_usr,'v25USD'), s26:sumAbs(_usr,'v26USD')};
+    /* Columna "Prima Mínima" (antes "Monto causa"): prima mínima 2025 → 2026 por moneda. */
+    const monARS = {val:sumAbs(_$r, 'montoARS'), n:_$r.length, s25:sumAbs(_$r,'pm25ARS'), s26:sumAbs(_$r,'pm26ARS')};
+    const monUSD = {val:sumAbs(_usr,'montoUSD'), n:_usr.length, s25:sumAbs(_usr,'pm25USD'), s26:sumAbs(_usr,'pm26USD')};
     const fmtT = (v)=>v==null?'—':FMT_PCT_TASA(v);
     const fmtS = (v)=>v==null?'—':FMT_PCT_SIN(v);
     /* Tasa y siniestralidad por moneda original ($ / US), igual que Emisión 2026. */
@@ -5224,20 +5225,16 @@ window.toggleEjecCausa = function(id){
     </div>`;
     const esPendPerdNoCorr = (id==='pendiente' || /^pend_/.test(id) || id==='perdidas');
     const proyCell = (info,isUS)=> esPendPerdNoCorr ? cellMonNegR(info,isUS) : cellMontoR(info,isUS);
-    /* Monto (causa): si hay emisión 25/26 del concepto se muestra como Proyección
-       (25 → 26 + variación). Para pendientes/perdidas queda el valor único negativo. */
+    /* Prima Mínima: se muestra como Proyección (prima mínima 2025 → 2026 + variación). */
     const montoCell = (info,isUS)=>{
-      if(esPendPerdNoCorr) return cellMonAbsR(info,isUS,true);
-      if(info && (info.s25>0 || info.s26>0)){
-        const d = info.s26 - info.s25, pct = info.s25 ? d/Math.abs(info.s25) : null;
-        return cellMontoR({n:info.n, s25:info.s25, s26:info.s26, d, pct}, isUS);
-      }
-      return cellMonAbsR(info,isUS,false);
+      if(!info || info.n===0) return cellMontoR(info,isUS);
+      const d = info.s26 - info.s25, pct = info.s25 ? d/Math.abs(info.s25) : null;
+      return cellMontoR({n:info.n, s25:info.s25, s26:info.s26, d, pct}, isUS);
     };
     return `<div style="margin-bottom:14px;overflow-x:auto">
       <div style="display:grid;grid-template-columns:auto repeat(6,minmax(135px,1fr));gap:8px;align-items:stretch;min-width:740px">
         <div></div>
-        ${catHead('Monto (causa)','#c2410c','#fff','#c2410c')}
+        ${catHead('Prima Mínima','#c2410c','#fff','#c2410c')}
         ${catHead('Proyección','rgba(30,111,217,.10)','#1e6fd9','#1e6fd9')}
         ${catHead('Tasa promedio','rgba(139,92,246,.12)','#7c4ddb','#8b5cf6')}
         ${catHead('Siniestralidad UV','rgba(232,155,30,.14)','#b9760f','#e89b1e')}
@@ -5279,14 +5276,20 @@ window.toggleEjecCausa = function(id){
     const gridBg = 'background-image:repeating-linear-gradient(90deg,rgba(10,31,58,.10) 0,rgba(10,31,58,.10) 1px,transparent 1px,transparent 25%)';
     return `<div style="background:var(--bg-2);border-radius:8px;padding:12px 14px;margin-bottom:14px">
       <div style="font-size:11.5px;color:var(--accent-3);text-transform:uppercase;letter-spacing:.05em;font-weight:800;margin-bottom:10px">Magnitud por concepto (${u?'USD':'ARS$'}) <span style="color:var(--ink-3);font-weight:500;text-transform:none;letter-spacing:0">· escala 0 → ${FMTcL(max)}</span></div>
-      ${vals.map(v=>`<div style="display:grid;grid-template-columns:90px 1fr auto;gap:10px;align-items:center;margin-bottom:6px">
+      ${vals.map(v=>`<div style="display:grid;grid-template-columns:90px 1fr 150px;gap:10px;align-items:center;margin-bottom:6px">
         <span style="font-size:12.5px;color:var(--ink-2);font-weight:700">${v.lbl}</span>
-        <div style="height:16px;background:rgba(0,0,0,.04);border-radius:3px;position:relative;${gridBg}"><div style="position:absolute;left:0;top:0;bottom:0;width:${v.val/max*100}%;background:${v.col};border-radius:3px"></div></div>
-        <span style="font-family:var(--font-mono);font-weight:700;font-size:13px;color:${v.col};min-width:80px;text-align:right">−${FMTcL(v.val)} <span style="color:var(--ink-3);font-weight:500;font-size:11px">(${v.n} pól.)</span></span>
+        <div style="height:16px;background:rgba(0,0,0,.04);border-radius:3px;position:relative;${gridBg};border-right:1px solid rgba(10,31,58,.10)"><div style="position:absolute;left:0;top:0;bottom:0;width:${v.val/max*100}%;background:${v.col};border-radius:3px"></div></div>
+        <span style="font-family:var(--font-mono);font-weight:700;font-size:13px;color:${v.col};text-align:right">−${FMTcL(v.val)} <span style="color:var(--ink-3);font-weight:500;font-size:11px">(${v.n} pól.)</span></span>
       </div>`).join('')}
-      <div style="display:grid;grid-template-columns:90px 1fr 80px;gap:10px;margin-top:2px">
+      <div style="display:grid;grid-template-columns:90px 1fr 150px;gap:10px;margin-top:3px">
         <span></span>
-        <div style="display:flex;justify-content:space-between;font-family:var(--font-mono);font-size:9px;color:var(--ink-3)"><span>0</span><span>${FMTcL(max*0.25)}</span><span>${FMTcL(max*0.5)}</span><span>${FMTcL(max*0.75)}</span><span>${FMTcL(max)}</span></div>
+        <div style="position:relative;height:12px;font-family:var(--font-mono);font-size:9px;color:var(--ink-3)">
+          <span style="position:absolute;left:0;transform:translateX(-50%)">0</span>
+          <span style="position:absolute;left:25%;transform:translateX(-50%)">${FMTcL(max*0.25)}</span>
+          <span style="position:absolute;left:50%;transform:translateX(-50%)">${FMTcL(max*0.5)}</span>
+          <span style="position:absolute;left:75%;transform:translateX(-50%)">${FMTcL(max*0.75)}</span>
+          <span style="position:absolute;left:100%;transform:translateX(-50%)">${FMTcL(max)}</span>
+        </div>
         <span></span>
       </div>
     </div>`;
@@ -5342,7 +5345,7 @@ window.toggleEjecCausa = function(id){
     const topNow = state._ejecMenorTop || 'emisiones';
     contenido = `
       ${menorChart()}
-      <div style="display:flex;gap:8px;margin-bottom:14px;flex-wrap:wrap" id="ejecMenorTopsel">${tBtn('emisiones','Emisiones', topNow!=='variables')}${tBtn('variables','Variables', topNow==='variables')}</div>
+      <div style="display:flex;gap:8px;margin-bottom:14px;flex-wrap:wrap" id="ejecMenorTopsel">${tBtn('variables','Variables', topNow==='variables')}${tBtn('emisiones','Emisiones', topNow!=='variables')}</div>
       <div id="ejecMenorTopBody">${topNow==='variables'?variablesUI():emisionesUI()}</div>`;
   } else if(id==='prima'){
     contenido = `<div id="ejecMenorBody" style="display:grid;grid-template-columns:1fr 1fr;gap:16px">${colPrima(false,'prima')}${colPrima(true,'prima')}</div>`;
@@ -5842,8 +5845,8 @@ function drawEjecRubroExtremos(polArr, f){
     };
     return `<div style="background:var(--panel);border:1px solid var(--line-2);border-radius:10px;padding:14px 16px;border-top:4px solid ${color};box-shadow:0 1px 3px rgba(10,31,58,.04)">
       <div style="display:inline-block;font-size:12.5px;color:#fff;background:${color};padding:5px 12px;border-radius:6px;text-transform:uppercase;letter-spacing:.05em;font-weight:800;margin-bottom:10px;box-shadow:0 1px 4px ${color}55">${titulo}</div>
-      ${seccion('▲ Top 3 mejoras', 'var(--pos)', mejoras, true)}
-      ${seccion('▼ Top 3 bajas',   'var(--neg)', bajas, false)}
+      ${seccion('▲ Top 3 aumentos', 'var(--pos)', mejoras, true)}
+      ${seccion('▼ Top 3 disminuciones',   'var(--neg)', bajas, false)}
       ${mejoras.length===0 && bajas.length===0 ? '<div style="font-size:12.5px;color:var(--ink-3);font-style:italic">— sin variaciones —</div>' : ''}
     </div>`;
   };
