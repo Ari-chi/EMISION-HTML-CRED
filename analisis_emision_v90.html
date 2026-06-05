@@ -3194,6 +3194,27 @@ function ejecJustificacion(S, useUSD, dual, useUSDprimary){
     ].filter(c=>c.val>1);
   }
 
+  /* === Estimación de Emisión (editable) ===
+     Suma de estimaciones cargadas para pólizas PENDIENTES de esta moneda. Convierte
+     parte de "Sin justificar" en "Pendiente" (cap = lo que hoy queda sin justificar). */
+  state._ejecEstim = state._ejecEstim || {};
+  state._ejecEstimOpen = state._ejecEstimOpen || {};
+  const sufijo = useUSD?'u':'a';
+  let estimRaw = 0;
+  if(dd && polPend){
+    for(const p of polPend){
+      if((p.moneda==='US')!==useUSD) continue;
+      const e = state._ejecEstim[p.clave];
+      if(isFinite(e) && e>0) estimRaw += e;
+    }
+  }
+  const _sumaBase = causas.reduce((a,c)=>a+c.val,0);
+  const _sinCubrirBase = Math.max(0, dvAbs - _sumaBase);
+  const estimEff = Math.min(estimRaw, _sinCubrirBase);
+  if(estimEff > 1){
+    causas.push({id:'estimacion', lbl:'Estimación de Emisión', val:estimEff, vSigned:estimEff, n:0, col:APP_CONFIG.colores.pendiente, grupo:'pendiente'});
+  }
+
   /* Base para los porcentajes de la barra: el DESVÍO TOTAL (dvAbs), NO la suma de causas.
      Pedido del usuario: la barra representa el desvío total (ej. 4.9M = 100%) y las causas
      lo van RELLENANDO. Lo que no llega a cubrirse queda en GRIS (muestra el % pero no
@@ -3309,16 +3330,49 @@ function ejecJustificacion(S, useUSD, dual, useUSDprimary){
       : (clickable && (causa.grupo==='pendiente'||id==='pendiente'||id==='perdidas') ? '−'
         : (totSigned>=0?'+':'−'));
     const nPolStr = causa && causa.n>0 ? ` <span style="color:var(--ink-3);font-weight:500;font-size:12.5px">· ${causa.n} pól.</span>` : '';
-    const click = clickable ? `onclick="toggleEjecCausa('${id}')"` : '';
-    const carId = clickable ? `id="ejecCausaCar_${id}"` : '';
-    return `<div ${click} style="display:grid;grid-template-columns:14px 14px 1fr auto auto;column-gap:10px;align-items:center;padding:8px 8px;border-radius:5px;${clickable?'cursor:pointer;':''}font-size:14.5px;line-height:1.3;border:1px solid transparent" ${clickable?`onmouseover="this.style.background='var(--bg-2)';this.style.borderColor='var(--line)'" onmouseout="this.style.background='';this.style.borderColor='transparent'"`:''}>
-      <span ${carId} style="font-size:11px;color:var(--accent)">${clickable?'▸':''}</span>
+    const esEstim = (id==='estimacion');
+    const esSinJust = (p.lbl==='Sin justificar');
+    const opensEstim = esEstim || esSinJust;
+    const isClk = opensEstim || clickable;
+    const click = opensEstim ? `onclick="toggleEjecEstim('${sufijo}')"` : (clickable ? `onclick="toggleEjecCausa('${id}')"` : '');
+    const carId = (clickable && !esEstim) ? `id="ejecCausaCar_${id}"` : '';
+    return `<div ${click} style="display:grid;grid-template-columns:14px 14px 1fr auto auto;column-gap:10px;align-items:center;padding:8px 8px;border-radius:5px;${isClk?'cursor:pointer;':''}font-size:14.5px;line-height:1.3;border:1px solid transparent" ${isClk?`onmouseover="this.style.background='var(--bg-2)';this.style.borderColor='var(--line)'" onmouseout="this.style.background='';this.style.borderColor='transparent'"`:''}>
+      <span ${carId} style="font-size:11px;color:${opensEstim?'#5a6b85':'var(--accent)'}">${opensEstim?'✎':(clickable?'▸':'')}</span>
       <span style="width:13px;height:13px;border-radius:50%;background:${p.col};border:1px solid rgba(0,0,0,.08)"></span>
       <span style="color:var(--accent-3);font-weight:700">${p.lbl}${nPolStr}</span>
       <span style="font-family:var(--font-mono);font-weight:800;color:var(--accent-3);min-width:38px;text-align:right">${Math.round(p.pctOf)}%</span>
       <span style="font-family:var(--font-mono);font-weight:800;color:${totColor};min-width:82px;text-align:right">${sgnLeg}${FMTc(Math.abs(totSigned))}</span>
     </div>`;
   }).join('');
+
+  /* Panel editable de "Sin justificar": pólizas pendientes de esta moneda con input
+     de estimación + botón OK (toma la proyección del Excel; hoy estima el pendiente). */
+  let estimPanel = '';
+  if(state._ejecEstimOpen[sufijo] && dd && polPend){
+    const pend = polPend.filter(p=>(p.moneda==='US')===useUSD)
+      .map(p=>{ const cp=conceptosPendientes(p, dd.mesCorte); return {p, val: useUSD?cp.totalUSD:cp.totalARS}; })
+      .filter(x=>x.val>1).sort((a,b)=>b.val-a.val);
+    const rows = pend.map(({p,val})=>{
+      const e = state._ejecEstim[p.clave]; const has = isFinite(e)&&e>0;
+      return `<div style="display:grid;grid-template-columns:1fr 130px auto;gap:10px;align-items:center;padding:8px 12px;border-bottom:1px solid var(--line)">
+        <div>
+          <span style="font-size:14px;font-weight:800;color:var(--accent-3);background:var(--bg-2);padding:2px 8px;border-radius:5px">${fmtPoliza(p.poliza)}</span>
+          <span style="color:var(--ink-1);font-size:13px;font-weight:600;margin-left:6px">${(p.asegurado||'').substring(0,26)}</span>
+          <span style="font-size:11px;color:var(--accent);font-weight:700;background:rgba(30,111,217,.10);padding:2px 7px;border-radius:4px;margin-left:6px">${p.rubro||'—'}</span>
+          <div style="font-family:var(--font-mono);font-size:11.5px;color:var(--ink-3);margin-top:3px">Pendiente: <strong style="color:var(--neg)">${fmtCompact(val,useUSD)}</strong></div>
+        </div>
+        <input type="text" inputmode="decimal" value="${has?e:''}" placeholder="estimación ${useUSD?'US':'$'}" onchange="setEjecEstim('${p.clave}', this.value)" style="width:100%;padding:6px 8px;font-family:var(--font-mono);font-size:13px;border:1.5px solid ${has?'var(--pos)':'var(--line-2)'};border-radius:6px;text-align:right;color:var(--ink);background:var(--panel)" />
+        <button onclick="ejecEstimOk('${p.clave}', ${val})" title="Tomar la proyección del Excel (por ahora estima el pendiente completo)" style="padding:6px 11px;font-size:12px;font-weight:800;border-radius:6px;cursor:pointer;border:1.5px solid ${has?'var(--pos)':'var(--line-2)'};background:${has?'var(--pos)':'var(--panel)'};color:${has?'#fff':'var(--ink-2)'}">OK ✓</button>
+      </div>`;
+    }).join('');
+    estimPanel = `<div style="margin-top:14px;border:1.5px solid #c5cdd9;border-radius:8px;overflow:hidden">
+      <div style="padding:10px 14px;background:rgba(197,205,217,.25);font-size:12.5px;font-weight:800;color:#5a6b85;display:flex;justify-content:space-between;align-items:center;gap:10px">
+        <span>✎ Sin justificar — estimá la emisión de cada pendiente (o tocá OK para tomar la del Excel)</span>
+        <span style="font-family:var(--font-mono);white-space:nowrap">Estimado: ${fmtCompact(estimEff,useUSD)}</span>
+      </div>
+      ${rows || '<div style="padding:12px 14px;font-size:13px;color:var(--ink-3);font-style:italic">— sin pólizas pendientes en esta moneda —</div>'}
+    </div>`;
+  }
 
   return `<div style="margin-top:${dual?16:8}px">
     ${dual?`<div style="font-size:11px;color:var(--ink-3);text-transform:uppercase;letter-spacing:.05em;font-weight:700;margin-bottom:10px">${mLbl}</div>`:''}
@@ -3329,6 +3383,7 @@ function ejecJustificacion(S, useUSD, dual, useUSDprimary){
       <div style="width:100%;max-width:340px;justify-self:center"><canvas id="${pieIdDes}" style="max-height:320px"></canvas></div>
       <div>${leyendaDes}</div>
     </div>` : ''}
+    ${estimPanel}
   </div>`;
 }
 
@@ -3381,6 +3436,28 @@ function renderEjecDesvioPies(){
     });
   }
 }
+
+/* === Estimación de Emisión (editable, dentro de "Sin justificar" del Desvío) ===
+   El usuario carga una estimación de emisión por póliza pendiente (o toca OK para
+   tomar la proyección del Excel). Lo cargado convierte "Sin justificar" en
+   "Pendiente". Estado en state._ejecEstim = { clave: monto (moneda original) }. */
+window.setEjecEstim = function(clave, raw){
+  state._ejecEstim = state._ejecEstim || {};
+  const v = parseFloat(String(raw==null?'':raw).replace(/[^0-9.\-]/g,''));
+  if(isFinite(v) && v>0) state._ejecEstim[clave] = v; else delete state._ejecEstim[clave];
+  if(typeof drawEjecutivo==='function') drawEjecutivo();
+};
+window.ejecEstimOk = function(clave, pendVal){
+  state._ejecEstim = state._ejecEstim || {};
+  if(state._ejecEstim[clave]!=null) delete state._ejecEstim[clave];
+  else state._ejecEstim[clave] = Math.abs(pendVal)||0;
+  if(typeof drawEjecutivo==='function') drawEjecutivo();
+};
+window.toggleEjecEstim = function(suf){
+  state._ejecEstimOpen = state._ejecEstimOpen || {};
+  state._ejecEstimOpen[suf] = !state._ejecEstimOpen[suf];
+  if(typeof drawEjecutivo==='function') drawEjecutivo();
+};
 
 /* Incrementos / compensaciones (desvío negativo) o detalle sobre-cumplimiento (positivo) */
 function ejecEmitido(S, useUSD, dual){
