@@ -2227,6 +2227,21 @@ function viewToggleHTML(id, options, def){
 let _togglesBound = false;
 function bindGlobalToggles(){
   if(_togglesBound) return; _togglesBound = true;
+  /* Preservar el scroll de la página al togglear filtros/botones que re-renderizan
+     (pedido del usuario: que la hoja no salte, en TODAS las hojas). Se captura la
+     posición ANTES del re-render (fase de captura) y se restaura después. */
+  const _preserveScroll = ()=>{
+    const y = window.scrollY || window.pageYOffset || 0;
+    const restore = ()=>{ if(Math.abs((window.scrollY||0)-y) > 1) window.scrollTo(0, y); };
+    requestAnimationFrame(()=>{ restore(); requestAnimationFrame(restore); });
+    setTimeout(restore, 0);
+  };
+  document.addEventListener('click', (e)=>{
+    if(e.target.closest('button,[data-vt] button,[data-curt] button,[onclick]')) _preserveScroll();
+  }, true);
+  document.addEventListener('change', (e)=>{
+    if(e.target.closest('select,input')) _preserveScroll();
+  }, true);
   document.body.addEventListener('click', (ev)=>{
     /* Currency toggles */
     const ct = ev.target.closest('[data-curt] button');
@@ -5793,7 +5808,7 @@ function drawEjecRubroExtremos(polArr, f){
     const validas = filas.filter(r=>r[fields] && (r[fields].d!==0));
     if(validas.length===0){
       return `<div style="background:var(--panel);border:1px solid var(--line-2);border-radius:10px;padding:14px 16px;border-top:4px solid ${color}">
-        <div style="font-size:12.5px;color:${color};text-transform:uppercase;letter-spacing:.06em;font-weight:800;margin-bottom:10px">${titulo}</div>
+        <div style="display:inline-block;font-size:12.5px;color:#fff;background:${color};padding:5px 12px;border-radius:6px;text-transform:uppercase;letter-spacing:.05em;font-weight:800;margin-bottom:10px">${titulo}</div>
         <div style="font-size:12.5px;color:var(--ink-3);font-style:italic">— sin variaciones —</div>
       </div>`;
     }
@@ -5822,15 +5837,14 @@ function drawEjecRubroExtremos(polArr, f){
       </div>`;
     };
     return `<div style="background:var(--panel);border:1px solid var(--line-2);border-radius:10px;padding:14px 16px;border-top:4px solid ${color};box-shadow:0 1px 3px rgba(10,31,58,.04)">
-      <div style="font-size:13px;color:${color};text-transform:uppercase;letter-spacing:.06em;font-weight:800;margin-bottom:10px">${titulo}</div>
+      <div style="display:inline-block;font-size:12.5px;color:#fff;background:${color};padding:5px 12px;border-radius:6px;text-transform:uppercase;letter-spacing:.05em;font-weight:800;margin-bottom:10px;box-shadow:0 1px 4px ${color}55">${titulo}</div>
       ${seccion('▲ Top 3 mejoras', 'var(--pos)', mejoras, true)}
       ${seccion('▼ Top 3 bajas',   'var(--neg)', bajas, false)}
       ${mejoras.length===0 && bajas.length===0 ? '<div style="font-size:12.5px;color:var(--ink-3);font-style:italic">— sin variaciones —</div>' : ''}
     </div>`;
   };
   wrap.innerHTML = `
-    <div style="font-size:14px;color:var(--accent-3);text-transform:uppercase;letter-spacing:.05em;font-weight:800;margin-bottom:14px;padding:8px 12px;background:linear-gradient(90deg,rgba(30,111,217,.10),rgba(94,179,232,.04));border-left:4px solid var(--accent);border-radius:4px">Rubros con mayor y menor variación 2025 → 2026</div>
-    <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(320px,1fr));gap:14px">
+    <div style="display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:12px;align-items:start">
       ${card('Proyección de ventas','var(--accent)','proy',  FMTm,       (d)=>(d>=0?'+':'')+FMTm(d))}
       ${card('Tasa promedio',       '#8b5cf6',      'tasa',  FMTpctTasa, (d)=>(d>=0?'+':'')+FMTpctTasa(d))}
       ${card('Siniestralidad UV',   'var(--warn)',  'sinUV', FMTpctSin,  (d)=>(d>=0?'+':'')+FMTpctSin(d))}
@@ -5849,10 +5863,13 @@ function drawEjecRubroChart(polArr, f, useUSD){
   const grupos = {};
   for(const p of polArr){
     const k = p.rubro || '(sin rubro)';
-    if(!grupos[k]) grupos[k]={u25:0,u26:0,a25:0,a26:0,n:0};
+    if(!grupos[k]) grupos[k]={u25:0,u26:0,a25:0,a26:0,n:0,n25:0,n26:0};
     const f25=calcEmisionFiltrada(p,2025,mesCorte), f26=calcEmisionFiltrada(p,2026,mesCorte);
     grupos[k].u25+=f25.totUSD; grupos[k].u26+=f26.totUSD;
     grupos[k].a25+=f25.totARS; grupos[k].a26+=f26.totARS;
+    const e25=useUSD?f25.totUSD:f25.totARS, e26=useUSD?f26.totUSD:f26.totARS;
+    if(e25>0) grupos[k].n25++;
+    if(e26>0) grupos[k].n26++;
     grupos[k].n++;
   }
   const v25 = (g)=>useUSD?g.u25:g.a25;
@@ -5867,14 +5884,17 @@ function drawEjecRubroChart(polArr, f, useUSD){
     const d = it.v26 - it.v25;
     const dc = d>=0?'var(--pos)':'var(--neg)';
     return `<div style="border-bottom:1px solid var(--line)">
-      <div onclick="toggleEjecRubroChartRow(${idx},'${it.rubro.replace(/'/g,"\\'")}')" style="display:grid;grid-template-columns:18px 140px 1fr 70px 120px;gap:10px;align-items:center;padding:6px 0;cursor:pointer;transition:background .15s" onmouseover="this.style.background='var(--bg-2)'" onmouseout="this.style.background=''">
+      <div onclick="toggleEjecRubroChartRow(${idx},'${it.rubro.replace(/'/g,"\\'")}')" style="display:grid;grid-template-columns:18px 150px 1fr 110px 120px;gap:10px;align-items:center;padding:6px 0;cursor:pointer;transition:background .15s" onmouseover="this.style.background='var(--bg-2)'" onmouseout="this.style.background=''">
         <span id="ejecRubroChartCar_${idx}" style="font-size:11px;color:var(--accent)">▸</span>
-        <div style="font-size:13px;font-weight:700;color:var(--accent-3)">${it.rubro}</div>
+        <div style="font-size:13.5px;font-weight:800;color:var(--accent-3)">${it.rubro}</div>
         <div>
           <div style="display:flex;align-items:center;gap:6px;margin-bottom:3px"><span style="font-size:10.5px;color:var(--ink-3);width:32px;font-weight:700">2025</span><div style="flex:1;height:14px;background:var(--bg-2);border-radius:3px;position:relative"><div style="position:absolute;left:0;top:0;bottom:0;width:${w25}%;background:rgba(94,179,232,.75);border-radius:3px"></div></div><span style="font-family:var(--font-mono);font-size:12px;font-weight:700;width:80px;text-align:right">${FMTc(it.v25)}</span></div>
           <div style="display:flex;align-items:center;gap:6px"><span style="font-size:10.5px;color:var(--ink-3);width:32px;font-weight:700">2026</span><div style="flex:1;height:14px;background:var(--bg-2);border-radius:3px;position:relative"><div style="position:absolute;left:0;top:0;bottom:0;width:${w26}%;background:rgba(30,111,217,.9);border-radius:3px"></div></div><span style="font-family:var(--font-mono);font-size:12px;font-weight:800;width:80px;text-align:right">${FMTc(it.v26)}</span></div>
         </div>
-        <div style="font-family:var(--font-mono);font-size:12px;font-weight:700;color:var(--accent-3);text-align:center;background:var(--bg-2);border-radius:4px;padding:5px 6px">${it.n} pól.</div>
+        <div style="font-family:var(--font-mono);text-align:center;background:var(--bg-2);border-radius:4px;padding:5px 6px">
+          <div style="font-size:12.5px;font-weight:800;color:var(--accent-3)">${it.n} pól.</div>
+          <div title="Pólizas con emisión en cada año (según el corte)" style="font-size:10px;font-weight:700;color:${it.n25!==it.n26?'var(--warn)':'var(--ink-3)'};margin-top:1px">25: ${it.n25} · 26: ${it.n26}</div>
+        </div>
         <div style="font-family:var(--font-mono);font-size:14px;font-weight:800;color:${dc};text-align:right">${d>=0?'+':''}${FMTc(d)}</div>
       </div>
       <div id="ejecRubroChartDet_${idx}" style="display:none;padding:8px 4px 14px"></div>
