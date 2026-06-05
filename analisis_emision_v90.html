@@ -3112,9 +3112,10 @@ function desglosePendientePorConcepto(polFiltradas, mesCorte){
   return out;
 }
 
-/* Pendiente de UNA póliza en la moneda de la vista (misma lógica que el desglose:
-   excluye Bono, con fallback a prima 2025 si está marcada pendiente sin items). */
-function pendPolizaView(p, mesCorte, useUSD){
+/* Pendiente de UNA póliza (misma lógica que el desglose: excluye Bono, con fallback a
+   prima 2025 si está marcada pendiente sin items). Devuelve montos en ambas monedas y
+   la lista de conceptos pendientes (Prima mínima / Ajuste / Malus). */
+function pendPolizaInfo(p, mesCorte){
   const cp = conceptosPendientes(p, mesCorte);
   let items = cp.items;
   if(items.length===0){
@@ -3125,13 +3126,14 @@ function pendPolizaView(p, mesCorte, useUSD){
       if(mARS>0||mUSD>0) items=[{concepto:'Prima mínima', ars:mARS, usd:mUSD}];
     }
   }
-  let ars=0, usd=0;
+  let ars=0, usd=0; const concepts=[];
   for(const it of items){
     if(it.concepto==='Bono') continue;
     const cv = convertirPendienteTC(it.ars, it.usd, p.moneda);
     ars+=cv.ars; usd+=cv.usd;
+    if(!concepts.includes(it.concepto)) concepts.push(it.concepto);
   }
-  return useUSD ? usd : ars;
+  return {ars, usd, concepts};
 }
 
 function contarPolizasCausa(id, polFiltradas, mesCorte){
@@ -3412,19 +3414,21 @@ function ejecJustificacion(S, useUSD, dual, useUSDprimary){
      de estimación + botón OK (toma la proyección del Excel; hoy estima el pendiente). */
   let estimPanel = '';
   if(state._ejecEstimOpen[sufijo] && dd && polPend){
-    /* TODAS las pólizas con algún concepto pendiente (prima/ajuste/malus), en la moneda
-       de la vista — misma fuente que la leyenda del Pendiente. */
-    const pend = polPend.map(p=>({p, val: pendPolizaView(p, dd.mesCorte, useUSD)}))
-      .filter(x=>x.val>1).sort((a,b)=>b.val-a.val);
+    /* TODAS las pólizas con algún concepto pendiente (prima/ajuste/malus). Se incluyen
+       si tienen pendiente en CUALQUIER moneda — misma fuente que la leyenda del Pendiente. */
+    const cLbl = {'Prima mínima':'Prima','Ajuste':'Ajuste','Malus':'Malus'};
+    const pend = polPend.map(p=>{ const inf=pendPolizaInfo(p, dd.mesCorte); return {p, val: useUSD?inf.usd:inf.ars, concepts:inf.concepts, any:Math.max(inf.ars,inf.usd)}; })
+      .filter(x=>x.any>0.5).sort((a,b)=>b.val-a.val);
     const pctTomado = dvAbs>0 ? Math.round(estimEff/dvAbs*100) : 0;
-    const rows = pend.map(({p,val})=>{
+    const rows = pend.map(({p,val,concepts})=>{
       const e = estStore[p.clave]; const has = isFinite(e)&&e>0;
+      const tipos = (concepts&&concepts.length) ? concepts.map(c=>cLbl[c]||c).join(' · ') : '—';
       return `<div style="display:grid;grid-template-columns:1fr 130px auto;gap:10px;align-items:center;padding:8px 12px;border-bottom:1px solid var(--line)">
         <div>
           <span style="font-size:14px;font-weight:800;color:var(--accent-3);background:var(--bg-2);padding:2px 8px;border-radius:5px">${fmtPoliza(p.poliza)}</span>
           <span style="color:var(--ink-1);font-size:13px;font-weight:600;margin-left:6px">${(p.asegurado||'').substring(0,26)}</span>
           <span style="font-size:11px;color:var(--accent);font-weight:700;background:rgba(30,111,217,.10);padding:2px 7px;border-radius:4px;margin-left:6px">${p.rubro||'—'}</span>
-          <div style="font-family:var(--font-mono);font-size:11.5px;color:var(--ink-3);margin-top:3px">Pendiente: <strong style="color:var(--neg)">${fmtCompact(val,useUSD)}</strong></div>
+          <div style="font-family:var(--font-mono);font-size:11.5px;color:var(--ink-3);margin-top:3px">Pendiente: <strong style="color:var(--neg)">${fmtCompact(val,useUSD)}</strong> <span style="color:var(--neg);font-weight:700">(${tipos})</span></div>
         </div>
         <input type="text" inputmode="decimal" value="${has?e:''}" placeholder="estimación ${useUSD?'US':'$'}" onchange="setEjecEstim('${sufijo}','${p.clave}', this.value)" style="width:100%;padding:6px 8px;font-family:var(--font-mono);font-size:13px;border:1.5px solid ${has?'var(--pos)':'var(--line-2)'};border-radius:6px;text-align:right;color:var(--ink);background:var(--panel)" />
         <button onclick="ejecEstimOk('${sufijo}','${p.clave}', ${val})" title="Tomar la proyección del Excel (AF19); por ahora, si está vacía, estima el pendiente completo" style="padding:6px 11px;font-size:12px;font-weight:800;border-radius:6px;cursor:pointer;border:1.5px solid ${has?'var(--pos)':'var(--line-2)'};background:${has?'var(--pos)':'var(--panel)'};color:${has?'#fff':'var(--ink-2)'}">OK ✓</button>
