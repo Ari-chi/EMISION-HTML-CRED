@@ -802,6 +802,7 @@ function readExcel(file){
     const rows = XLSX.utils.sheet_to_json(ws,{header:1,defval:null,blankrows:false});
     parseRows(rows);
     parsePresupuestos(rows);
+    parseProyEmis(rows);
     aggregatePolizas();
     renderAll();
     document.getElementById('tabsWrap').style.display='block';
@@ -810,6 +811,41 @@ function readExcel(file){
     initGlobalMesFilter();
   };
   reader.readAsArrayBuffer(file);
+}
+
+/* Parser del bloque "Proyecciones de Emisión" del Excel (~columna AF, fila 19).
+   Por asegurado, suma Prima Mínima + Ajuste + Malus (SIN Bono) en $ (col AG) y US (col AH).
+   Alimenta el botón OK de la Estimación (state._ejecProyEmis[asegurado] = {ars, usd}).
+   Layout esperado:
+     AF: etiquetas (Asegurado / Prima Minima / Ajuste / Malus / Bono)
+     fila "Asegurado":  AG = NOMBRE del asegurado
+     filas de concepto: AG = valor en $, AH = valor en US */
+function parseProyEmis(rows){
+  state._ejecProyEmis = {};
+  const norm = (s)=> String(s==null?'':s).trim().toLowerCase();
+  const numOf = (v)=>{ if(v==null||v==='') return NaN; if(typeof v==='number') return v; return parseFloat(String(v).replace(/[^0-9.\-]/g,'')); };
+  const AF=31, AG=32, AH=33;
+  let started=false, curKey=null;
+  for(let i=0;i<rows.length;i++){
+    const r = rows[i]||[];
+    const lbl = norm(r[AF]);
+    if(!started){
+      if(lbl.indexOf('proyecciones de emisi')===0) started=true;
+      continue;
+    }
+    if(lbl==='asegurado'){
+      const nombre = String(r[AG]==null?'':r[AG]).trim();
+      curKey = nombre ? norm(nombre) : null;
+      if(curKey && !state._ejecProyEmis[curKey]) state._ejecProyEmis[curKey] = {ars:0, usd:0};
+      continue;
+    }
+    if(curKey && (lbl==='prima minima' || lbl==='prima mínima' || lbl==='ajuste' || lbl==='malus')){
+      const ars=numOf(r[AG]), usd=numOf(r[AH]);
+      if(isFinite(ars)) state._ejecProyEmis[curKey].ars += ars;
+      if(isFinite(usd)) state._ejecProyEmis[curKey].usd += usd;
+    }
+    /* 'bono' u otras filas → se ignoran (sin bono). */
+  }
 }
 
 /* Si es true, el presupuesto se fuerza a 0. El reporte sigue funcionando: los bloques de
@@ -3476,10 +3512,16 @@ window.ejecEstimOk = function(suf, clave, pendVal){
   const st = _ejecEstimStore(suf);
   if(st[clave]!=null){ delete st[clave]; }
   else {
-    /* OK = tomar la "Proyección de Emisión" del Excel (AF19) si está cargada para esa
-       póliza; si no hay valor en el Excel, estima el pendiente completo. */
-    const ex = (state._ejecProyEmis && state._ejecProyEmis[clave]!=null)
-      ? (suf==='u' ? state._ejecProyEmis[clave].usd : state._ejecProyEmis[clave].ars) : null;
+    /* OK = tomar la "Proyección de Emisión" del Excel (AF19), buscando por NOMBRE de
+       asegurado (suma Prima Mínima + Ajuste + Malus). Si no hay valor cargado en el
+       Excel para ese asegurado, estima el pendiente completo. */
+    let ex = null;
+    if(state._ejecProyEmis){
+      const p = (state.polizas||[]).find(x=>x.clave===clave || x.poliza===clave);
+      const key = p ? String(p.asegurado||'').trim().toLowerCase() : null;
+      const o = key ? state._ejecProyEmis[key] : null;
+      if(o) ex = (suf==='u') ? o.usd : o.ars;
+    }
     st[clave] = (isFinite(ex) && ex>0) ? ex : (Math.abs(pendVal)||0);
   }
   if(typeof drawEjecutivo==='function') drawEjecutivo();
