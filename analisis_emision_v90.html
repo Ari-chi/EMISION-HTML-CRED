@@ -5056,8 +5056,9 @@ window.toggleEjecCausa = function(id){
     /* Variación de "monto" en cada moneda — para causas con signo (prima/ajuste/...)
        es el desvío con signo; para pendientes/perdidas es magnitud positiva. */
     const sumAbs = (arr, key)=> arr.reduce((a,r)=>a+(r[key]||0),0);
-    const monARS = {val:sumAbs(enriched.filter(r=>r.moneda==='$'), 'montoARS'), n:enriched.filter(r=>r.moneda==='$').length};
-    const monUSD = {val:sumAbs(enriched.filter(r=>r.moneda==='US'),'montoUSD'), n:enriched.filter(r=>r.moneda==='US').length};
+    const _$r = enriched.filter(r=>r.moneda==='$'), _usr = enriched.filter(r=>r.moneda==='US');
+    const monARS = {val:sumAbs(_$r, 'montoARS'), n:_$r.length, s25:sumAbs(_$r,'v25ARS'), s26:sumAbs(_$r,'v26ARS')};
+    const monUSD = {val:sumAbs(_usr,'montoUSD'), n:_usr.length, s25:sumAbs(_usr,'v25USD'), s26:sumAbs(_usr,'v26USD')};
     const fmtT = (v)=>v==null?'—':FMT_PCT_TASA(v);
     const fmtS = (v)=>v==null?'—':FMT_PCT_SIN(v);
     /* Tasa y siniestralidad por moneda original ($ / US), igual que Emisión 2026. */
@@ -5123,6 +5124,16 @@ window.toggleEjecCausa = function(id){
     </div>`;
     const esPendPerdNoCorr = (id==='pendiente' || /^pend_/.test(id) || id==='perdidas');
     const proyCell = (info,isUS)=> esPendPerdNoCorr ? cellMonNegR(info,isUS) : cellMontoR(info,isUS);
+    /* Monto (causa): si hay emisión 25/26 del concepto se muestra como Proyección
+       (25 → 26 + variación). Para pendientes/perdidas queda el valor único negativo. */
+    const montoCell = (info,isUS)=>{
+      if(esPendPerdNoCorr) return cellMonAbsR(info,isUS,true);
+      if(info && (info.s25>0 || info.s26>0)){
+        const d = info.s26 - info.s25, pct = info.s25 ? d/Math.abs(info.s25) : null;
+        return cellMontoR({n:info.n, s25:info.s25, s26:info.s26, d, pct}, isUS);
+      }
+      return cellMonAbsR(info,isUS,false);
+    };
     return `<div style="margin-bottom:14px;overflow-x:auto">
       <div style="display:grid;grid-template-columns:auto repeat(6,minmax(135px,1fr));gap:8px;align-items:stretch;min-width:740px">
         <div></div>
@@ -5133,14 +5144,14 @@ window.toggleEjecCausa = function(id){
         ${catHead('Siniestralidad Hist.','rgba(212,117,31,.16)','#a85f12','#d4751f')}
         ${catHead('Rubros','rgba(94,179,232,.16)','#2a6aa0','#5eb3e8')}
         ${refCell('$')}
-        ${cellMonAbsR(monARS,false,esPendPerdNoCorr)}
+        ${montoCell(monARS,false)}
         ${proyCell(proyARS,false)}
         ${cellPctR(tasaARS, fmtT, false)}
         ${cellPctR(sinUVARS, fmtS, true)}
         ${cellPctR(sinHARS, fmtS, true)}
         <div style="grid-row:span 2">${rubrosCellR}</div>
         ${refCell('US')}
-        ${cellMonAbsR(monUSD,true,esPendPerdNoCorr)}
+        ${montoCell(monUSD,true)}
         ${proyCell(proyUSD,true)}
         ${cellPctR(tasaUSD, fmtT, false)}
         ${cellPctR(sinUVUSD, fmtS, true)}
@@ -5164,13 +5175,20 @@ window.toggleEjecCausa = function(id){
     ];
     const max = Math.max(1, ...vals.map(v=>v.val));
     const FMTcL = (v)=>fmtCompact(v, u);
+    /* Líneas de escala verticales (cada 25% del máximo) para poder comparar magnitudes. */
+    const gridBg = 'background-image:repeating-linear-gradient(90deg,rgba(10,31,58,.10) 0,rgba(10,31,58,.10) 1px,transparent 1px,transparent 25%)';
     return `<div style="background:var(--bg-2);border-radius:8px;padding:12px 14px;margin-bottom:14px">
-      <div style="font-size:11.5px;color:var(--accent-3);text-transform:uppercase;letter-spacing:.05em;font-weight:800;margin-bottom:10px">Magnitud por concepto (${u?'USD':'ARS$'})</div>
+      <div style="font-size:11.5px;color:var(--accent-3);text-transform:uppercase;letter-spacing:.05em;font-weight:800;margin-bottom:10px">Magnitud por concepto (${u?'USD':'ARS$'}) <span style="color:var(--ink-3);font-weight:500;text-transform:none;letter-spacing:0">· escala 0 → ${FMTcL(max)}</span></div>
       ${vals.map(v=>`<div style="display:grid;grid-template-columns:90px 1fr auto;gap:10px;align-items:center;margin-bottom:6px">
         <span style="font-size:12.5px;color:var(--ink-2);font-weight:700">${v.lbl}</span>
-        <div style="height:14px;background:rgba(0,0,0,.04);border-radius:3px;position:relative"><div style="position:absolute;left:0;top:0;bottom:0;width:${Math.round(v.val/max*100)}%;background:${v.col};border-radius:3px"></div></div>
+        <div style="height:16px;background:rgba(0,0,0,.04);border-radius:3px;position:relative;${gridBg}"><div style="position:absolute;left:0;top:0;bottom:0;width:${v.val/max*100}%;background:${v.col};border-radius:3px"></div></div>
         <span style="font-family:var(--font-mono);font-weight:700;font-size:13px;color:${v.col};min-width:80px;text-align:right">−${FMTcL(v.val)} <span style="color:var(--ink-3);font-weight:500;font-size:11px">(${v.n} pól.)</span></span>
       </div>`).join('')}
+      <div style="display:grid;grid-template-columns:90px 1fr 80px;gap:10px;margin-top:2px">
+        <span></span>
+        <div style="display:flex;justify-content:space-between;font-family:var(--font-mono);font-size:9px;color:var(--ink-3)"><span>0</span><span>${FMTcL(max*0.25)}</span><span>${FMTcL(max*0.5)}</span><span>${FMTcL(max*0.75)}</span><span>${FMTcL(max)}</span></div>
+        <span></span>
+      </div>
     </div>`;
   };
   if(id==='prima' || id==='menor'){
