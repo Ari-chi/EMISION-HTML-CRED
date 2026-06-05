@@ -6048,6 +6048,36 @@ function renderRubroCard(it, idx, useUSD, mesCorte){
   };
   /* Conclusión */
   const conclTxt = conclusionRubro(V, it, useUSD);
+  /* === Resumen formato foto 4: por moneda original (Emisión · Proyección · Tasa ·
+     Sin. UV · Sin. Hist. · Pendientes), con 2025 → 2026 y variación. === */
+  const _pols = it.polizas || [];
+  const aggCur = (isUS)=>{
+    const pols = _pols.filter(p=> (p.moneda==='US')===isUS);
+    let e25=0,e26=0,p25=0,p26=0,t25=0,t26=0,tn=0,uv25=0,uv26=0,uvn=0,h25=0,h26=0,hn=0,pend=0,np=0;
+    for(const p of pols){
+      const f25=calcEmisionFiltrada(p,2025,mesCorte), f26=calcEmisionFiltrada(p,2026,mesCorte);
+      e25+=isUS?f25.totUSD:f25.totARS; e26+=isUS?f26.totUSD:f26.totARS;
+      p25+=isUS?(p.proyUSD2025||0):(p.proyARS2025||0); p26+=isUS?(p.proyUSD2026||0):(p.proyARS2026||0);
+      if(p.tasa2025!=null&&p.tasa2026!=null){t25+=p.tasa2025;t26+=p.tasa2026;tn++;}
+      if(p.sinUV2025!=null&&p.sinUV2026!=null){uv25+=p.sinUV2025;uv26+=p.sinUV2026;uvn++;}
+      if(p.sinH2025!=null&&p.sinH2026!=null){h25+=p.sinH2025;h26+=p.sinH2026;hn++;}
+      const pi=pendPolizaInfo(p,mesCorte); pend+=isUS?pi.usd:pi.ars;
+      np++;
+    }
+    return {n:np,e25,e26,p25,p26,t25:tn?t25/tn:0,t26:tn?t26/tn:0,uv25:uvn?uv25/uvn:0,uv26:uvn?uv26/uvn:0,h25:hn?h25/hn:0,h26:hn?h26/hn:0,pend};
+  };
+  const gA=aggCur(false), gU=aggCur(true);
+  const cH=(label,bg,txt,bd)=>`<div style="font-size:11px;font-weight:800;text-transform:uppercase;letter-spacing:.04em;padding:6px 8px;border-radius:6px;text-align:center;background:${bg};color:${txt};border:1.5px solid ${bd};white-space:nowrap">${label}</div>`;
+  const rC=(sym)=>{const c=sym==='US'?'#8b5cf6':'#e89b1e';return `<div style="display:flex;flex-direction:column;align-items:flex-end;justify-content:center;padding:4px 6px;text-align:right;line-height:1.1"><span style="font-size:9px;color:var(--ink-3);font-weight:700;text-transform:uppercase">Pólizas<br>Mon. Orig</span><span style="font-size:19px;font-weight:900;color:${c};margin-top:2px">${sym}</span></div>`;};
+  const cMon=(v25,v26,isUS,n)=>{const dd=v26-v25,c=dd>=0?'var(--pos)':'var(--neg)',pct=v25?dd/Math.abs(v25):null;return `<div style="background:#fff;border:1px solid var(--line);border-radius:6px;padding:9px 11px"><div style="font-size:10px;color:var(--ink-3);font-weight:700">${n} pól.</div><div style="font-family:var(--font-mono);font-size:12.5px;color:var(--ink-2);margin-top:3px">${fmtCompact(v25,isUS)} <span style="color:var(--ink-3)">→</span> <strong style="color:var(--accent-3);font-size:14px">${fmtCompact(v26,isUS)}</strong></div><div style="font-family:var(--font-mono);font-size:14px;font-weight:800;color:${c};margin-top:3px">${dd>=0?'+':''}${fmtCompact(dd,isUS)}${pct!=null?' ('+(dd>=0?'+':'')+FMT_PCT(pct)+')':''}</div></div>`;};
+  const cPct=(v25,v26,n,neg,fmt)=>{const dd=v26-v25,c=dd===0?'var(--accent)':(dd>0?(neg?'var(--neg)':'var(--pos)'):(neg?'var(--pos)':'var(--neg)'));return `<div style="background:#fff;border:1px solid var(--line);border-radius:6px;padding:9px 11px"><div style="font-size:10px;color:var(--ink-3);font-weight:700">${n} pól.</div><div style="font-family:var(--font-mono);font-size:12.5px;color:var(--ink-2);margin-top:3px">${fmt(v25)} <span style="color:var(--ink-3)">→</span> <strong style="color:var(--accent-3);font-size:14px">${fmt(v26)}</strong></div><div style="font-family:var(--font-mono);font-size:14px;font-weight:800;color:${c};margin-top:3px">${dd>=0?'+':''}${fmt(dd)}</div></div>`;};
+  const cPend=(v,isUS,n)=>`<div style="background:#fff;border:1px solid var(--line);border-radius:6px;padding:9px 11px"><div style="font-size:10px;color:var(--ink-3);font-weight:700">${n} pól.</div><div style="font-family:var(--font-mono);font-size:15px;font-weight:800;color:${v>0?'var(--neg)':'var(--ink-3)'};margin-top:6px">${v>0?'−':''}${fmtCompact(v,isUS)}</div></div>`;
+  const foto4Grid = `<div style="overflow-x:auto;margin-top:14px"><div style="display:grid;grid-template-columns:auto repeat(6,minmax(120px,1fr));gap:7px;align-items:stretch;min-width:780px">
+    <div></div>
+    ${cH('Emisión','#2d9b6a','#fff','#2d9b6a')}${cH('Proyección','rgba(30,111,217,.10)','#1e6fd9','#1e6fd9')}${cH('Tasa prom.','rgba(139,92,246,.12)','#7c4ddb','#8b5cf6')}${cH('Sin. UV','rgba(232,155,30,.14)','#b9760f','#e89b1e')}${cH('Sin. Hist.','rgba(212,117,31,.16)','#a85f12','#d4751f')}${cH('Pendientes','rgba(123,77,255,.12)','#5a3db8','#7c4dff')}
+    ${rC('$')}${cMon(gA.e25,gA.e26,false,gA.n)}${cMon(gA.p25,gA.p26,false,gA.n)}${cPct(gA.t25,gA.t26,gA.n,false,FMT_PCT_TASA)}${cPct(gA.uv25,gA.uv26,gA.n,true,FMT_PCT_SIN)}${cPct(gA.h25,gA.h26,gA.n,true,FMT_PCT_SIN)}${cPend(gA.pend,false,gA.n)}
+    ${rC('US')}${cMon(gU.e25,gU.e26,true,gU.n)}${cMon(gU.p25,gU.p26,true,gU.n)}${cPct(gU.t25,gU.t26,gU.n,false,FMT_PCT_TASA)}${cPct(gU.uv25,gU.uv26,gU.n,true,FMT_PCT_SIN)}${cPct(gU.h25,gU.h26,gU.n,true,FMT_PCT_SIN)}${cPend(gU.pend,true,gU.n)}
+  </div></div>`;
   return `<div style="border:1px solid var(--line-2);border-radius:10px;padding:16px 18px;background:var(--panel);box-shadow:0 1px 3px rgba(10,31,58,.04)">
     <!-- Header -->
     <div style="display:flex;justify-content:space-between;align-items:baseline;gap:14px;flex-wrap:wrap;margin-bottom:6px">
@@ -6063,16 +6093,7 @@ function renderRubroCard(it, idx, useUSD, mesCorte){
     </div>
     ${conclTxt}
     <!-- Conceptos: cada uno en su propio cuadrito para diferenciarlos -->
-    <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(220px,1fr));gap:10px;margin-top:14px">
-      ${concDinero('Proyección de ventas','proy', proyAll, V.proyPend)}
-      ${concTasaSin('Tasa promedio','tasa', tasaAvg, tasaAll, true)}
-      ${concTasaSin('Siniestralidad histórica','sinh', sinHAvg, sinHAll, false)}
-      ${concTasaSin('Siniestralidad UV','uv', uvAvg, uvAll, false)}
-      ${concDinero('Prima mínima','pm', pmAll, V.pmPend)}
-      ${concDinero('Ajuste','aj', ajAll, V.ajPend)}
-      ${concDinero('Bono','bo', boAll, V.boPend)}
-      ${concDinero('Malus','ma', maAll, V.maPend)}
-    </div>
+    ${foto4Grid}
     <!-- Drilldown del concepto seleccionado -->
     <div id="ejrDrill_${idx}" style="margin-top:14px"></div>
   </div>`;
