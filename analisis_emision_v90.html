@@ -628,7 +628,7 @@ const APP_CONFIG_DEFAULT = {
     perdidas:    'Pólizas que se fueron',
     prima:       'Menor prima mínima',
     abm:         'Menor Ajuste / Bono / Malus',
-    menor:       'Menores (Prima / Ajuste / Bono / Malus)',
+    menor:       'Menor Emisión',
     pendiente:   'Pendiente de emisión',
   },
 };
@@ -2873,14 +2873,6 @@ function drawEjecutivo(){
       ${setU?ejecJustificacion(setU,true,dual,primary.useUSD):''}
       ${setA?ejecJustificacion(setA,false,dual,primary.useUSD):''}
       <div id="ejecCausaDetalle" style="display:none;margin-top:12px"></div>
-      <!-- Botón "Crecimiento" (pólizas que NO alcanzaron el umbral) — movido al Desvío -->
-      <div style="margin-top:18px;padding-top:14px;border-top:1px dashed var(--line-2)">
-        <div onclick="toggleEjecCrecimiento('crec')" style="cursor:pointer;display:flex;align-items:center;gap:10px;padding:10px 14px;background:rgba(232,155,30,.08);border-left:4px solid var(--warn);border-radius:6px;font-size:14.5px;font-weight:700;color:var(--accent-3)">
-          <span id="ejecCrecCar_crec" style="font-size:12px;color:var(--warn)">▸</span>
-          <span>Crecimiento — pólizas que NO alcanzaron el umbral (+30% en pesos · +10% en dólares)</span>
-        </div>
-        <div id="ejecCrecArea_crec" style="margin-top:10px"></div>
-      </div>
     </div>
 
     <!-- BLOQUE 5 -->
@@ -3183,14 +3175,14 @@ function ejecJustificacion(S, useUSD, dual, useUSDprimary){
       mk('pend_ajuste',APP_CONFIG.textos.pend_ajuste, pv(dp&&dp.ajuste), dp?dp.ajuste.n:0, APP_CONFIG.colores.pendiente,'pendiente'),
       mk('pend_malus',APP_CONFIG.textos.pend_malus, pv(dp&&dp.malus), dp?dp.malus.n:0, APP_CONFIG.colores.pendiente,'pendiente'),
       mk('perdidas',APP_CONFIG.textos.perdidas, mkVal(cnt.perdidas), cnt.perdidas.n, APP_CONFIG.colores.perdidas),
-      mk('menor',APP_CONFIG.textos.menor || 'Menor Prima / Ajuste / Bono / Malus', menorSigned, menorN, APP_CONFIG.colores.abm),
+      mk('menor',APP_CONFIG.textos.menor || 'Menor Emisión', menorSigned, menorN, APP_CONFIG.colores.abm),
     ].filter(c=>c.val>1);
   } else {
     const mk = (id,lbl,vSigned,n,col)=>({id,lbl,val:Math.abs(vSigned),vSigned,n,col});
     causas = [
       mk('pendiente',APP_CONFIG.textos.pendiente, S.cPend, S.nPend, APP_CONFIG.colores.pendiente),
       mk('perdidas',APP_CONFIG.textos.perdidas, S.cPerdidas, S.nPerdidas, APP_CONFIG.colores.perdidas),
-      mk('menor', APP_CONFIG.textos.menor || 'Menor Prima / Ajuste / Bono / Malus', S.cPrimaMin+S.cAjuste+S.cBono+S.cMalus, 0, APP_CONFIG.colores.abm),
+      mk('menor', APP_CONFIG.textos.menor || 'Menor Emisión', S.cPrimaMin+S.cAjuste+S.cBono+S.cMalus, 0, APP_CONFIG.colores.abm),
     ].filter(c=>c.val>1);
   }
 
@@ -4984,7 +4976,7 @@ window.toggleEjecCausa = function(id){
     </div>`;
   }
 
-  const titulos = {pendiente:'Pendiente de emisión', pend_prima:'Prima mínima pendiente', pend_ajuste:'Ajuste pendiente', pend_bono:'Bono pendiente', pend_malus:'Malus pendiente', perdidas:'Pólizas que se fueron', prima:'Prima mínima', ajuste:'Ajuste', bono:'Bono', malus:'Malus', menor:'Menores — Prima / Ajuste / Bono / Malus', sinjust:'Pólizas que no crecieron'};
+  const titulos = {pendiente:'Pendiente de emisión', pend_prima:'Prima mínima pendiente', pend_ajuste:'Ajuste pendiente', pend_bono:'Bono pendiente', pend_malus:'Malus pendiente', perdidas:'Pólizas que se fueron', prima:'Prima mínima', ajuste:'Ajuste', bono:'Bono', malus:'Malus', menor:'Menor Emisión', sinjust:'Pólizas que no crecieron'};
 
   /* Resumen pre-card de las pólizas involucradas en ESTA causa, antes del
      desglose por póliza. Mismo formato que en "Emisión 2026": Proyección $/US,
@@ -5201,7 +5193,6 @@ window.toggleEjecCausa = function(id){
           <button class="ejec-subbtn" data-sub="proy" onclick="setEjecPrimaSub('proy')" style="padding:6px 14px;font-size:11.5px;font-weight:700;border-radius:5px;border:1px solid var(--line-2);background:var(--bg-2);color:var(--ink-2);cursor:pointer">Proyección de ventas</button>
           <button class="ejec-subbtn" data-sub="tasa" onclick="setEjecPrimaSub('tasa')" style="padding:6px 14px;font-size:11.5px;font-weight:700;border-radius:5px;border:1px solid var(--line-2);background:var(--bg-2);color:var(--ink-2);cursor:pointer">Tasa</button>
         </div>
-        <div style="font-size:11.5px;color:var(--ink-3);font-style:italic;margin-bottom:10px;line-height:1.4">La prima mínima se calcula como proyección × tasa × (~70–80%). Por eso una baja de prima suele estar ligada a una baja de proyección o tasa — los tres conceptos se ven acá.</div>
         <div style="margin-bottom:14px"><div id="ejecVariacionesLabel" style="font-size:12px;color:var(--ink-2);margin-bottom:8px;font-weight:600">Variaciones que afectan la prima mínima (2025 vs 2026):</div><div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(160px,1fr));gap:10px" id="ejecVariacionesGrid"></div><div id="ejecVariacionesValores" style="margin-top:8px"></div></div>
         <div id="ejecPrimaCols" style="display:grid;grid-template-columns:1fr 1fr;gap:16px">${colPrima(false,'prima')}${colPrima(true,'prima')}</div>
       </div>`;
@@ -5246,8 +5237,7 @@ window.toggleEjecCausa = function(id){
             <button class="ejec-subbtn" data-sub="proy" onclick="setEjecPrimaSub('proy')" style="padding:6px 14px;font-size:11.5px;font-weight:700;border-radius:5px;border:1px solid var(--line-2);background:var(--bg-2);color:var(--ink-2);cursor:pointer">Proyección de ventas</button>
             <button class="ejec-subbtn" data-sub="tasa" onclick="setEjecPrimaSub('tasa')" style="padding:6px 14px;font-size:11.5px;font-weight:700;border-radius:5px;border:1px solid var(--line-2);background:var(--bg-2);color:var(--ink-2);cursor:pointer">Tasa</button>
           </div>
-          <div style="font-size:11.5px;color:var(--ink-3);font-style:italic;margin-bottom:10px;line-height:1.4">La prima mínima se calcula como proyección × tasa × (~70–80%). Por eso una baja de prima suele estar ligada a una baja de proyección o tasa — los tres conceptos se ven acá.</div>
-          <div style="margin-bottom:14px"><div id="ejecVariacionesLabel" style="font-size:12px;color:var(--ink-2);margin-bottom:8px;font-weight:600">Variaciones que afectan la prima mínima (2025 vs 2026):</div><div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(160px,1fr));gap:10px" id="ejecVariacionesGrid"></div><div id="ejecVariacionesValores" style="margin-top:8px"></div></div>
+            <div style="margin-bottom:14px"><div id="ejecVariacionesLabel" style="font-size:12px;color:var(--ink-2);margin-bottom:8px;font-weight:600">Variaciones que afectan la prima mínima (2025 vs 2026):</div><div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(160px,1fr));gap:10px" id="ejecVariacionesGrid"></div><div id="ejecVariacionesValores" style="margin-top:8px"></div></div>
           <div id="ejecPrimaCols" style="display:grid;grid-template-columns:1fr 1fr;gap:16px">${colPrima(false,'prima')}${colPrima(true,'prima')}</div>`;
         drawEjecVariaciones(polFiltradas, fEjec, d.useUSD, {sub:'prima'});
       } else {
