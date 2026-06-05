@@ -3319,8 +3319,9 @@ function ejecJustificacion(S, useUSD, dual, useUSDprimary){
           : (totSigned>0?'var(--pos)':'var(--neg)')))
       : 'var(--ink-3)';
     const sgnLeg = id==='pend_bono' ? '+'
-      : (clickable && (causa.grupo==='pendiente'||id==='pendiente'||id==='perdidas') ? '−'
-        : (totSigned>=0?'+':'−'));
+      : (p.lbl==='Sin justificar' ? '−'
+        : (clickable && (causa.grupo==='pendiente'||id==='pendiente'||id==='perdidas') ? '−'
+          : (totSigned>=0?'+':'−')));
     const nPolStr = causa && causa.n>0 ? ` <span style="color:var(--ink-3);font-weight:500;font-size:12.5px">· ${causa.n} pól.</span>` : '';
     const esEstim = (id==='estimacion');
     const esSinJust = (p.lbl==='Sin justificar');
