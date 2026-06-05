@@ -5191,29 +5191,61 @@ window.toggleEjecCausa = function(id){
       </div>
     </div>`;
   };
-  if(id==='prima' || id==='menor'){
-    /* Para "menor" mostramos 4 sub-botones (Prima/Ajuste/Bono/Malus). El default es
-       Prima (que a su vez tiene 3 sub-sub-vistas Prima/Proy/Tasa, ligadas porque la
-       prima mínima depende de la proyección × tasa). */
-    const isMenor = (id==='menor');
-    const btn = (sub,label,active)=>`<button class="ejec-menorbtn" data-sub="${sub}" onclick="setEjecMenorSub('${sub}')" style="padding:7px 16px;font-size:12px;font-weight:700;border-radius:5px;border:1px solid ${active?'var(--accent)':'var(--line-2)'};background:${active?'var(--accent)':'var(--bg-2)'};color:${active?'#fff':'var(--ink-2)'};cursor:pointer">${label}</button>`;
-    const subSelector = isMenor
-      ? `<div style="display:flex;gap:8px;margin-bottom:14px;flex-wrap:wrap" id="ejecMenorSubsel">
-          ${btn('prima','Prima mínima',true)}${btn('ajuste','Ajuste',false)}${btn('bono','Bono',false)}${btn('malus','Malus',false)}
-        </div>`
-      : '';
-    contenido = `
-      ${isMenor ? menorChart() : ''}
-      ${subSelector}
-      <div id="ejecMenorBody">
-        <div style="display:flex;gap:8px;margin-bottom:12px" id="ejecPrimaSubsel">
-          <button class="ejec-subbtn" data-sub="prima" onclick="setEjecPrimaSub('prima')" style="padding:6px 14px;font-size:11.5px;font-weight:700;border-radius:5px;border:1px solid var(--accent);background:var(--accent);color:#fff;cursor:pointer">Prima mínima</button>
-          <button class="ejec-subbtn" data-sub="proy" onclick="setEjecPrimaSub('proy')" style="padding:6px 14px;font-size:11.5px;font-weight:700;border-radius:5px;border:1px solid var(--line-2);background:var(--bg-2);color:var(--ink-2);cursor:pointer">Proyección de ventas</button>
-          <button class="ejec-subbtn" data-sub="tasa" onclick="setEjecPrimaSub('tasa')" style="padding:6px 14px;font-size:11.5px;font-weight:700;border-radius:5px;border:1px solid var(--line-2);background:var(--bg-2);color:var(--ink-2);cursor:pointer">Tasa</button>
-        </div>
-        <div style="margin-bottom:14px"><div id="ejecVariacionesLabel" style="font-size:12px;color:var(--ink-2);margin-bottom:8px;font-weight:600">Variaciones que afectan la prima mínima (2025 vs 2026):</div><div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(160px,1fr));gap:10px" id="ejecVariacionesGrid"></div><div id="ejecVariacionesValores" style="margin-top:8px"></div></div>
-        <div id="ejecPrimaCols" style="display:grid;grid-template-columns:1fr 1fr;gap:16px">${colPrima(false,'prima')}${colPrima(true,'prima')}</div>
+  if(id==='menor'){
+    /* Drill "Menor Emisión": dos modos arriba —
+       Emisiones (Prima/Ajuste/Bono/Malus) y Variables (Proyección/Tasa/Siniestralidad). */
+    const tBtn=(top,label,active)=>`<button class="ejec-topbtn" data-top="${top}" onclick="setEjecMenorTop('${top}')" style="padding:8px 22px;font-size:13px;font-weight:800;border-radius:6px;border:1.5px solid ${active?'var(--accent)':'var(--line-2)'};background:${active?'var(--accent)':'var(--bg-2)'};color:${active?'#fff':'var(--ink-2)'};cursor:pointer">${label}</button>`;
+    const mBtn=(sub,label,active)=>`<button class="ejec-menorbtn" data-sub="${sub}" onclick="setEjecMenorSub('${sub}')" style="padding:7px 16px;font-size:12px;font-weight:700;border-radius:5px;border:1px solid ${active?'var(--accent)':'var(--line-2)'};background:${active?'var(--accent)':'var(--bg-2)'};color:${active?'#fff':'var(--ink-2)'};cursor:pointer">${label}</button>`;
+    const vBtn=(sub,label,active)=>`<button class="ejec-varbtn" data-sub="${sub}" onclick="setEjecVarSub('${sub}')" style="padding:7px 16px;font-size:12px;font-weight:700;border-radius:5px;border:1px solid ${active?'var(--accent)':'var(--line-2)'};background:${active?'var(--accent)':'var(--bg-2)'};color:${active?'#fff':'var(--ink-2)'};cursor:pointer">${label}</button>`;
+    /* Vista de Siniestralidad (Variables): totales promedio 25→26 + detalle por póliza. */
+    colSinUI = ()=>{
+      let uv25=0,uv26=0,uvN=0,h25=0,h26=0,hN=0; const pols=[];
+      for(const p of polFiltradas){
+        if(polizaTerminada(p)) continue;
+        const hUV=p.sinUV2025!=null&&p.sinUV2026!=null, hH=p.sinH2025!=null&&p.sinH2026!=null;
+        if(hUV){uv25+=p.sinUV2025;uv26+=p.sinUV2026;uvN++;}
+        if(hH){h25+=p.sinH2025;h26+=p.sinH2026;hN++;}
+        if(hUV||hH) pols.push(p);
+      }
+      const totBox=(lbl,v25,v26,n)=>{const d2=v26-v25;const c=d2===0?'var(--accent)':(d2>0?'var(--neg)':'var(--pos)');return `<div style="flex:1;min-width:200px;background:var(--bg-2);border-radius:8px;padding:12px 14px;border-left:4px solid #e89b1e">
+        <div style="font-size:12px;color:var(--accent-3);text-transform:uppercase;letter-spacing:.04em;font-weight:800;margin-bottom:6px">${lbl} <span style="color:var(--ink-3);font-weight:500">(${n} pól.)</span></div>
+        <div style="font-family:var(--font-mono);font-size:14px;color:var(--ink-2)">${FMT_PCT_SIN(v25)} <span style="color:var(--ink-3)">→</span> <strong style="color:var(--accent-3);font-size:18px">${FMT_PCT_SIN(v26)}</strong></div>
+        <div style="font-family:var(--font-mono);font-size:16px;font-weight:800;color:${c};margin-top:4px">${d2>=0?'+':''}${FMT_PCT_SIN(d2)}</div></div>`;};
+      pols.sort((a,b)=>((b.sinH2026||0)-(b.sinH2025||0))-((a.sinH2026||0)-(a.sinH2025||0)));
+      const cellSin=(v25,v26)=>{ if(v25==null||v26==null) return '<span style="color:var(--ink-3)">—</span>'; const d2=v26-v25;const c=d2===0?'var(--ink-3)':(d2>0?'var(--neg)':'var(--pos)'); return `${FMT_PCT_SIN(v25)}→<strong>${FMT_PCT_SIN(v26)}</strong> <span style="color:${c};font-weight:800">${d2>=0?'+':''}${FMT_PCT_SIN(d2)}</span>`; };
+      const fila=(p)=>`<div style="display:grid;grid-template-columns:1.3fr 1fr 1fr;gap:10px;align-items:center;padding:7px 8px;border-bottom:1px solid var(--line);font-size:12px">
+        <div><span style="font-weight:800;color:var(--accent-3);background:var(--bg-2);padding:2px 7px;border-radius:5px">${fmtPoliza(p.poliza)}</span> <span style="color:var(--ink-2)">${(p.asegurado||'').substring(0,18)}</span></div>
+        <div style="font-family:var(--font-mono);text-align:right">${cellSin(p.sinUV2025,p.sinUV2026)}</div>
+        <div style="font-family:var(--font-mono);text-align:right">${cellSin(p.sinH2025,p.sinH2026)}</div>
       </div>`;
+      return `
+        <div style="display:flex;gap:12px;margin-bottom:14px;flex-wrap:wrap">${totBox('Siniestralidad UV',uvN?uv25/uvN:0,uvN?uv26/uvN:0,uvN)}${totBox('Siniestralidad Histórica',hN?h25/hN:0,hN?h26/hN:0,hN)}</div>
+        <div style="border:1px solid var(--line);border-radius:8px;overflow:hidden">
+          <div style="display:grid;grid-template-columns:1.3fr 1fr 1fr;gap:10px;padding:8px;background:var(--bg-2);font-size:10.5px;font-weight:800;text-transform:uppercase;letter-spacing:.04em;color:var(--ink-3)"><span>Póliza</span><span style="text-align:right">Sin UV 25→26</span><span style="text-align:right">Sin Hist. 25→26</span></div>
+          ${pols.map(fila).join('')||'<div style="padding:12px;font-style:italic;color:var(--ink-3)">— sin datos de siniestralidad —</div>'}
+        </div>`;
+    };
+    emisCols = (sub)=> sub==='prima'
+      ? `${colPrima(false,'prima')}${colPrima(true,'prima')}`
+      : `${colAbm(false,sub)}${colAbm(true,sub)}`;
+    emisionesUI = ()=>`
+      <div style="display:flex;gap:8px;margin-bottom:14px;flex-wrap:wrap" id="ejecMenorSubsel">${mBtn('prima','Prima mínima',true)}${mBtn('ajuste','Ajuste',false)}${mBtn('bono','Bono',false)}${mBtn('malus','Malus',false)}</div>
+      <div id="ejecMenorBody" style="display:grid;grid-template-columns:1fr 1fr;gap:16px">${emisCols('prima')}</div>`;
+    varBody = (sub)=>{
+      if(sub==='sin') return colSinUI();
+      return `<div style="margin-bottom:14px"><div id="ejecVariacionesLabel" style="font-size:12px;color:var(--ink-2);margin-bottom:8px;font-weight:600">Variación ${sub==='tasa'?'de tasa':'de proyección de ventas'} (2025 vs 2026):</div><div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(160px,1fr));gap:10px" id="ejecVariacionesGrid"></div><div id="ejecVariacionesValores" style="margin-top:8px"></div></div>
+        <div id="ejecPrimaCols" style="display:grid;grid-template-columns:1fr 1fr;gap:16px">${colPrima(false,sub)}${colPrima(true,sub)}</div>`;
+    };
+    variablesUI = ()=>`
+      <div style="display:flex;gap:8px;margin-bottom:14px;flex-wrap:wrap" id="ejecVarSubsel">${vBtn('proy','Proyección de ventas',true)}${vBtn('tasa','Tasa',false)}${vBtn('sin','Siniestralidad',false)}</div>
+      <div id="ejecVarBody">${varBody('proy')}</div>`;
+    const topNow = state._ejecMenorTop || 'emisiones';
+    contenido = `
+      ${menorChart()}
+      <div style="display:flex;gap:8px;margin-bottom:14px;flex-wrap:wrap" id="ejecMenorTopsel">${tBtn('emisiones','Emisiones', topNow!=='variables')}${tBtn('variables','Variables', topNow==='variables')}</div>
+      <div id="ejecMenorTopBody">${topNow==='variables'?variablesUI():emisionesUI()}</div>`;
+  } else if(id==='prima'){
+    contenido = `<div id="ejecMenorBody" style="display:grid;grid-template-columns:1fr 1fr;gap:16px">${colPrima(false,'prima')}${colPrima(true,'prima')}</div>`;
   } else if(id==='abm'){
     contenido = `
       <div style="display:flex;gap:8px;margin-bottom:12px" id="ejecAbmSubsel">
@@ -5234,36 +5266,33 @@ window.toggleEjecCausa = function(id){
     ${contenido}`;
   panel.style.display='block';
   panel.dataset.open = id;
-  if(id==='prima' || id==='menor'){
-    state._ejecPrimaSub='prima';
+  if(id==='menor'){
     state._ejecMenorSub='prima';
     const fEjec = d.f||state.sectionFilters.ejecutivo;
-    /* Permitir reconstruir columnas + gráficos al cambiar el sub-selector */
-    window._rebuildEjecPrimaCols = function(sub){
-      const cont = document.getElementById('ejecPrimaCols');
-      if(cont) cont.innerHTML = colPrima(false, sub) + colPrima(true, sub);
-      drawEjecVariaciones(polFiltradas, fEjec, d.useUSD, {sub});
+    /* Cambiar entre los dos modos de arriba (Emisiones / Variables). */
+    window._rebuildEjecMenorTop = function(top){
+      const b=document.getElementById('ejecMenorTopBody'); if(!b) return;
+      if(top==='variables'){ b.innerHTML=variablesUI(); drawEjecVariaciones(polFiltradas, fEjec, d.useUSD, {sub:'proy'}); }
+      else b.innerHTML=emisionesUI();
     };
-    /* Para "menor": reconstruir todo el body según el sub-botón elegido. */
+    /* Emisiones: columnas por concepto (prima/ajuste/bono/malus). */
     window._rebuildEjecMenorBody = function(sub){
-      const body = document.getElementById('ejecMenorBody');
-      if(!body) return;
-      if(sub==='prima'){
-        body.innerHTML = `
-          <div style="display:flex;gap:8px;margin-bottom:12px" id="ejecPrimaSubsel">
-            <button class="ejec-subbtn" data-sub="prima" onclick="setEjecPrimaSub('prima')" style="padding:6px 14px;font-size:11.5px;font-weight:700;border-radius:5px;border:1px solid var(--accent);background:var(--accent);color:#fff;cursor:pointer">Prima mínima</button>
-            <button class="ejec-subbtn" data-sub="proy" onclick="setEjecPrimaSub('proy')" style="padding:6px 14px;font-size:11.5px;font-weight:700;border-radius:5px;border:1px solid var(--line-2);background:var(--bg-2);color:var(--ink-2);cursor:pointer">Proyección de ventas</button>
-            <button class="ejec-subbtn" data-sub="tasa" onclick="setEjecPrimaSub('tasa')" style="padding:6px 14px;font-size:11.5px;font-weight:700;border-radius:5px;border:1px solid var(--line-2);background:var(--bg-2);color:var(--ink-2);cursor:pointer">Tasa</button>
-          </div>
-            <div style="margin-bottom:14px"><div id="ejecVariacionesLabel" style="font-size:12px;color:var(--ink-2);margin-bottom:8px;font-weight:600">Variaciones que afectan la prima mínima (2025 vs 2026):</div><div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(160px,1fr));gap:10px" id="ejecVariacionesGrid"></div><div id="ejecVariacionesValores" style="margin-top:8px"></div></div>
-          <div id="ejecPrimaCols" style="display:grid;grid-template-columns:1fr 1fr;gap:16px">${colPrima(false,'prima')}${colPrima(true,'prima')}</div>`;
-        drawEjecVariaciones(polFiltradas, fEjec, d.useUSD, {sub:'prima'});
-      } else {
-        /* ajuste / bono / malus → mismas columnas que el drill 'abm' */
-        body.innerHTML = `<div id="ejecAbmCols" style="display:grid;grid-template-columns:1fr 1fr;gap:16px">${colAbm(false,sub)}${colAbm(true,sub)}</div>`;
-      }
+      const b=document.getElementById('ejecMenorBody'); if(b) b.innerHTML=emisCols(sub);
     };
-    drawEjecVariaciones(polFiltradas, fEjec, d.useUSD, {sub:'prima'});
+    /* Variables: proyección/tasa (gráfico + detalle) o siniestralidad. */
+    window._rebuildEjecVarBody = function(sub){
+      const b=document.getElementById('ejecVarBody'); if(!b) return;
+      b.innerHTML=varBody(sub);
+      if(sub==='proy'||sub==='tasa') drawEjecVariaciones(polFiltradas, fEjec, d.useUSD, {sub});
+    };
+    if((state._ejecMenorTop||'emisiones')==='variables') drawEjecVariaciones(polFiltradas, fEjec, d.useUSD, {sub:'proy'});
+  } else if(id==='prima'){
+    state._ejecPrimaSub='prima';
+    const fEjec = d.f||state.sectionFilters.ejecutivo;
+    window._rebuildEjecPrimaCols = function(sub){
+      const cont = document.getElementById('ejecMenorBody');
+      if(cont) cont.innerHTML = colPrima(false, sub) + colPrima(true, sub);
+    };
   }
   if(id==='abm'){
     window._rebuildEjecAbmCols = function(sub){
@@ -5283,6 +5312,28 @@ window.setEjecMenorSub = function(sub){
     b.style.borderColor = act?'var(--accent)':'var(--line-2)';
   });
   if(window._rebuildEjecMenorBody) window._rebuildEjecMenorBody(sub);
+};
+
+/* Modo de arriba del drill "menor": Emisiones (prima/ajuste/bono/malus) o Variables (proy/tasa/sin). */
+window.setEjecMenorTop = function(top){
+  state._ejecMenorTop = top;
+  document.querySelectorAll('#ejecMenorTopsel .ejec-topbtn').forEach(b=>{
+    const act = b.dataset.top===top;
+    b.style.background = act?'var(--accent)':'var(--bg-2)';
+    b.style.color = act?'#fff':'var(--ink-2)';
+    b.style.borderColor = act?'var(--accent)':'var(--line-2)';
+  });
+  if(window._rebuildEjecMenorTop) window._rebuildEjecMenorTop(top);
+};
+/* Sub-botón dentro de Variables (Proyección de ventas / Tasa / Siniestralidad). */
+window.setEjecVarSub = function(sub){
+  document.querySelectorAll('#ejecVarSubsel .ejec-varbtn').forEach(b=>{
+    const act = b.dataset.sub===sub;
+    b.style.background = act?'var(--accent)':'var(--bg-2)';
+    b.style.color = act?'#fff':'var(--ink-2)';
+    b.style.borderColor = act?'var(--accent)':'var(--line-2)';
+  });
+  if(window._rebuildEjecVarBody) window._rebuildEjecVarBody(sub);
 };
 
 /* Cambiar el sub-desglose de prima (prima/proy/tasa) */
