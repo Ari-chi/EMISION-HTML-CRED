@@ -3866,17 +3866,26 @@ window.toggleEjecEmi = function(id){
     };
     /* Encabezado de categoría (recuadro de color) para agrupar las cards. */
     const catHead = (label, bg, txt, border)=>`<div style="font-size:12px;font-weight:800;text-transform:uppercase;letter-spacing:.05em;padding:7px 10px;border-radius:7px;text-align:center;background:${bg};color:${txt};border:1.5px solid ${border};white-space:nowrap">${label}</div>`;
+    /* Referencia de moneda a la izquierda (en vez de repetir la etiqueta en cada card). */
+    const refCell = (sym)=>{
+      const c = sym==='US' ? '#8b5cf6' : '#e89b1e';
+      return `<div style="display:flex;flex-direction:column;align-items:flex-end;justify-content:center;padding:4px 8px;text-align:right;line-height:1.15">
+        <span style="font-size:10px;color:var(--ink-3);font-weight:700;text-transform:uppercase;letter-spacing:.03em">Pólizas<br>Moneda Orig</span>
+        <span style="font-size:22px;font-weight:900;color:${c};margin-top:2px">${sym}</span>
+      </div>`;
+    };
+    const nLbl = (info)=>`<div style="font-size:10.5px;color:var(--ink-3);text-transform:uppercase;letter-spacing:.03em;font-weight:700">${info?info.n:0} pól.</div>`;
     const cellMonto = (titulo, sym, info, isUS)=>{
       if(!info || info.n===0){
         return `<div style="background:#fff;border:1px solid var(--line);border-radius:6px;padding:10px 13px;opacity:.6">
-          <div style="font-size:11.5px;color:var(--ink-3);text-transform:uppercase;letter-spacing:.04em;font-weight:700">${titulo}${monSymHTML(sym, 0)}</div>
+          ${nLbl(null)}
           <div style="font-family:var(--font-mono);font-size:13px;color:var(--ink-3);margin-top:4px;line-height:1.4">${fmtCompact(0,isUS)} <span style="color:var(--ink-3)">→</span> <strong style="color:var(--ink-2);font-size:15px">${fmtCompact(0,isUS)}</strong></div>
           <div style="font-family:var(--font-mono);font-size:15px;font-weight:800;color:var(--ink-3);margin-top:4px">0</div>
         </div>`;
       }
       const c = info.d>=0?'var(--pos)':'var(--neg)';
       return `<div style="background:#fff;border:1px solid var(--line);border-radius:6px;padding:10px 13px">
-        <div style="font-size:11.5px;color:var(--ink-3);text-transform:uppercase;letter-spacing:.04em;font-weight:700">${titulo}${monSymHTML(sym, info.n)}</div>
+        ${nLbl(info)}
         <div style="font-family:var(--font-mono);font-size:13px;color:var(--ink-2);margin-top:4px;line-height:1.4">${fmtCompact(info.s25,isUS)} <span style="color:var(--ink-3)">→</span> <strong style="color:var(--accent-3);font-size:15px">${fmtCompact(info.s26,isUS)}</strong></div>
         <div style="font-family:var(--font-mono);font-size:15px;font-weight:800;color:${c};margin-top:4px">${info.d>=0?'+':''}${fmtCompact(info.d,isUS)}${info.pct!=null?' ('+(info.d>=0?'+':'')+FMT_PCT(info.pct)+')':''}</div>
       </div>`;
@@ -3884,60 +3893,50 @@ window.toggleEjecEmi = function(id){
     const cellPct = (sym, info, fmt, neg)=>{
       if(!info || info.n===0){
         return `<div style="background:#fff;border:1px solid var(--line);border-radius:6px;padding:10px 13px;opacity:.6">
-          <div style="font-size:11px;color:var(--ink-3);text-transform:uppercase;letter-spacing:.03em;font-weight:700">${monSymHTML(sym, 0)}</div>
+          ${nLbl(null)}
           <div style="font-family:var(--font-mono);font-size:13px;color:var(--ink-3);margin-top:4px;line-height:1.4">${fmt(0)} <span style="color:var(--ink-3)">→</span> <strong style="color:var(--ink-2);font-size:15px">${fmt(0)}</strong></div>
           <div style="font-family:var(--font-mono);font-size:15px;font-weight:800;color:var(--ink-3);margin-top:4px">0</div>
         </div>`;
       }
       const c = info.d===0?'var(--accent)':(info.d>0?(neg?'var(--neg)':'var(--pos)'):(neg?'var(--pos)':'var(--neg)'));
       return `<div style="background:#fff;border:1px solid var(--line);border-radius:6px;padding:10px 13px">
-        <div style="font-size:11px;color:var(--ink-3);text-transform:uppercase;letter-spacing:.03em;font-weight:700">${monSymHTML(sym, info.n)}</div>
+        ${nLbl(info)}
         <div style="font-family:var(--font-mono);font-size:13px;color:var(--ink-2);margin-top:4px;line-height:1.4">${fmt(info.v25)} <span style="color:var(--ink-3)">→</span> <strong style="color:var(--accent-3);font-size:15px">${fmt(info.v26)}</strong></div>
         <div style="font-family:var(--font-mono);font-size:15px;font-weight:800;color:${c};margin-top:4px">${info.d>=0?'+':''}${fmt(info.d)}</div>
       </div>`;
     };
-    const rubrosCell = `<div style="background:#fff;border:1px solid var(--line);border-radius:6px;padding:10px 13px${rubArr.length>0?'':';opacity:.6'}">
+    const rubrosCell = `<div style="background:#fff;border:1px solid var(--line);border-radius:6px;padding:10px 13px;height:100%${rubArr.length>0?'':';opacity:.6'}">
       <div style="font-size:11.5px;color:var(--ink-3);text-transform:uppercase;letter-spacing:.04em;font-weight:700">Rubros (${rubArr.length})</div>
       <div style="font-size:12.5px;color:var(--accent-3);margin-top:4px;line-height:1.55">${rubArr.length>0 ? rubArr.map(([k,n])=>`<div><strong>${k}:</strong> <span style="color:var(--ink-2)">${n} pól.</span></div>`).join('') : '<span style="color:var(--ink-3);font-style:italic">— sin rubros —</span>'}</div>
     </div>`;
-    /* Cards por categoría (sin el nombre largo: la categoría la da el encabezado de color) */
     const proyARSCell = cellMonto('', '$',  proyARS, false);
     const proyUSDCell = cellMonto('', 'US', proyUSD, true);
     const monARSCell  = cellMonto('', '$',  monARS, false);
     const monUSDCell  = cellMonto('', 'US', monUSD, true);
-    /* Columnas por categoría (cada una con encabezado de color y cards $/US):
-       Emisión · Proyección · Tasa · Siniestralidad UV · Siniestralidad Hist. · Rubros. */
-    return `<div style="margin-bottom:14px">
-      <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(180px,1fr));gap:12px;align-items:start">
-        <div style="display:flex;flex-direction:column;gap:8px">
-          ${catHead('Emisión','#2d9b6a','#fff','#2d9b6a')}
-          ${monARSCell}
-          ${monUSDCell}
-        </div>
-        <div style="display:flex;flex-direction:column;gap:8px">
-          ${catHead('Proyección','rgba(30,111,217,.10)','#1e6fd9','#1e6fd9')}
-          ${proyARSCell}
-          ${proyUSDCell}
-        </div>
-        <div style="display:flex;flex-direction:column;gap:8px">
-          ${catHead('Tasa promedio','rgba(139,92,246,.12)','#7c4ddb','#8b5cf6')}
-          ${cellPct('$', tasaARS, fmtTasaPct, false)}
-          ${cellPct('US', tasaUSD, fmtTasaPct, false)}
-        </div>
-        <div style="display:flex;flex-direction:column;gap:8px">
-          ${catHead('Siniestralidad UV','rgba(232,155,30,.14)','#b9760f','#e89b1e')}
-          ${cellPct('$', sinUVARS, fmtSinPct, true)}
-          ${cellPct('US', sinUVUSD, fmtSinPct, true)}
-        </div>
-        <div style="display:flex;flex-direction:column;gap:8px">
-          ${catHead('Siniestralidad Hist.','rgba(212,117,31,.16)','#a85f12','#d4751f')}
-          ${cellPct('$', sinHARS, fmtSinPct, true)}
-          ${cellPct('US', sinHUSD, fmtSinPct, true)}
-        </div>
-        <div style="display:flex;flex-direction:column;gap:8px">
-          ${catHead('Rubros','rgba(94,179,232,.16)','#2a6aa0','#5eb3e8')}
-          ${rubrosCell}
-        </div>
+    /* Grilla unificada: 1ª columna = referencia de moneda ($ arriba / US abajo);
+       luego Emisión · Proyección · Tasa · Sin. UV · Sin. Hist. · Rubros. */
+    return `<div style="margin-bottom:14px;overflow-x:auto">
+      <div style="display:grid;grid-template-columns:auto repeat(6,minmax(135px,1fr));gap:8px;align-items:stretch;min-width:740px">
+        <div></div>
+        ${catHead('Emisión','#2d9b6a','#fff','#2d9b6a')}
+        ${catHead('Proyección','rgba(30,111,217,.10)','#1e6fd9','#1e6fd9')}
+        ${catHead('Tasa promedio','rgba(139,92,246,.12)','#7c4ddb','#8b5cf6')}
+        ${catHead('Siniestralidad UV','rgba(232,155,30,.14)','#b9760f','#e89b1e')}
+        ${catHead('Siniestralidad Hist.','rgba(212,117,31,.16)','#a85f12','#d4751f')}
+        ${catHead('Rubros','rgba(94,179,232,.16)','#2a6aa0','#5eb3e8')}
+        ${refCell('$')}
+        ${monARSCell}
+        ${proyARSCell}
+        ${cellPct('$', tasaARS, fmtTasaPct, false)}
+        ${cellPct('$', sinUVARS, fmtSinPct, true)}
+        ${cellPct('$', sinHARS, fmtSinPct, true)}
+        <div style="grid-row:span 2">${rubrosCell}</div>
+        ${refCell('US')}
+        ${monUSDCell}
+        ${proyUSDCell}
+        ${cellPct('US', tasaUSD, fmtTasaPct, false)}
+        ${cellPct('US', sinUVUSD, fmtSinPct, true)}
+        ${cellPct('US', sinHUSD, fmtSinPct, true)}
       </div>
     </div>`;
   };
@@ -3984,30 +3983,9 @@ window.toggleEjecEmi = function(id){
     if(arr.length===0){
       return `<div>${cabecera}<div style="font-size:13px;color:var(--ink-3);font-style:italic">— sin pólizas en esta moneda —</div></div>`;
     }
-    if(esSimple){
-      /* Pólizas nuevas / Anualidad Anterior: una sola lista ordenada. */
-      const sorted = [...arr].sort(ordDesc);
-      return `<div>${cabecera}${bloque(sorted, 'Pólizas', headColor, headBg)}</div>`;
-    }
-    /* Dos buckets — la variación se calcula en moneda ORIGINAL para coherencia
-       con el umbral (+30% en pesos, +10% en dólares). "Crecieron" cumple el
-       umbral; "Resto" = el resto (mantienen + cayeron, sin distinguir). */
-    const v25orig = (p)=> (p.moneda==='US') ? (p.usd25||0) : (p.ars25||0);
-    const v26orig = (p)=> (p.moneda==='US') ? (p.usd26||0) : (p.ars26||0);
-    const variacion = (p)=>{
-      const a = v25orig(p), b = v26orig(p);
-      if(a===0 && b>0) return Infinity;   /* nuevo emitido sin base 2025 → crece */
-      if(a===0)        return 0;          /* nada vs nada */
-      return (b-a)/Math.abs(a);
-    };
-    const crecieron = arr.filter(p=> variacion(p) > umbral).sort(ordDesc);
-    const resto = arr.filter(p=> variacion(p) <= umbral).sort(ordDesc);
-    return `<div>
-      ${cabecera}
-      ${bloque(crecieron, `Crecieron +${umbralPct}% o más`, 'var(--pos)', 'rgba(45,155,106,.10)')}
-      ${crecieron.length>0 && resto.length>0 ? '<div style="height:14px"></div>' : ''}
-      ${bloque(resto, 'Resto', 'var(--accent-3)', 'rgba(30,111,217,.06)')}
-    </div>`;
+    /* Lista única de pólizas ordenadas por emisión (se quitó el split por umbral +30/10%). */
+    const sorted = [...arr].sort(ordDesc);
+    return `<div>${cabecera}${bloque(sorted, 'Pólizas', headColor, headBg)}</div>`;
   };
 
   /* Layout: resumen arriba + dos columnas (moneda original $ izq, US der). */
