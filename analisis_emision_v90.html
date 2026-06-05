@@ -5164,13 +5164,20 @@ window.toggleEjecCausa = function(id){
     ];
     const max = Math.max(1, ...vals.map(v=>v.val));
     const FMTcL = (v)=>fmtCompact(v, u);
+    /* Líneas de escala verticales (cada 25% del máximo) para poder comparar magnitudes. */
+    const gridBg = 'background-image:repeating-linear-gradient(90deg,rgba(10,31,58,.10) 0,rgba(10,31,58,.10) 1px,transparent 1px,transparent 25%)';
     return `<div style="background:var(--bg-2);border-radius:8px;padding:12px 14px;margin-bottom:14px">
-      <div style="font-size:11.5px;color:var(--accent-3);text-transform:uppercase;letter-spacing:.05em;font-weight:800;margin-bottom:10px">Magnitud por concepto (${u?'USD':'ARS$'})</div>
+      <div style="font-size:11.5px;color:var(--accent-3);text-transform:uppercase;letter-spacing:.05em;font-weight:800;margin-bottom:10px">Magnitud por concepto (${u?'USD':'ARS$'}) <span style="color:var(--ink-3);font-weight:500;text-transform:none;letter-spacing:0">· escala 0 → ${FMTcL(max)}</span></div>
       ${vals.map(v=>`<div style="display:grid;grid-template-columns:90px 1fr auto;gap:10px;align-items:center;margin-bottom:6px">
         <span style="font-size:12.5px;color:var(--ink-2);font-weight:700">${v.lbl}</span>
-        <div style="height:14px;background:rgba(0,0,0,.04);border-radius:3px;position:relative"><div style="position:absolute;left:0;top:0;bottom:0;width:${Math.round(v.val/max*100)}%;background:${v.col};border-radius:3px"></div></div>
+        <div style="height:16px;background:rgba(0,0,0,.04);border-radius:3px;position:relative;${gridBg}"><div style="position:absolute;left:0;top:0;bottom:0;width:${v.val/max*100}%;background:${v.col};border-radius:3px"></div></div>
         <span style="font-family:var(--font-mono);font-weight:700;font-size:13px;color:${v.col};min-width:80px;text-align:right">−${FMTcL(v.val)} <span style="color:var(--ink-3);font-weight:500;font-size:11px">(${v.n} pól.)</span></span>
       </div>`).join('')}
+      <div style="display:grid;grid-template-columns:90px 1fr 80px;gap:10px;margin-top:2px">
+        <span></span>
+        <div style="display:flex;justify-content:space-between;font-family:var(--font-mono);font-size:9px;color:var(--ink-3)"><span>0</span><span>${FMTcL(max*0.25)}</span><span>${FMTcL(max*0.5)}</span><span>${FMTcL(max*0.75)}</span><span>${FMTcL(max)}</span></div>
+        <span></span>
+      </div>
     </div>`;
   };
   if(id==='prima' || id==='menor'){
