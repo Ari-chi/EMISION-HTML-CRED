@@ -5332,12 +5332,37 @@ window.toggleEjecCausa = function(id){
       ? `${colPrima(false,'prima')}${colPrima(true,'prima')}`
       : `${colAbm(false,sub)}${colAbm(true,sub)}`;
     emisionesUI = ()=>`
-      <div style="display:flex;gap:8px;margin-bottom:14px;flex-wrap:wrap" id="ejecMenorSubsel">${mBtn('prima','Prima mínima',true)}${mBtn('ajuste','Ajuste',false)}${mBtn('bono','Bono',false)}${mBtn('malus','Malus',false)}</div>
+      <div style="display:flex;gap:8px;margin-bottom:14px;flex-wrap:wrap" id="ejecMenorSubsel">${mBtn('prima','Prima mínima',true)}${mBtn('ajuste','Ajuste',false)}${mBtn('malus','Malus',false)}</div>
       <div id="ejecMenorBody" style="display:grid;grid-template-columns:1fr 1fr;gap:16px">${emisCols('prima')}</div>`;
+    /* Resumen (formato foto 4, SIN gráficos) de una variable por moneda original. */
+    varResumen = (sub)=>{
+      const arrA = polFiltradas.filter(p=>p.moneda==='$'), arrU = polFiltradas.filter(p=>p.moneda==='US');
+      const card = (v25,v26,isPct,isUS,n)=>{
+        const d=v26-v25, c=d===0?'var(--accent)':(d>0?'var(--pos)':'var(--neg)');
+        const fmt = isPct ? (x)=>FMT_PCT_TASA(x) : (x)=>fmtCompact(x,isUS);
+        return `<div style="background:#fff;border:1px solid var(--line);border-radius:6px;padding:10px 13px">
+          <div style="font-size:11px;color:var(--ink-3);text-transform:uppercase;letter-spacing:.03em;font-weight:700">Pólizas Moneda Orig <span style="color:${isUS?'#8b5cf6':'#e89b1e'};font-weight:900">${isUS?'US':'$'}</span> <span style="color:var(--ink-3);font-weight:600">(${n} pól.)</span></div>
+          <div style="font-family:var(--font-mono);font-size:13px;color:var(--ink-2);margin-top:4px">${fmt(v25)} <span style="color:var(--ink-3)">→</span> <strong style="color:var(--accent-3);font-size:15px">${fmt(v26)}</strong></div>
+          <div style="font-family:var(--font-mono);font-size:15px;font-weight:800;color:${c};margin-top:4px">${d>=0?'+':''}${fmt(d)}</div>
+        </div>`;
+      };
+      let aA, aU, isPct=false;
+      if(sub==='proy'){
+        const s=(arr,cur)=>arr.reduce((o,p)=>{o.v25+=p['proy'+cur+'2025']||0;o.v26+=p['proy'+cur+'2026']||0;return o;},{v25:0,v26:0});
+        aA=s(arrA,'ARS'); aU=s(arrU,'USD'); aA.n=arrA.length; aU.n=arrU.length;
+      } else {
+        isPct=true;
+        const avg=(arr)=>{let s25=0,s26=0,n=0;for(const p of arr){if(p.tasa2025!=null&&p.tasa2026!=null){s25+=p.tasa2025;s26+=p.tasa2026;n++;}}return {v25:n?s25/n:0,v26:n?s26/n:0,n};};
+        aA=avg(arrA); aU=avg(arrU);
+      }
+      const titulo = sub==='proy' ? 'Proyección de ventas' : 'Tasa promedio';
+      return `<div style="font-size:13px;font-weight:800;color:var(--accent-3);margin-bottom:8px">${titulo} · variación 2025 → 2026</div>
+        <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-bottom:14px">${card(aA.v25,aA.v26,isPct,false,aA.n)}${card(aU.v25,aU.v26,isPct,true,aU.n)}</div>`;
+    };
     varBody = (sub)=>{
       if(sub==='sin') return colSinUI();
-      return `<div style="margin-bottom:14px"><div id="ejecVariacionesLabel" style="font-size:12px;color:var(--ink-2);margin-bottom:8px;font-weight:600">Variación ${sub==='tasa'?'de tasa':'de proyección de ventas'} (2025 vs 2026):</div><div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(160px,1fr));gap:10px" id="ejecVariacionesGrid"></div><div id="ejecVariacionesValores" style="margin-top:8px"></div></div>
-        <div id="ejecPrimaCols" style="display:grid;grid-template-columns:1fr 1fr;gap:16px">${colPrima(false,sub)}${colPrima(true,sub)}</div>`;
+      /* Resumen foto 4 (sin gráfico) + detalle por póliza. */
+      return varResumen(sub) + `<div id="ejecPrimaCols" style="display:grid;grid-template-columns:1fr 1fr;gap:16px">${colPrima(false,sub)}${colPrima(true,sub)}</div>`;
     };
     variablesUI = ()=>`
       <div style="display:flex;gap:8px;margin-bottom:14px;flex-wrap:wrap" id="ejecVarSubsel">${vBtn('proy','Proyección de ventas',true)}${vBtn('tasa','Tasa',false)}${vBtn('sin','Siniestralidad',false)}</div>
@@ -5375,20 +5400,16 @@ window.toggleEjecCausa = function(id){
     /* Cambiar entre los dos modos de arriba (Emisiones / Variables). */
     window._rebuildEjecMenorTop = function(top){
       const b=document.getElementById('ejecMenorTopBody'); if(!b) return;
-      if(top==='variables'){ b.innerHTML=variablesUI(); drawEjecVariaciones(polFiltradas, fEjec, d.useUSD, {sub:'proy'}); }
-      else b.innerHTML=emisionesUI();
+      b.innerHTML = (top==='variables') ? variablesUI() : emisionesUI();
     };
-    /* Emisiones: columnas por concepto (prima/ajuste/bono/malus). */
+    /* Emisiones: columnas por concepto (prima/ajuste/malus). */
     window._rebuildEjecMenorBody = function(sub){
       const b=document.getElementById('ejecMenorBody'); if(b) b.innerHTML=emisCols(sub);
     };
-    /* Variables: proyección/tasa (gráfico + detalle) o siniestralidad. */
+    /* Variables: resumen foto 4 (sin gráficos) + detalle, o siniestralidad. */
     window._rebuildEjecVarBody = function(sub){
-      const b=document.getElementById('ejecVarBody'); if(!b) return;
-      b.innerHTML=varBody(sub);
-      if(sub==='proy'||sub==='tasa') drawEjecVariaciones(polFiltradas, fEjec, d.useUSD, {sub});
+      const b=document.getElementById('ejecVarBody'); if(b) b.innerHTML=varBody(sub);
     };
-    if((state._ejecMenorTop||'emisiones')==='variables') drawEjecVariaciones(polFiltradas, fEjec, d.useUSD, {sub:'proy'});
   } else if(id==='prima'){
     state._ejecPrimaSub='prima';
     const fEjec = d.f||state.sectionFilters.ejecutivo;
