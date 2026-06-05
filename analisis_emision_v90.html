@@ -3419,6 +3419,11 @@ function ejecJustificacion(S, useUSD, dual, useUSDprimary){
     const cLbl = {'Prima mínima':'Prima','Ajuste':'Ajuste','Malus':'Malus'};
     const pend = polPend.map(p=>{ const inf=pendPolizaInfo(p, dd.mesCorte); return {p, val: useUSD?inf.usd:inf.ars, concepts:inf.concepts, any:Math.max(inf.ars,inf.usd)}; })
       .filter(x=>x.any>0.5).sort((a,b)=>b.val-a.val);
+    /* Desglose por concepto (una póliza puede tener varios → la suma de estos puede ser
+       mayor que el total de pólizas únicas). */
+    const nPrima = pend.filter(x=>x.concepts.includes('Prima mínima')).length;
+    const nAjuste = pend.filter(x=>x.concepts.includes('Ajuste')).length;
+    const nMalus = pend.filter(x=>x.concepts.includes('Malus')).length;
     const pctTomado = dvAbs>0 ? Math.round(estimEff/dvAbs*100) : 0;
     const rows = pend.map(({p,val,concepts})=>{
       const e = estStore[p.clave]; const has = isFinite(e)&&e>0;
@@ -3436,7 +3441,7 @@ function ejecJustificacion(S, useUSD, dual, useUSDprimary){
     }).join('');
     estimPanel = `<div style="margin-top:14px;border:1.5px solid #c5cdd9;border-radius:8px;overflow:hidden">
       <div style="padding:12px 16px;background:rgba(197,205,217,.30);color:#5a6b85;display:flex;justify-content:space-between;align-items:center;gap:14px;flex-wrap:wrap">
-        <span style="font-size:12.5px;font-weight:800">✎ Sin justificar — estimá la emisión de cada pendiente (o tocá OK para tomar la del Excel) · ${pend.length} pól.</span>
+        <span style="font-size:12.5px;font-weight:800">✎ Sin justificar — estimá la emisión de cada pendiente (o tocá OK para tomar la del Excel)<br><span style="font-weight:600;color:#7a879c">${pend.length} pólizas únicas · Prima ${nPrima} · Ajuste ${nAjuste} · Malus ${nMalus} (una póliza puede tener varios conceptos)</span></span>
         <span style="text-align:right;white-space:nowrap">
           <span style="font-size:10.5px;text-transform:uppercase;letter-spacing:.05em;font-weight:700;color:#7a879c">Desvío que se está tomando</span><br>
           <span style="font-family:var(--font-mono);font-size:26px;font-weight:800;color:var(--pos)">${fmtCompact(estimEff,useUSD)}</span>
