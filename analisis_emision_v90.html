@@ -3581,7 +3581,7 @@ function ejecEmitido(S, useUSD, dual){
     {key:'anualant', lbl:'Corresponde a la Anualidad Anterior',col:'#8b8fa3', esBono:false},
   ];
   const colMap = Object.fromEntries(cats.map(c=>[c.key, c]));
-  const show25 = !!state._ejecEmiShow25;
+  const show25 = state._ejecEmiShow25 !== false; /* predeterminado: activado */
   /* Construir items con datos y filtrar los vacíos. El total 2025 del concepto se
      reconstruye sumando ars25/usd25 de los registros de cada categoría (acumulado al
      mismo corte), para comparar 2025 vs 2026 cuando 'Mostrar 2025' está activo. */
@@ -3633,37 +3633,53 @@ function ejecEmitido(S, useUSD, dual){
      Es clickeable y abre el desglose abajo del gráfico (en el área común). */
   const leyenda = items.map(it=>{
     const id = `ejecEmi_${it.key}_${sufijo}`;
-    const pct = Math.round(it.absVal/totalAbs*100);
     const totColor = it.esBono ? 'var(--neg)' : 'var(--accent-3)';
-    return `<div onclick="toggleEjecEmiArea('${id}','${drillId}')" style="display:grid;grid-template-columns:14px 14px 1fr auto auto;column-gap:10px;align-items:center;padding:8px 8px;border-radius:5px;cursor:pointer;font-size:14.5px;line-height:1.3;border:1px solid transparent" onmouseover="this.style.background='var(--bg-2)';this.style.borderColor='var(--line)'" onmouseout="this.style.background='';this.style.borderColor='transparent'">
+    return `<div onclick="toggleEjecEmiArea('${id}','${drillId}')" style="display:grid;grid-template-columns:14px 14px 1fr auto;column-gap:10px;align-items:center;padding:8px 8px;border-radius:5px;cursor:pointer;font-size:14.5px;line-height:1.3;border:1px solid transparent" onmouseover="this.style.background='var(--bg-2)';this.style.borderColor='var(--line)'" onmouseout="this.style.background='';this.style.borderColor='transparent'">
       <span id="${id}_car" style="font-size:11px;color:var(--accent)">▸</span>
       <span style="width:13px;height:13px;border-radius:50%;background:${it.col};border:1px solid rgba(0,0,0,.08)"></span>
       <span style="color:var(--accent-3);font-weight:700">${it.lbl} <span style="color:var(--ink-3);font-weight:500;font-size:12.5px">· ${it.n} pól.</span></span>
-      <span style="font-family:var(--font-mono);font-weight:800;color:var(--accent-3);min-width:38px;text-align:right">${pct}%</span>
       ${show25
         ? (()=>{ const d=it.totSigned-it.tot25Signed, dc=d>=0?'var(--pos)':'var(--neg)';
-            return `<span style="font-family:var(--font-mono);font-weight:700;text-align:right;white-space:nowrap;font-size:12.5px"><span style="color:var(--ink-3)">${FMTc(it.tot25Signed)}</span> <span style="color:var(--ink-3)">→</span> <strong style="color:${totColor}">${FMTc(it.totSigned)}</strong> <span style="color:${dc};font-weight:800">${d>=0?'+':''}${FMTc(d)}</span></span>`; })()
+            return `<span style="display:inline-flex;align-items:center;gap:6px;font-family:var(--font-mono);white-space:nowrap">
+              <span style="background:var(--bg-2);border:1px solid var(--line);padding:2px 8px;border-radius:5px;color:var(--ink-2);font-weight:700;font-size:12.5px">${FMTc(it.tot25Signed)}</span>
+              <span style="color:var(--ink-3)">→</span>
+              <span style="background:rgba(45,155,106,.10);border:1px solid rgba(45,155,106,.25);padding:2px 8px;border-radius:5px;color:${totColor};font-weight:800;font-size:13px">${FMTc(it.totSigned)}</span>
+              <span style="color:${dc};font-weight:800;font-size:13px;min-width:62px;text-align:right">${d>=0?'+':''}${FMTc(d)}</span>
+            </span>`; })()
         : `<span style="font-family:var(--font-mono);font-weight:800;color:${totColor};min-width:82px;text-align:right">${it.esBono?'−':''}${FMTc(Math.abs(it.totSigned))}</span>`}
     </div>`;
   }).join('');
 
   /* Guardar datos del pie para renderlo después */
+  const pieId25 = `ejecEmiPie25_${sufijo}`;
   state._ejecEmiPies = state._ejecEmiPies || {};
-  state._ejecEmiPies[pieId] = {items, useUSD};
+  state._ejecEmiPies[pieId] = {items, useUSD, use25:false};
+  if(show25) state._ejecEmiPies[pieId25] = {items, useUSD, use25:true};
+  const tot25 = items.reduce((a,it)=>a+it.tot25Signed,0);
+
+  /* Bloque de gráficos: si "Mostrar 2025" está activo, dos donuts (2025 → 2026) con
+     una flecha chica en el medio; si no, el donut 2026 solo. */
+  const chartsBlock = show25
+    ? `<div style="display:flex;align-items:center;justify-content:center;gap:8px;flex-shrink:0">
+        <div style="text-align:center"><div style="font-size:11.5px;font-weight:800;color:var(--ink-3);margin-bottom:2px">2025</div><div style="width:180px"><canvas id="${pieId25}" style="max-height:190px"></canvas></div></div>
+        <span style="font-size:24px;color:var(--ink-3);font-weight:800;align-self:center">→</span>
+        <div style="text-align:center"><div style="font-size:11.5px;font-weight:800;color:var(--pos);margin-bottom:2px">2026</div><div style="width:180px"><canvas id="${pieId}" style="max-height:190px"></canvas></div></div>
+      </div>`
+    : `<div style="width:100%;max-width:340px;justify-self:center"><canvas id="${pieId}" style="max-height:320px"></canvas></div>`;
 
   return `<div style="margin-top:${dual?14:8}px">
     ${dual?`<div style="font-size:11px;color:var(--ink-3);text-transform:uppercase;letter-spacing:.05em;font-weight:700;margin-bottom:8px">${mLbl}</div>`:''}
     <div style="background:rgba(45,155,106,.10);border-radius:10px;padding:14px 18px;margin-bottom:14px;border-left:4px solid var(--pos)">
-      <div style="font-size:12px;color:var(--pos);text-transform:uppercase;letter-spacing:.05em;font-weight:700">Emisión total 2026${show25?' vs 2025':''}</div>
+      <div style="font-size:12px;color:var(--pos);text-transform:uppercase;letter-spacing:.05em;font-weight:700">Emisión total ${show25?'2025 vs 2026':'2026'}</div>
       <div style="display:flex;align-items:baseline;gap:14px;flex-wrap:wrap">
-        ${show25?`<span style="font-size:20px;font-weight:700;color:var(--ink-3);font-family:var(--font-mono)">${FMTc(items.reduce((a,it)=>a+it.tot25Signed,0))}</span><span style="color:var(--ink-3);font-size:18px">→</span>`:''}
+        ${show25?`<span style="font-size:30px;font-weight:700;color:var(--ink-3);font-family:var(--font-mono);line-height:1.1">${FMTc(tot25)}</span><span style="color:var(--ink-3);font-size:22px">→</span>`:''}
         <span style="font-size:30px;font-weight:700;color:var(--pos);font-family:var(--font-mono);line-height:1.1">${FMTc(sumItems)}</span>
       </div>
-      <label style="font-size:11.5px;color:var(--ink-2);cursor:pointer;display:inline-flex;align-items:center;gap:5px;margin-top:8px"><input type="checkbox" ${show25?'checked':''} onclick="toggleEjecEmiShow25()" style="cursor:pointer"> Mostrar 2025 (comparar emisión por concepto, mismo corte)</label>
+      <label style="font-size:11.5px;color:var(--ink-2);cursor:pointer;display:inline-flex;align-items:center;gap:5px;margin-top:8px"><input type="checkbox" ${show25?'checked':''} onclick="toggleEjecEmiShow25()" style="cursor:pointer"> Mostrar 2025</label>
     </div>
     ${items.length>0 ? `
-    <div style="display:grid;grid-template-columns:minmax(280px,360px) 1fr;gap:28px;align-items:center;margin-bottom:14px">
-      <div style="width:100%;max-width:340px;justify-self:center"><canvas id="${pieId}" style="max-height:320px"></canvas></div>
+    <div style="display:grid;grid-template-columns:auto 1fr;gap:30px;align-items:center;margin-bottom:14px">
+      ${chartsBlock}
       <div>${leyenda}</div>
     </div>
     <div id="${drillId}" style="margin-top:14px"></div>` : '<div style="font-size:12px;color:var(--ink-3);font-style:italic">— sin emisión registrada —</div>'}
@@ -3780,13 +3796,13 @@ function renderEjecEmiPies(){
   for(const id of Object.keys(pies)){
     const canvas = document.getElementById(id);
     if(!canvas) continue;
-    const {items, useUSD} = pies[id];
+    const {items, useUSD, use25} = pies[id];
     drawChart(id, {
       type:'doughnut',
       data:{
         labels: items.map(it=>it.lbl),
         datasets:[{
-          data: items.map(it=>it.absVal),
+          data: items.map(it=> use25 ? Math.abs(it.tot25Signed||0) : it.absVal),
           backgroundColor: items.map(it=>it.col),
           borderColor:'#fff', borderWidth:2,
         }]
@@ -5626,16 +5642,18 @@ function drawEjecChartMensual(canvasId, polArr, presArr, mesCorte, useUSD, show2
                       color:colorOf(ds.label), font: isLine?'700 10px Calibri':'700 10.5px Calibri'});
         });
       });
-      /* Anti-solape: si dos etiquetas comparten ~x y quedan cerca en y, subo la de arriba. */
-      items.sort((a,b)=> a.x-b.x || a.ly-b.ly);
-      for(let i=0;i<items.length;i++){
-        for(let j=0;j<i;j++){
-          if(Math.abs(items[i].x-items[j].x) < 30 && Math.abs(items[i].ly-items[j].ly) < 13){
-            items[i].ly = items[j].ly - 13;
-          }
+      /* Anti-solape: agrupo las etiquetas horizontalmente cercanas (mismo "cluster")
+         y, dentro de cada grupo, las apilo HACIA ARRIBA desde la más baja para que no
+         se encimen entre sí ni sobre las barras/líneas, sin estirar el gráfico. */
+      const buckets = {};
+      items.forEach(it=>{ const b = Math.round(it.x/42); (buckets[b]=buckets[b]||[]).push(it); });
+      Object.values(buckets).forEach(arr=>{
+        arr.sort((a,b)=> b.ly - a.ly); /* la más baja (mayor y) primero */
+        for(let i=1;i<arr.length;i++){
+          if(arr[i].ly > arr[i-1].ly - 14) arr[i].ly = arr[i-1].ly - 14;
         }
-        if(items[i].ly < colTop) items[i].ly = colTop;
-      }
+      });
+      items.forEach(it=>{ if(it.ly < colTop) it.ly = colTop; });
       ctx.save();
       ctx.textAlign = 'center';
       items.forEach(it=>{ ctx.font=it.font; ctx.fillStyle=it.color; ctx.fillText(it.text, it.x, it.ly); });
