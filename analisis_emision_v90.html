@@ -3917,7 +3917,11 @@ const pctOnArcPlugin = {
 /* Toggle "Mostrar 2025" del visor de Emisión Total: compara emisión por concepto
    2025 vs 2026 (mismo corte). Solo afecta a este visor. */
 window.toggleEjecEmiShow25 = function(){
-  state._ejecEmiShow25 = !state._ejecEmiShow25;
+  /* El valor efectivo por defecto es TRUE (state._ejecEmiShow25 !== false). Hay que
+     invertir ese valor efectivo, no el crudo (si invirtiéramos undefined daría true y
+     el primer clic no haría nada → se necesitaban dos clics). */
+  const cur = state._ejecEmiShow25 !== false;
+  state._ejecEmiShow25 = !cur;
   if(typeof drawEjecutivo==='function') drawEjecutivo();
 };
 window.toggleEjecEmiArea = function(itemId, drillAreaId){
