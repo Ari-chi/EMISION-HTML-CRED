@@ -2232,9 +2232,14 @@ function bindGlobalToggles(){
      posición ANTES del re-render (fase de captura) y se restaura después. */
   const _preserveScroll = ()=>{
     const y = window.scrollY || window.pageYOffset || 0;
-    const restore = ()=>{ if(Math.abs((window.scrollY||0)-y) > 1) window.scrollTo(0, y); };
-    requestAnimationFrame(()=>{ restore(); requestAnimationFrame(restore); });
-    setTimeout(restore, 0);
+    const restore = ()=>{ if(Math.abs((window.scrollY||0)-y) > 2) window.scrollTo(0, y); };
+    /* Los gráficos (Chart.js) se renderizan de forma asíncrona y cambian la altura
+       DESPUÉS del re-render, lo que mueve la vista. Restauramos durante una ventana
+       (~500ms) sobre varios frames + timeouts para neutralizar esos reflows. */
+    let tries = 0;
+    const tick = ()=>{ restore(); if(++tries < 12) requestAnimationFrame(tick); };
+    requestAnimationFrame(tick);
+    [0,50,120,220,350,500].forEach(t=>setTimeout(restore, t));
   };
   document.addEventListener('click', (e)=>{
     if(e.target.closest('button,[data-vt] button,[data-curt] button,[onclick]')) _preserveScroll();
@@ -3576,13 +3581,18 @@ function ejecEmitido(S, useUSD, dual){
     {key:'anualant', lbl:'Corresponde a la Anualidad Anterior',col:'#8b8fa3', esBono:false},
   ];
   const colMap = Object.fromEntries(cats.map(c=>[c.key, c]));
-  /* Construir items con datos y filtrar los vacíos. */
+  const show25 = !!state._ejecEmiShow25;
+  /* Construir items con datos y filtrar los vacíos. El total 2025 del concepto se
+     reconstruye sumando ars25/usd25 de los registros de cada categoría (acumulado al
+     mismo corte), para comparar 2025 vs 2026 cuando 'Mostrar 2025' está activo. */
   const items = cats.map(c=>{
     const data = S.emitidoCats ? S.emitidoCats[c.key] : null;
     const tot = data ? data.total : 0;
     const n = data ? data.polizas.length : 0;
+    const tot25 = data ? data.polizas.reduce((a,r)=> a + (useUSD ? (r.usd25||0) : (r.ars25||0)), 0) : 0;
     const totSigned = c.esBono ? -Math.abs(tot) : tot;
-    return {...c, tot, n, totSigned, absVal:Math.abs(totSigned)};
+    const tot25Signed = c.esBono ? -Math.abs(tot25) : tot25;
+    return {...c, tot, n, totSigned, tot25Signed, absVal:Math.abs(totSigned)};
   }).filter(it=> it.n>0 || it.absVal>1);
   /* Orden de MAYOR a MENOR por valor absoluto (pedido del usuario). */
   items.sort((a,b)=> b.absVal - a.absVal);
@@ -3630,7 +3640,10 @@ function ejecEmitido(S, useUSD, dual){
       <span style="width:13px;height:13px;border-radius:50%;background:${it.col};border:1px solid rgba(0,0,0,.08)"></span>
       <span style="color:var(--accent-3);font-weight:700">${it.lbl} <span style="color:var(--ink-3);font-weight:500;font-size:12.5px">· ${it.n} pól.</span></span>
       <span style="font-family:var(--font-mono);font-weight:800;color:var(--accent-3);min-width:38px;text-align:right">${pct}%</span>
-      <span style="font-family:var(--font-mono);font-weight:800;color:${totColor};min-width:82px;text-align:right">${it.esBono?'−':''}${FMTc(Math.abs(it.totSigned))}</span>
+      ${show25
+        ? (()=>{ const d=it.totSigned-it.tot25Signed, dc=d>=0?'var(--pos)':'var(--neg)';
+            return `<span style="font-family:var(--font-mono);font-weight:700;text-align:right;white-space:nowrap;font-size:12.5px"><span style="color:var(--ink-3)">${FMTc(it.tot25Signed)}</span> <span style="color:var(--ink-3)">→</span> <strong style="color:${totColor}">${FMTc(it.totSigned)}</strong> <span style="color:${dc};font-weight:800">${d>=0?'+':''}${FMTc(d)}</span></span>`; })()
+        : `<span style="font-family:var(--font-mono);font-weight:800;color:${totColor};min-width:82px;text-align:right">${it.esBono?'−':''}${FMTc(Math.abs(it.totSigned))}</span>`}
     </div>`;
   }).join('');
 
@@ -3641,8 +3654,12 @@ function ejecEmitido(S, useUSD, dual){
   return `<div style="margin-top:${dual?14:8}px">
     ${dual?`<div style="font-size:11px;color:var(--ink-3);text-transform:uppercase;letter-spacing:.05em;font-weight:700;margin-bottom:8px">${mLbl}</div>`:''}
     <div style="background:rgba(45,155,106,.10);border-radius:10px;padding:14px 18px;margin-bottom:14px;border-left:4px solid var(--pos)">
-      <div style="font-size:12px;color:var(--pos);text-transform:uppercase;letter-spacing:.05em;font-weight:700">Emisión total 2026</div>
-      <div style="font-size:30px;font-weight:700;color:var(--pos);font-family:var(--font-mono);line-height:1.1">${FMTc(sumItems)}</div>
+      <div style="font-size:12px;color:var(--pos);text-transform:uppercase;letter-spacing:.05em;font-weight:700">Emisión total 2026${show25?' vs 2025':''}</div>
+      <div style="display:flex;align-items:baseline;gap:14px;flex-wrap:wrap">
+        ${show25?`<span style="font-size:20px;font-weight:700;color:var(--ink-3);font-family:var(--font-mono)">${FMTc(items.reduce((a,it)=>a+it.tot25Signed,0))}</span><span style="color:var(--ink-3);font-size:18px">→</span>`:''}
+        <span style="font-size:30px;font-weight:700;color:var(--pos);font-family:var(--font-mono);line-height:1.1">${FMTc(sumItems)}</span>
+      </div>
+      <label style="font-size:11.5px;color:var(--ink-2);cursor:pointer;display:inline-flex;align-items:center;gap:5px;margin-top:8px"><input type="checkbox" ${show25?'checked':''} onclick="toggleEjecEmiShow25()" style="cursor:pointer"> Mostrar 2025 (comparar emisión por concepto, mismo corte)</label>
     </div>
     ${items.length>0 ? `
     <div style="display:grid;grid-template-columns:minmax(280px,360px) 1fr;gap:28px;align-items:center;margin-bottom:14px">
@@ -3839,6 +3856,12 @@ const pctOnArcPlugin = {
 
 /* Abre/cierra el desglose en un área COMÚN debajo del chart+leyenda. itemId es
    ejecEmi_<key>_<sufijo>; drillAreaId es el id del contenedor que recibe el HTML. */
+/* Toggle "Mostrar 2025" del visor de Emisión Total: compara emisión por concepto
+   2025 vs 2026 (mismo corte). Solo afecta a este visor. */
+window.toggleEjecEmiShow25 = function(){
+  state._ejecEmiShow25 = !state._ejecEmiShow25;
+  if(typeof drawEjecutivo==='function') drawEjecutivo();
+};
 window.toggleEjecEmiArea = function(itemId, drillAreaId){
   const area = document.getElementById(drillAreaId);
   if(!area) return;
@@ -5566,45 +5589,45 @@ function drawEjecChartMensual(canvasId, polArr, presArr, mesCorte, useUSD, show2
   opts.scales.x.ticks.font = {family:'Calibri', size:13, weight:'700'};
   opts.scales.x.ticks.color = '#3d5475';
   opts.layout = {padding:{top:22}};
-  /* Plugin inline: valor encima de cada barra "Real 2026" y de cada punto
-     "Presupuesto 2026", en formato compacto (K/M/MM). */
+  /* Plugin inline: valores en formato compacto (K/M/MM) sobre barras Real y puntos
+     Presupuesto. Cuando 'Mostrar 2025' está activo también etiqueta el 2025. Resuelve
+     colisiones verticales de forma dinámica (apila hacia arriba) para que los números
+     no se aplasten entre sí ni sobre las barras/líneas. */
   const valueLabelPlugin = {
     id:'mensualValueLabel',
     afterDatasetsDraw(chart){
       const {ctx} = chart;
-      /* Tope (y) de cada barra "Real 2026" para esquivar el solapamiento con la
-         etiqueta del punto de presupuesto cuando el punto cae cerca/por debajo del tope. */
-      let barTops = [];
+      const colTop = (chart.chartArea ? chart.chartArea.top : 0) + 7;
+      const wantBar  = (lbl)=> lbl==='Real 2026' || (show2025 && lbl==='Real 2025');
+      const wantLine = (lbl)=> lbl==='Presupuesto 2026' || (show2025 && lbl==='Presupuesto 2025');
+      const colorOf = (lbl)=> lbl==='Real 2026' ? '#1565c0' : lbl==='Real 2025' ? '#7a8ca8'
+                            : lbl==='Presupuesto 2026' ? '#0a3d7a' : '#94a8c2';
+      const items = [];
       chart.data.datasets.forEach((ds, di)=>{
-        if(ds.label === 'Real 2026'){
-          const m = chart.getDatasetMeta(di);
-          if(!m.hidden) barTops = m.data.map(el=>el.y);
-        }
-      });
-      ctx.save();
-      ctx.textAlign = 'center';
-      chart.data.datasets.forEach((ds, di)=>{
-        if(ds.label !== 'Real 2026' && ds.label !== 'Presupuesto 2026') return;
         const meta = chart.getDatasetMeta(di);
         if(meta.hidden) return;
         const isLine = ds.type === 'line';
-        ctx.fillStyle = isLine ? '#0a3d7a' : '#1565c0';
-        ctx.font = isLine ? '700 10.5px Calibri' : '700 11px Calibri';
+        if(isLine ? !wantLine(ds.label) : !wantBar(ds.label)) return;
         meta.data.forEach((el, i)=>{
           const v = ds.data[i];
           if(v==null || v===0) return;
-          let y;
-          if(isLine){
-            const barTop = barTops[i];
-            /* Si el punto de presupuesto está cerca o por debajo del tope de la barra,
-               se rotula DEBAJO del punto para no encimar la etiqueta de la barra. */
-            y = (barTop!=null && el.y > barTop - 18) ? (el.y + 18) : (el.y - 13);
-          } else {
-            y = el.y - 5;
-          }
-          ctx.fillText(fmtCompact(v, useUSD), el.x, y);
+          items.push({x:el.x, ly:(el.y - (isLine?12:6)), text:fmtCompact(v,useUSD),
+                      color:colorOf(ds.label), font: isLine?'700 10px Calibri':'700 10.5px Calibri'});
         });
       });
+      /* Anti-solape: si dos etiquetas comparten ~x y quedan cerca en y, subo la de arriba. */
+      items.sort((a,b)=> a.x-b.x || a.ly-b.ly);
+      for(let i=0;i<items.length;i++){
+        for(let j=0;j<i;j++){
+          if(Math.abs(items[i].x-items[j].x) < 30 && Math.abs(items[i].ly-items[j].ly) < 13){
+            items[i].ly = items[j].ly - 13;
+          }
+        }
+        if(items[i].ly < colTop) items[i].ly = colTop;
+      }
+      ctx.save();
+      ctx.textAlign = 'center';
+      items.forEach(it=>{ ctx.font=it.font; ctx.fillStyle=it.color; ctx.fillText(it.text, it.x, it.ly); });
       ctx.restore();
     }
   };
