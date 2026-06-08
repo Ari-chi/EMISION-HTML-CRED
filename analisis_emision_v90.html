@@ -3664,7 +3664,7 @@ function ejecEmitido(S, useUSD, dual){
     if(show25){
       const d=it.totSigned-it.tot25Signed, dc=d>=0?'var(--pos)':'var(--neg)';
       /* Grilla alineada: nombre | 2025 | → | 2026 | Δ (columnas de ancho fijo). */
-      return `<div onclick="toggleEjecEmiArea('${id}','${drillId}')" style="display:grid;grid-template-columns:14px 13px 250px 78px 11px 78px 66px;column-gap:7px;align-items:center;padding:6px 6px;border-radius:5px;cursor:pointer;line-height:1.3;border:1px solid transparent;width:fit-content" ${hov}>
+      return `<div onclick="toggleEjecEmiArea('${id}','${drillId}')" style="display:grid;grid-template-columns:14px 13px 215px 78px 11px 78px 66px;column-gap:7px;align-items:center;padding:6px 6px;border-radius:5px;cursor:pointer;line-height:1.3;border:1px solid transparent;width:fit-content" ${hov}>
         <span id="${id}_car" style="font-size:11px;color:var(--accent)">▸</span>
         <span style="width:13px;height:13px;border-radius:50%;background:${it.col};border:1px solid rgba(0,0,0,.08)"></span>
         ${nameCell}
@@ -3683,7 +3683,7 @@ function ejecEmitido(S, useUSD, dual){
   }).join('');
   /* Encabezado de columnas (solo en modo comparación): títulos 2025 / 2026 sobre las cajas. */
   const leyHeader = show25
-    ? `<div style="display:grid;grid-template-columns:14px 13px 250px 78px 11px 78px 66px;column-gap:7px;padding:0 6px 5px;font-size:11px;font-weight:800;color:var(--ink-3);text-transform:uppercase;letter-spacing:.04em;width:fit-content">
+    ? `<div style="display:grid;grid-template-columns:14px 13px 215px 78px 11px 78px 66px;column-gap:7px;padding:0 6px 5px;font-size:11px;font-weight:800;color:var(--ink-3);text-transform:uppercase;letter-spacing:.04em;width:fit-content">
         <span></span><span></span><span></span>
         <span style="text-align:center">2025</span><span></span>
         <span style="text-align:center;color:var(--pos)">2026</span>
@@ -3703,9 +3703,9 @@ function ejecEmitido(S, useUSD, dual){
      una flecha chica en el medio; si no, el donut 2026 solo. */
   const chartsBlock = show25
     ? `<div style="display:flex;align-items:center;justify-content:flex-start;gap:0;flex-shrink:0">
-        <div style="text-align:center"><div style="font-size:16px;font-weight:800;color:var(--ink-3);margin-bottom:2px">2025</div><div style="width:300px"><canvas id="${pieId25}" style="max-height:315px"></canvas></div></div>
+        <div style="text-align:center"><div style="font-size:16px;font-weight:800;color:var(--ink-3);margin-bottom:2px">2025</div><div style="width:280px"><canvas id="${pieId25}" style="max-height:295px"></canvas></div></div>
         <span style="font-size:26px;color:var(--ink-3);font-weight:800;align-self:center">→</span>
-        <div style="text-align:center"><div style="font-size:16px;font-weight:800;color:var(--pos);margin-bottom:2px">2026</div><div style="width:300px"><canvas id="${pieId}" style="max-height:315px"></canvas></div></div>
+        <div style="text-align:center"><div style="font-size:16px;font-weight:800;color:var(--pos);margin-bottom:2px">2026</div><div style="width:280px"><canvas id="${pieId}" style="max-height:295px"></canvas></div></div>
       </div>`
     : `<div style="width:100%;max-width:340px;justify-self:center"><canvas id="${pieId}" style="max-height:320px"></canvas></div>`;
 
@@ -3719,7 +3719,7 @@ function ejecEmitido(S, useUSD, dual){
       </div>
     </div>
     ${items.length>0 ? `
-    <div style="display:grid;grid-template-columns:auto 1fr;gap:12px;align-items:center;margin-bottom:10px">
+    <div style="display:grid;grid-template-columns:auto 1fr;gap:4px;align-items:center;margin-bottom:10px">
       ${chartsBlock}
       <div>${leyendaFull}</div>
     </div>
