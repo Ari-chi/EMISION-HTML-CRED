@@ -5672,22 +5672,30 @@ function drawEjecChartMensual(canvasId, polArr, presArr, mesCorte, useUSD, show2
         meta.data.forEach((el, i)=>{
           const v = ds.data[i];
           if(v==null || v===0) return;
-          items.push({x:el.x, ly:(el.y - (isLine?12:6)), text:fmtCompact(v,useUSD),
-                      color:colorOf(ds.label), font: isLine?'700 10px Calibri':'700 10.5px Calibri'});
+          items.push({x:el.x, ly:(el.y - (isLine?13:6)), text:fmtCompact(v,useUSD),
+                      color:colorOf(ds.label), font:'700 9.5px Calibri'});
         });
       });
-      /* Anti-solape: agrupo las etiquetas horizontalmente cercanas (mismo "cluster")
-         y, dentro de cada grupo, las apilo HACIA ARRIBA desde la más baja para que no
-         se encimen entre sí ni sobre las barras/líneas, sin estirar el gráfico. */
-      const buckets = {};
-      items.forEach(it=>{ const b = Math.round(it.x/42); (buckets[b]=buckets[b]||[]).push(it); });
-      Object.values(buckets).forEach(arr=>{
-        arr.sort((a,b)=> b.ly - a.ly); /* la más baja (mayor y) primero */
-        for(let i=1;i<arr.length;i++){
-          if(arr[i].ly > arr[i-1].ly - 14) arr[i].ly = arr[i-1].ly - 14;
+      /* Anti-solape real: se calcula el medio-ancho de cada etiqueta y se considera que
+         dos chocan si se superponen horizontalmente Y quedan a menos de GAP en vertical.
+         Se mantiene fija la etiqueta más BAJA (pegada a su barra/punto) y se empujan las
+         de arriba hacia arriba, en varias pasadas, sin estirar el gráfico. */
+      const GAP = 15;
+      items.forEach(it=> it.hw = it.text.length*2.9 + 4);
+      for(let pass=0; pass<8; pass++){
+        let moved = false;
+        items.sort((a,b)=> b.ly - a.ly); /* la más baja primero */
+        for(let i=0;i<items.length;i++){
+          for(let j=i+1;j<items.length;j++){
+            const a=items[i], b=items[j]; /* a por debajo de b */
+            if(Math.abs(a.x-b.x) < (a.hw+b.hw) && (a.ly - b.ly) < GAP){
+              b.ly = a.ly - GAP; moved = true;
+            }
+          }
         }
-      });
-      items.forEach(it=>{ if(it.ly < colTop) it.ly = colTop; });
+        items.forEach(it=>{ if(it.ly < colTop) it.ly = colTop; });
+        if(!moved) break;
+      }
       ctx.save();
       ctx.textAlign = 'center';
       items.forEach(it=>{ ctx.font=it.font; ctx.fillStyle=it.color; ctx.fillText(it.text, it.x, it.ly); });
