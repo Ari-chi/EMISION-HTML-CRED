@@ -10052,6 +10052,7 @@ function renderRubro(){
   sec.innerHTML = `
     <div class="section-head"><h2>Emisión <em>por rubro · 2025 vs 2026</em></h2></div>
     ${sectionFiltersBarHTML('rubro')}
+    <div id="rubroResumenWrap" style="margin-bottom:18px"></div>
     <div id="rubroFullWrap"></div>`;
   bindSectionFilters('rubro', ()=>drawRubroFull());
   drawRubroFull();
@@ -10080,11 +10081,100 @@ function drawRubroFull(){
   }
   const v26=(g)=>useUSD?g.u26:g.a26;
   const items = Object.values(grupos).sort((a,b)=> v26(b)-v26(a));
+  drawRubroResumen(items, useUSD, mesCorte);
   const wrap = document.getElementById('rubroFullWrap');
   if(!wrap) return;
   wrap.innerHTML = items.length
     ? items.map((it,idx)=>`<div style="margin-bottom:16px">${renderRubroCard(it, idx, useUSD, mesCorte, {static:true})}</div>`).join('')
     : '<div style="font-size:13px;color:var(--ink-3);font-style:italic;padding:20px">— sin datos para el corte seleccionado —</div>';
+}
+
+/* Cuadro-resumen de TODOS los rubros: por rubro muestra cantidad de pólizas y los totales
+   2025→2026 de Emisión (con barra), Proyección, Tasa promedio, Siniestralidad (UV/H) y
+   Pendientes. Mismo criterio que las tarjetas (emitidas 2026; proy/tasa/sinies según la
+   fecha de emisión de la prima mínima). En la moneda de la vista. */
+function drawRubroResumen(items, useUSD, mesCorte){
+  const wrap = document.getElementById('rubroResumenWrap');
+  if(!wrap) return;
+  const FMTc=(v)=>fmtCompact(v,useUSD);
+  const mLbl = useUSD?'USD':'ARS$';
+  const avg=(s,n)=>n?s/n:0;
+  const rows = items.map(it=>{
+    let e25=0,e26=0,n25=0,n26=0, p25=0,p26=0, t25=0,t26=0,tn25=0,tn26=0,
+        uv25=0,uv26=0,uvn25=0,uvn26=0, h25=0,h26=0,hn25=0,hn26=0, pend=0;
+    for(const p of (it.polizas||[])){
+      const f25=calcEmisionFiltrada(p,2025,mesCorte), f26=calcEmisionFiltrada(p,2026,mesCorte);
+      if(tuvoEmision(f26)){
+        e25+=useUSD?f25.totUSD:f25.totARS;
+        e26+=useUSD?f26.totUSD:f26.totARS;
+        if(tuvoEmision(f25)) n25++;
+        n26++;
+      }
+      const pm25ok=primaMinEmitidaCorte(p,2025,mesCorte), pm26ok=primaMinEmitidaCorte(p,2026,mesCorte);
+      const pr25=useUSD?(p.proyUSD2025||0):(p.proyARS2025||0), pr26=useUSD?(p.proyUSD2026||0):(p.proyARS2026||0);
+      if(pm25ok && pr25>0) p25+=pr25;
+      if(pm26ok && pr26>0) p26+=pr26;
+      if(pm25ok && p.tasa2025!=null){ t25+=p.tasa2025; tn25++; }
+      if(pm26ok && p.tasa2026!=null){ t26+=p.tasa2026; tn26++; }
+      if(pm25ok && p.sinUV2025!=null){ uv25+=p.sinUV2025; uvn25++; }
+      if(pm26ok && p.sinUV2026!=null){ uv26+=p.sinUV2026; uvn26++; }
+      if(pm25ok && p.sinH2025!=null){ h25+=p.sinH2025; hn25++; }
+      if(pm26ok && p.sinH2026!=null){ h26+=p.sinH2026; hn26++; }
+      const pi=pendPolizaInfo(p,mesCorte); pend += useUSD?pi.usd:pi.ars;
+    }
+    return {rubro:it.rubro, n25,n26, e25,e26, p25,p26,
+      t25:avg(t25,tn25),t26:avg(t26,tn26),
+      uv25:avg(uv25,uvn25),uv26:avg(uv26,uvn26),
+      h25:avg(h25,hn25),h26:avg(h26,hn26), pend};
+  }).filter(r=> r.n26>0 || Math.abs(r.e25)>0.5 || Math.abs(r.e26)>0.5);
+  rows.sort((a,b)=> b.e26 - a.e26);
+  if(rows.length===0){ wrap.innerHTML=''; return; }
+  const maxE = Math.max(1, ...rows.map(r=>Math.abs(r.e26)), ...rows.map(r=>Math.abs(r.e25)));
+  /* Totales generales */
+  const T = rows.reduce((a,r)=>({e25:a.e25+r.e25,e26:a.e26+r.e26,p25:a.p25+r.p25,p26:a.p26+r.p26,
+    n25:a.n25+r.n25,n26:a.n26+r.n26,pend:a.pend+r.pend}),{e25:0,e26:0,p25:0,p26:0,n25:0,n26:0,pend:0});
+  const fT=(v)=>FMT_PCT_TASA(v), fS=(v)=>FMT_PCT_SIN(v);
+  const ab=(a,b,fmt,inv)=>{const d=b-a;const c=d===0?'var(--ink-3)':((inv? d<0 : d>0)?'var(--pos)':'var(--neg)');return `<span style="color:var(--ink-2)">${fmt(a)}</span> <span style="color:var(--ink-3)">→</span> <strong style="color:var(--accent-3)">${fmt(b)}</strong> <span style="color:${c};font-weight:800">${d>=0?'+':''}${fmt(d)}</span>`;};
+  const trs = rows.map(r=>{
+    const dE=r.e26-r.e25, cE=dE>=0?'var(--pos)':'var(--neg)', wE25=Math.round(Math.abs(r.e25)/maxE*100), wE26=Math.round(Math.abs(r.e26)/maxE*100);
+    const dEp=r.e25?dE/Math.abs(r.e25):null;
+    const dP=r.p26-r.p25, cP=dP>=0?'var(--pos)':'var(--neg)', dPp=r.p25?dP/Math.abs(r.p25):null;
+    return `<tr style="border-bottom:1px solid var(--line)">
+      <td style="padding:9px 10px;vertical-align:top"><div style="font-weight:800;color:var(--accent-3);font-size:13.5px">${r.rubro}</div><div style="font-size:11px;color:var(--ink-3);font-family:var(--font-mono)">${r.n25} → ${r.n26} pól.</div></td>
+      <td style="padding:9px 10px;min-width:230px">
+        <div style="display:flex;align-items:center;gap:6px;margin-bottom:2px"><span style="font-size:10px;color:var(--ink-3);width:26px">25</span><div style="flex:1;height:9px;background:var(--bg-2);border-radius:3px"><div style="height:100%;width:${wE25}%;background:rgba(94,179,232,.8);border-radius:3px"></div></div><span style="font-family:var(--font-mono);font-size:11.5px;width:64px;text-align:right">${FMTc(r.e25)}</span></div>
+        <div style="display:flex;align-items:center;gap:6px"><span style="font-size:10px;color:var(--ink-3);width:26px">26</span><div style="flex:1;height:9px;background:var(--bg-2);border-radius:3px"><div style="height:100%;width:${wE26}%;background:rgba(30,111,217,.9);border-radius:3px"></div></div><span style="font-family:var(--font-mono);font-size:11.5px;font-weight:800;width:64px;text-align:right">${FMTc(r.e26)}</span></div>
+        <div style="text-align:right;font-family:var(--font-mono);font-size:11px;font-weight:800;color:${cE};margin-top:2px">${dE>=0?'+':''}${FMTc(dE)}${dEp!=null?' ('+(dE>=0?'+':'')+FMT_PCT(dEp)+')':''}</div>
+      </td>
+      <td style="padding:9px 10px;font-family:var(--font-mono);font-size:11.5px;white-space:nowrap">${FMTc(r.p25)} <span style="color:var(--ink-3)">→</span> <strong>${FMTc(r.p26)}</strong> <span style="color:${cP};font-weight:800">${dPp!=null?(dP>=0?'+':'')+FMT_PCT(dPp):''}</span></td>
+      <td style="padding:9px 10px;font-family:var(--font-mono);font-size:11.5px;white-space:nowrap">${ab(r.t25,r.t26,fT,false)}</td>
+      <td style="padding:9px 10px;font-family:var(--font-mono);font-size:11px;white-space:nowrap"><div>UV ${ab(r.uv25,r.uv26,fS,true)}</div><div style="margin-top:2px">H ${ab(r.h25,r.h26,fS,true)}</div></td>
+      <td style="padding:9px 10px;font-family:var(--font-mono);font-size:11.5px;text-align:right;font-weight:800;color:${r.pend>0.5?'var(--neg)':'var(--ink-3)'}">${r.pend>0.5?'−'+FMTc(r.pend):FMTc(0)}</td>
+    </tr>`;
+  }).join('');
+  const dET=T.e26-T.e25, cET=dET>=0?'var(--pos)':'var(--neg)';
+  const totRow = `<tr style="border-top:2px solid var(--line-2);background:var(--bg-2)">
+    <td style="padding:9px 10px;font-weight:800;color:var(--accent-3)">TOTAL<div style="font-size:11px;color:var(--ink-3);font-family:var(--font-mono);font-weight:600">${T.n25} → ${T.n26} pól.</div></td>
+    <td style="padding:9px 10px;font-family:var(--font-mono);font-size:12px;text-align:right;font-weight:800">${FMTc(T.e25)} → ${FMTc(T.e26)} <span style="color:${cET}">${dET>=0?'+':''}${FMTc(dET)}</span></td>
+    <td style="padding:9px 10px;font-family:var(--font-mono);font-size:12px;font-weight:800">${FMTc(T.p25)} → ${FMTc(T.p26)}</td>
+    <td style="padding:9px 10px;color:var(--ink-3);font-style:italic;font-size:11px">promedio por rubro</td>
+    <td style="padding:9px 10px;color:var(--ink-3);font-style:italic;font-size:11px">promedio por rubro</td>
+    <td style="padding:9px 10px;font-family:var(--font-mono);font-size:12px;text-align:right;font-weight:800;color:${T.pend>0.5?'var(--neg)':'var(--ink-3)'}">${T.pend>0.5?'−'+FMTc(T.pend):FMTc(0)}</td>
+  </tr>`;
+  wrap.innerHTML = `<div style="border:1px solid var(--line-2);border-radius:10px;overflow:hidden;background:var(--panel);box-shadow:0 1px 3px rgba(10,31,58,.04)">
+    <div style="padding:11px 14px;background:#0a3d7a;color:#fff;font-weight:800;font-size:13px;display:flex;justify-content:space-between;align-items:center"><span>Resumen por rubro · 2025 vs 2026</span><span style="font-family:var(--font-mono);font-size:11px;opacity:.85">${mLbl} · ${rows.length} rubros</span></div>
+    <div style="overflow-x:auto"><table style="width:100%;border-collapse:collapse;min-width:920px">
+      <thead><tr style="background:var(--bg-2)">
+        <th style="text-align:left;padding:7px 10px;font-size:10px;color:var(--ink-3);text-transform:uppercase;letter-spacing:.05em">Rubro / Pólizas</th>
+        <th style="text-align:left;padding:7px 10px;font-size:10px;color:#1e6fd9;text-transform:uppercase;letter-spacing:.05em">Emisión</th>
+        <th style="text-align:left;padding:7px 10px;font-size:10px;color:#1e6fd9;text-transform:uppercase;letter-spacing:.05em">Proyección</th>
+        <th style="text-align:left;padding:7px 10px;font-size:10px;color:#7c4ddb;text-transform:uppercase;letter-spacing:.05em">Tasa promedio</th>
+        <th style="text-align:left;padding:7px 10px;font-size:10px;color:#b9760f;text-transform:uppercase;letter-spacing:.05em">Siniestralidad</th>
+        <th style="text-align:right;padding:7px 10px;font-size:10px;color:#5a3db8;text-transform:uppercase;letter-spacing:.05em">Pendientes</th>
+      </tr></thead>
+      <tbody>${trs}${totRow}</tbody>
+    </table></div>
+  </div>`;
 }
 function renderProducto(){ makeFieldSection('producto','producto','Producto'); }
 
