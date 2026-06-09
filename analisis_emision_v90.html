@@ -6704,11 +6704,26 @@ function computarVariacionesRubro(it, mesCorte){
     const s = cat ? String(cat).trim() : '';
     return !s || categoriaEsAnualidadAnterior(s);
   };
+  /* TIMING 2026 (pedido del usuario): una póliza solo entra a los desgloses si su anualidad
+     2026 YA DEBÍA emitirse hasta el mes de corte. Si el inicio de la anualidad 2026 cae
+     DESPUÉS del corte (p.ej. MATESUR inicia en diciembre y el corte es mayo), todavía no
+     corresponde ni como pendiente ni como baja: se excluye. Si ya emitió algo en 2026, está
+     activa y entra igual. Aplica a TODOS los desgloses por rubro. */
+  const dueEnCorte2026 = (p, f26)=>{
+    if(f26 && (f26.totARS>0 || f26.totUSD>0)) return true; /* ya emitió: está activa */
+    const espKey = mesEsperadoEmision(p.vigDesde, p.vigHasta, 2026, p.inicioAnualidad2026);
+    if(!espKey) return false; /* sin anualidad 2026 esperada → no corresponde aún */
+    const [ey,em] = espKey.split('-').map(Number);
+    let cutoffMes = mesCorte===0 ? 12 : mesCorte;
+    if(state.globalMes2026 && state.globalMes2026 > 0) cutoffMes = Math.min(cutoffMes, state.globalMes2026);
+    return (ey < 2026) || (ey===2026 && em <= cutoffMes);
+  };
   for(const p of it.polizas){
     const uu = p.moneda==='US';
     const base={poliza:p.poliza, asegurado:p.asegurado, moneda:p.moneda};
     /* EMISIÓN (PM/ajuste/bono/malus): 2025 y 2026 acumulados hasta el mes de corte. */
     const f25=calcEmisionFiltrada(p,2025,mesCorte), f26=calcEmisionFiltrada(p,2026,mesCorte);
+    if(!dueEnCorte2026(p, f26)) continue; /* 2026 no vencido al corte → fuera de los desgloses */
     /* PROYECCIÓN / TASA / SINIESTRALIDAD: cada año cuenta solo si la PRIMA MÍNIMA de ese
        año ya se emitió dentro del corte (fecha de emisión de la prima mínima como referencia). */
     const pm25ok = primaMinEmitidaCorte(p,2025,mesCorte);
