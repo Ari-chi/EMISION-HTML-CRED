@@ -1590,10 +1590,14 @@ function estadoConcepto(p, concepto, anio, mesCorte){
 function polizaVigente(p, anio, mesCorte){
   if(!p.vigDesde || !p.vigHasta) return false;
   const cutoff = mesCorte===0 ? 12 : mesCorte;
-  /* Último día del mes de corte del año pedido (usamos día 28 como representativo seguro) */
-  const finCorte = new Date(anio, cutoff-1, 28);
-  /* La póliza está vigente al cierre del corte si su período incluye esa fecha */
-  return p.vigDesde <= finCorte && p.vigHasta >= finCorte;
+  /* "Vigente al corte" = la cobertura de la póliza sigue activa DURANTE el mes de corte:
+     ya había empezado (vigDesde ≤ fin del mes de corte) y su vencimiento NO ocurrió antes
+     del inicio de ese mes (vigHasta ≥ inicio del mes de corte). Así, si la póliza vence
+     DENTRO del mes de corte (p.ej. vence el 15/5 con corte a mayo), igual cuenta como
+     vigente porque estuvo vigente a esa fecha. */
+  const inicioMes = new Date(anio, cutoff-1, 1);   /* 1° del mes de corte */
+  const finMes    = new Date(anio, cutoff, 0);     /* último día del mes de corte */
+  return p.vigDesde <= finMes && p.vigHasta >= inicioMes;
 }
 
 /* ¿La póliza emitió algo en 2026 dentro del corte? Definición NUEVA:
