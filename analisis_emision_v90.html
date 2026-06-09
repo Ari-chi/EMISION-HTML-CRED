@@ -6239,16 +6239,17 @@ function drawEjecRubroExtremos(polArr, f){
     let hSum25=0, hSum26=0, nH25=0, nH26=0;
     for(const p of pols){
       const fe25=calcEmisionFiltrada(p,2025,mesCorte), fe26=calcEmisionFiltrada(p,2026,mesCorte);
-      const e25=useUSD?fe25.totUSD:fe25.totARS, e26=useUSD?fe26.totUSD:fe26.totARS;
-      emi25+=e25; emi26+=e26;
-      if(e25>0) nEmi25++;
-      if(e26>0) nEmi26++;
+      emi25+=useUSD?fe25.totUSD:fe25.totARS; emi26+=useUSD?fe26.totUSD:fe26.totARS;
+      /* CONTEO de emisión = emitió ese año en CUALQUIER moneda (no solo la de la vista). */
+      if(fe25.totARS>0||fe25.totUSD>0) nEmi25++;
+      if(fe26.totARS>0||fe26.totUSD>0) nEmi26++;
       const pm25ok = primaMinEmitidaCorte(p,2025,mesCorte);
       const pm26ok = primaMinEmitidaCorte(p,2026,mesCorte);
       const pr25 = useUSD?(p.proyUSD2025||0):(p.proyARS2025||0);
       const pr26 = useUSD?(p.proyUSD2026||0):(p.proyARS2026||0);
-      if(pm25ok && pr25>0){ proy25+=pr25; nProy25++; }
-      if(pm26ok && pr26>0){ proy26+=pr26; nProy26++; }
+      const hayProy25=((p.proyARS2025||0)>0||(p.proyUSD2025||0)>0), hayProy26=((p.proyARS2026||0)>0||(p.proyUSD2026||0)>0);
+      if(pm25ok && hayProy25){ proy25+=pr25; nProy25++; }
+      if(pm26ok && hayProy26){ proy26+=pr26; nProy26++; }
       if(pm25ok && p.tasa2025!=null){ tasaSum25+=p.tasa2025; nTasa25++; }
       if(pm26ok && p.tasa2026!=null){ tasaSum26+=p.tasa2026; nTasa26++; }
       if(pm25ok && p.sinUV2025!=null){ uvSum25+=p.sinUV2025; nUV25++; }
@@ -6342,9 +6343,10 @@ function drawEjecRubroChart(polArr, f, useUSD){
     if(!grupos[k]) grupos[k]={u25:0,u26:0,a25:0,a26:0,n:0,n25:0,n26:0};
     grupos[k].u25+=f25.totUSD; grupos[k].u26+=f26.totUSD;
     grupos[k].a25+=f25.totARS; grupos[k].a26+=f26.totARS;
-    const e25=useUSD?f25.totUSD:f25.totARS, e26=useUSD?f26.totUSD:f26.totARS;
-    if(e25>0) grupos[k].n25++;
-    if(e26>0) grupos[k].n26++;
+    /* CONTEO por año = pólizas que emitieron ese año en CUALQUIER moneda (no solo la de la
+       vista), para que el número coincida con el real de pólizas emitidas. */
+    if(f25.totARS>0||f25.totUSD>0) grupos[k].n25++;
+    if(f26.totARS>0||f26.totUSD>0) grupos[k].n26++;
     grupos[k].n++;
   }
   const v25 = (g)=>useUSD?g.u25:g.a25;
@@ -6506,18 +6508,19 @@ function renderRubroCard(it, idx, useUSD, mesCorte, opts){
     for(const p of pols){
       /* EMISIÓN: 2025 y 2026 acumulados hasta el mes de corte; el conteo por año puede diferir. */
       const f25=calcEmisionFiltrada(p,2025,mesCorte), f26=calcEmisionFiltrada(p,2026,mesCorte);
-      const em25=isUS?f25.totUSD:f25.totARS, em26=isUS?f26.totUSD:f26.totARS;
-      e25+=em25; e26+=em26;
-      if(em25>0) n25++;
-      if(em26>0) n26++;
+      e25+=isUS?f25.totUSD:f25.totARS; e26+=isUS?f26.totUSD:f26.totARS;
+      /* CONTEO de emisión = emitió ese año en CUALQUIER moneda (no solo la de la vista). */
+      if(f25.totARS>0||f25.totUSD>0) n25++;
+      if(f26.totARS>0||f26.totUSD>0) n26++;
       /* PROYECCIÓN / TASA / SINIESTRALIDAD: la póliza cuenta para un año SOLO si su PRIMA
          MÍNIMA de ese año ya se emitió dentro del corte (fecha de emisión de la prima mínima
          como referencia para ubicarla en el mes). Cada año filtra por separado. */
       const pm25ok = primaMinEmitidaCorte(p,2025,mesCorte);
       const pm26ok = primaMinEmitidaCorte(p,2026,mesCorte);
       const pr25=isUS?(p.proyUSD2025||0):(p.proyARS2025||0), pr26=isUS?(p.proyUSD2026||0):(p.proyARS2026||0);
-      if(pm25ok && pr25>0){ p25+=pr25; np25++; }
-      if(pm26ok && pr26>0){ p26+=pr26; np26++; }
+      const hayProy25=((p.proyARS2025||0)>0||(p.proyUSD2025||0)>0), hayProy26=((p.proyARS2026||0)>0||(p.proyUSD2026||0)>0);
+      if(pm25ok && hayProy25){ p25+=pr25; np25++; }
+      if(pm26ok && hayProy26){ p26+=pr26; np26++; }
       if(pm25ok && p.tasa2025!=null){ t25+=p.tasa2025; tn25++; }
       if(pm26ok && p.tasa2026!=null){ t26+=p.tasa2026; tn26++; }
       if(pm25ok && p.sinUV2025!=null){ uv25+=p.sinUV2025; uvn25++; }
