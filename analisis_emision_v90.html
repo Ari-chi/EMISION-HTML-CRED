@@ -11187,6 +11187,11 @@ function drawTop10(){
          corte), porque la emisión puede caer en meses distintos cada año. Así, si una póliza
          emitió lo mismo en 2025 y 2026, la variación es 0 (no aparece como "nuevo"). */
       _just.f25 = calcEmisionFiltrada(p, 2025, 0);
+      /* 2026: si la CATEGORÍA del concepto dice "Corresponde a la Anualidad Anterior", esa
+         emisión pertenece a la anualidad PREVIA (se emitió con retraso), NO es un aumento real
+         del 2026. Se excluye del cálculo de mejoras/caídas para no contar un falso aumento
+         (caso CODINI). El detalle igual muestra el concepto con su categoría. */
+      _just.f26 = calcEmisionFiltrada(p, 2026, mesCorte, {excluirAnualAnt:true});
       return {p, _just};
     })
     .filter(x=>x._just.f25.totUSD>0 || x._just.f26.totUSD>0 || x._just.f25.totARS>0 || x._just.f26.totARS>0 || x._just.motivos.length>0)
