@@ -2310,14 +2310,21 @@ function bindGlobalToggles(){
      posición ANTES del re-render (fase de captura) y se restaura después. */
   const _preserveScroll = ()=>{
     const y = window.scrollY || window.pageYOffset || 0;
-    const restore = ()=>{ if(Math.abs((window.scrollY||0)-y) > 2) window.scrollTo(0, y); };
-    /* Los gráficos (Chart.js) se renderizan de forma asíncrona y cambian la altura
-       DESPUÉS del re-render, lo que mueve la vista. Restauramos durante una ventana
-       (~500ms) sobre varios frames + timeouts para neutralizar esos reflows. */
-    let tries = 0;
-    const tick = ()=>{ restore(); if(++tries < 12) requestAnimationFrame(tick); };
+    /* Los gráficos (Chart.js) reflowean DESPUÉS del re-render y mueven la vista.
+       Restauramos en cada frame por ~1s, PERO si el usuario scrollea a propósito
+       (rueda/touch) cortamos para no pelearnos con él. */
+    let stop = false;
+    const onUser = ()=>{ stop = true; };
+    window.addEventListener('wheel', onUser, {passive:true});
+    window.addEventListener('touchmove', onUser, {passive:true});
+    const start = Date.now();
+    const cleanup = ()=>{ window.removeEventListener('wheel', onUser); window.removeEventListener('touchmove', onUser); };
+    const tick = ()=>{
+      if(stop){ cleanup(); return; }
+      if(Math.abs((window.scrollY||0)-y) > 2) window.scrollTo(0, y);
+      if(Date.now()-start < 1000) requestAnimationFrame(tick); else cleanup();
+    };
     requestAnimationFrame(tick);
-    [0,50,120,220,350,500].forEach(t=>setTimeout(restore, t));
   };
   document.addEventListener('click', (e)=>{
     if(e.target.closest('button,[data-vt] button,[data-curt] button,[onclick]')) _preserveScroll();
@@ -3036,6 +3043,8 @@ function drawEjecutivo(){
   /* Pie charts de "Lo que se emitió" y Desvío — se renderizan después del innerHTML */
   if(typeof renderEjecEmiPies === 'function') renderEjecEmiPies();
   if(typeof renderEjecDesvioPies === 'function') renderEjecDesvioPies();
+  /* Reabrir los desgloses de Emisión que estaban abiertos (para no perderlos al filtrar). */
+  if(typeof _reopenEjecEmiDrills === 'function') _reopenEjecEmiDrills();
 
   /* Gráfico mensual con toggle 2025 */
   const drawMensualEjec = ()=>{
@@ -4015,20 +4024,34 @@ window.toggleEjecEmiShow25 = function(){
   state._ejecEmiShow25 = !cur;
   if(typeof drawEjecutivo==='function') drawEjecutivo();
 };
+/* Reabre los desgloses de Emisión que quedaron registrados como abiertos (tras un
+   re-render por cambio de filtro/moneda), para que no se cierren y la vista no salte. */
+window._reopenEjecEmiDrills = function(){
+  const open = state._ejecEmiOpen || {};
+  Object.keys(open).forEach(drillAreaId=>{
+    const itemId = open[drillAreaId];
+    const area = document.getElementById(drillAreaId);
+    if(area && area.dataset.open !== itemId && typeof toggleEjecEmiArea==='function'){
+      toggleEjecEmiArea(itemId, drillAreaId);
+    }
+  });
+};
 window.toggleEjecEmiArea = function(itemId, drillAreaId){
   const area = document.getElementById(drillAreaId);
   if(!area) return;
   const wasOpen = area.dataset.open === itemId;
+  state._ejecEmiOpen = state._ejecEmiOpen || {};
   /* Cerrar todos los caret del set */
   const sufijo = drillAreaId.replace('ejecEmiDrillArea_','');
   document.querySelectorAll(`[id$="_car"]`).forEach(c=>{
     if(c.id.startsWith('ejecEmi_') && c.id.endsWith('_'+sufijo+'_car')){ c.textContent='▸'; }
   });
-  if(wasOpen){ area.innerHTML=''; area.dataset.open=''; return; }
+  if(wasOpen){ area.innerHTML=''; area.dataset.open=''; delete state._ejecEmiOpen[drillAreaId]; return; }
   /* Marcar el actual y renderizar */
   const car = document.getElementById(itemId+'_car');
   if(car) car.textContent='▾';
   area.dataset.open = itemId;
+  state._ejecEmiOpen[drillAreaId] = itemId; /* recordar para reabrir tras re-render */
   /* Reutilizamos la lógica de toggleEjecEmi pero pasando un div objetivo. */
   const tmp = document.createElement('div');
   tmp.id = itemId;
