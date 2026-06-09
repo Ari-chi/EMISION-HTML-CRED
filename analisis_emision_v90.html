@@ -6192,9 +6192,19 @@ function drawEjecRubroExtremos(polArr, f){
   if(!wrap) return;
   const mon = efectivoMonedas(f);
   const useUSD = mon.showUSD && !mon.showARS ? true : (mon.showARS && !mon.showUSD ? false : (f.cur==='ars'?false:true));
+  const mesCorte = f.mes;
+  /* UNIVERSO DE REFERENCIA (pedido del usuario): comparar SOLO las pólizas que
+     EMITIERON PRIMA MÍNIMA en 2026 (mismo criterio que "Emitidas 2026" del resto
+     del dashboard). Sobre ese mismo conjunto se comparan 2025 vs 2026, de modo que
+     la comparación es pareada: idéntica cantidad de pólizas en ambos años. */
+  const emitio26 = (p)=>{
+    const e = estadoPolizaConsolidado(p, mesCorte);
+    return e === 'emitido_con_desvio' || e === 'sin_desvio';
+  };
+  const baseArr = polArr.filter(emitio26);
   /* Agrupar por rubro y calcular variación neta por concepto. */
   const grupos = {};
-  for(const p of polArr){
+  for(const p of baseArr){
     const k = p.rubro || '(sin rubro)';
     (grupos[k] = grupos[k] || []).push(p);
   }
