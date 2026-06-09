@@ -5501,22 +5501,26 @@ window.toggleEjecCausa = function(id){
     };
     /* En Desvíos, Tasa y Siniestralidad SIEMPRE quedan en blanco (no aplican a las causas). */
     const blankCellD = `<div style="background:#fafbfc;border:1px dashed var(--line);border-radius:7px;padding:13px 16px;display:flex;align-items:center;justify-content:center;color:var(--ink-3);font-size:11px;font-style:italic;min-height:78px">— no aplica —</div>`;
+    /* En "Menor Emisión" se OCULTA la columna Prima Mínima (ya aparece abajo en
+       "Magnitud por concepto"). */
+    const showPrima = (id !== 'menor');
+    const nCat = showPrima ? 5 : 4;
     return `<div style="margin-bottom:14px;overflow-x:auto">
-      <div style="display:grid;grid-template-columns:auto repeat(5,minmax(150px,1fr));gap:11px;align-items:stretch;min-width:800px">
+      <div style="display:grid;grid-template-columns:auto repeat(${nCat},minmax(150px,1fr));gap:11px;align-items:stretch;min-width:${showPrima?800:660}px">
         <div></div>
-        ${catHead('Prima Mínima','#c2410c','#fff','#c2410c')}
+        ${showPrima ? catHead('Prima Mínima','#c2410c','#fff','#c2410c') : ''}
         ${catHead('Proyección','rgba(30,111,217,.10)','#1e6fd9','#1e6fd9')}
         ${catHead('Tasa promedio','rgba(139,92,246,.12)','#7c4ddb','#8b5cf6')}
         ${catHead('Siniestralidad','rgba(232,155,30,.14)','#b9760f','#e89b1e')}
         ${catHead('Rubros','rgba(94,179,232,.16)','#2a6aa0','#5eb3e8')}
         ${refCell('$', nColARS)}
-        ${montoCell(monARS,false,detMonARS)}
+        ${showPrima ? montoCell(monARS,false,detMonARS) : ''}
         ${proyCell(proyARS,false)}
         ${blankCellD}
         ${blankCellD}
         <div style="grid-row:span 2">${rubrosCellR}</div>
         ${refCell('US', nColUSD)}
-        ${montoCell(monUSD,true,detMonUSD)}
+        ${showPrima ? montoCell(monUSD,true,detMonUSD) : ''}
         ${proyCell(proyUSD,true)}
         ${blankCellD}
         ${blankCellD}
