@@ -1287,6 +1287,54 @@ function calcEmisionFiltrada(p, anio, mesCorte, opts){
   return {totARS, totUSD, breakdownARS, breakdownUSD};
 }
 
+/* Suma SOLO de los conceptos con categoría "Anualidad Anterior" de una póliza, por año,
+   hasta el corte. (Para el bucket "Corr. Anualidad Anterior".) */
+function _aaSumYr(p, year, mesCorte){
+  let ars=0, usd=0;
+  let cutoff = mesCorte===0?12:mesCorte;
+  if(year===2026 && state.globalMes2026 && state.globalMes2026>0) cutoff = Math.min(cutoff, state.globalMes2026);
+  for(const c of CONCEPTOS_EMISIBLES){
+    const r = p.conceptos[c]; if(!r) continue;
+    if(!categoriaEsAnualidadAnterior(r.categoria)) continue;
+    const entries = year===2025
+      ? ((r._entries25 && r._entries25.length) ? r._entries25 : [{fecha:r.fechaEm2025, ars:r.ars2025, usd:r.usd2025}])
+      : ((r._entries26 && r._entries26.length) ? r._entries26 : [{fecha:r.fechaEm2026, ars:r.ars2026, usd:r.usd2026}]);
+    for(const e of entries){
+      const a=e.ars||0, u=e.usd||0; if(!a && !u) continue;
+      if(e.fecha){ if((e.fecha.getMonth()+1)<=cutoff){ ars+=a; usd+=u; } }
+      else if(cutoff===12){ ars+=a; usd+=u; }
+    }
+  }
+  return {ars, usd};
+}
+/* Arma, para un AÑO dado y hasta el corte, las pólizas de cada concepto de Emisión:
+   tipo-based (Segunda/Renovación/Tercera/Pólizas nuevas) por tipo del año con prima
+   mínima emitida; Ajuste/Bono/Malus por ese concepto; Anualidad Anterior por categoría.
+   Cada registro trae el valor del concepto (ars/usd) + proy/tasa/siniestralidad del año. */
+function buildEmiConceptos(POL, year, mesCorte){
+  const out = {seg:[],ren:[],ter:[],nuevas:[],ajuste:[],bono:[],malus:[],anualant:[]};
+  for(const p of POL){
+    const f = calcEmisionFiltrada(p, year, mesCorte);
+    const tipo = p['tipo'+year];
+    const mk = (v)=>({clave:p.clave,poliza:p.poliza,asegurado:p.asegurado,rubro:p.rubro,moneda:p.moneda,
+      val_ars:v.ars||0, val_usd:v.usd||0,
+      proy_ars: year===2025?(p.proyARS2025||0):(p.proyARS2026||0), proy_usd: year===2025?(p.proyUSD2025||0):(p.proyUSD2026||0),
+      tasa: year===2025?p.tasa2025:p.tasa2026, sinUV: year===2025?p.sinUV2025:p.sinUV2026, sinH: year===2025?p.sinH2025:p.sinH2026});
+    const prima={ars:f.breakdownARS.primaMin,usd:f.breakdownUSD.primaMin};
+    if(prima.ars>0||prima.usd>0){
+      if(tipo==='Segunda anualidad') out.seg.push(mk(prima));
+      else if(tipo==='Renovación') out.ren.push(mk(prima));
+      else if(tipo==='Tercera anualidad') out.ter.push(mk(prima));
+      else if(tipo==='Póliza nueva') out.nuevas.push(mk(prima));
+    }
+    const aj={ars:f.breakdownARS.ajuste,usd:f.breakdownUSD.ajuste}; if(aj.ars!==0||aj.usd!==0) out.ajuste.push(mk(aj));
+    const bo={ars:f.breakdownARS.bono,usd:f.breakdownUSD.bono};    if(bo.ars!==0||bo.usd!==0) out.bono.push(mk(bo));
+    const ma={ars:f.breakdownARS.malus,usd:f.breakdownUSD.malus};  if(ma.ars!==0||ma.usd!==0) out.malus.push(mk(ma));
+    const aa=_aaSumYr(p,year,mesCorte); if(aa.ars!==0||aa.usd!==0) out.anualant.push(mk(aa));
+  }
+  return out;
+}
+
 /* ============================================================
    ESTADO DE DESVÍO POR PÓLIZA-CONCEPTO
 ============================================================ */
@@ -2560,6 +2608,9 @@ function drawEjecutivo(){
   /* Contexto para los drills de "Emisión 2026" (comparación 2025 vs 2026 por concepto,
      cada año desde su propio conjunto de pólizas). */
   state._ejecDrillCtx = {pol: polFiltradas, mesCorte};
+  /* Conjunto 2025 por concepto (tipo2025 / concepto / AA), reutilizado por la leyenda
+     (totales y conteo 2025) y por el drill, para que TODO coincida. */
+  state._ejecCS25 = buildEmiConceptos(polFiltradas, 2025, mesCorte);
   document.getElementById('ejecutivo-nlabel').innerHTML = '';
 
   /* Selección oculta del presupuesto: por defecto, Continental. Si el usuario
@@ -3608,13 +3659,15 @@ function ejecEmitido(S, useUSD, dual){
   /* Construir items con datos y filtrar los vacíos. El total 2025 del concepto se
      reconstruye sumando ars25/usd25 de los registros de cada categoría (acumulado al
      mismo corte), para comparar 2025 vs 2026 cuando 'Mostrar 2025' está activo. */
+  /* Set 2025 por concepto (mismo que usa el drill) → totales y conteo 2025 consistentes. */
+  const cs25 = state._ejecCS25 || {};
   const items = cats.map(c=>{
     const data = S.emitidoCats ? S.emitidoCats[c.key] : null;
     const tot = data ? data.total : 0;
     const n = data ? data.polizas.length : 0;
-    const tot25 = data ? data.polizas.reduce((a,r)=> a + (useUSD ? (r.usd25||0) : (r.ars25||0)), 0) : 0;
-    /* Pólizas que tenían este concepto emitido en 2025 (valor 2025 ≠ 0). */
-    const n25 = data ? data.polizas.filter(r=> Math.abs(useUSD ? (r.usd25||0) : (r.ars25||0)) > 0.5).length : 0;
+    const set25 = cs25[c.key] || [];
+    const tot25 = set25.reduce((a,r)=> a + (useUSD ? (r.val_usd||0) : (r.val_ars||0)), 0);
+    const n25 = set25.length;
     const totSigned = c.esBono ? -Math.abs(tot) : tot;
     const tot25Signed = c.esBono ? -Math.abs(tot25) : tot25;
     return {...c, tot, n, n25, totSigned, tot25Signed, absVal:Math.abs(totSigned)};
@@ -4001,65 +4054,20 @@ window.toggleEjecEmi = function(id){
     anualant:'AA'
   })[bucketKey] || 'Prima';
 
-  /* ===== Comparación 2025 vs 2026 por concepto: cada año desde su PROPIO conjunto =====
-     Para Segunda/Renovación/Tercera/Pólizas nuevas se filtra por TIPO del año (tipo2025 para
-     2025, tipo2026 para 2026) con prima mínima emitida hasta el corte. Para Ajuste/Bono/Malus,
-     por ese concepto emitido en el año. Para "Corr. Anualidad Anterior", por categoría AA,
-     sumando prima+ajuste+bono+malus de ese año. Así n y rubros pueden diferir entre años. */
-  const _ctxD = state._ejecDrillCtx || {pol: state.polizas, mesCorte: 0};
-  const _mc = _ctxD.mesCorte || 0;
-  const _POL = _ctxD.pol || state.polizas;
-  const _tipoOf = ({seg:'Segunda anualidad', ren:'Renovación', ter:'Tercera anualidad', nuevas:'Póliza nueva'})[bucketKey] || null;
-  const _concOf = ({ajuste:'ajuste', bono:'bono', malus:'malus'})[bucketKey] || null;
-  const _isAA = bucketKey==='anualant';
-  /* Suma SOLO de los conceptos con categoría "Anualidad Anterior", por año, hasta el corte. */
-  const _aaSum = (p, Y)=>{
-    let ars=0, usd=0;
-    let cutoff = _mc===0?12:_mc;
-    if(Y===2026 && state.globalMes2026 && state.globalMes2026>0) cutoff = Math.min(cutoff, state.globalMes2026);
-    for(const c of CONCEPTOS_EMISIBLES){
-      const r = p.conceptos[c]; if(!r) continue;
-      if(!categoriaEsAnualidadAnterior(r.categoria)) continue;
-      const entries = Y===2025
-        ? ((r._entries25 && r._entries25.length) ? r._entries25 : [{fecha:r.fechaEm2025, ars:r.ars2025, usd:r.usd2025}])
-        : ((r._entries26 && r._entries26.length) ? r._entries26 : [{fecha:r.fechaEm2026, ars:r.ars2026, usd:r.usd2026}]);
-      for(const e of entries){
-        const a=e.ars||0, u=e.usd||0; if(!a && !u) continue;
-        if(e.fecha){ if((e.fecha.getMonth()+1)<=cutoff){ ars+=a; usd+=u; } }
-        else if(cutoff===12){ ars+=a; usd+=u; }
-      }
-    }
-    return {ars, usd};
-  };
-  /* Valor del concepto de la póliza en el año Y (en ambas monedas). */
-  const _valYr = (p, Y)=>{
-    if(_isAA) return _aaSum(p, Y);
-    const f = calcEmisionFiltrada(p, Y, _mc);
-    if(_concOf) return {ars:f.breakdownARS[_concOf], usd:f.breakdownUSD[_concOf]};
-    return {ars:f.breakdownARS.primaMin, usd:f.breakdownUSD.primaMin};
-  };
-  /* ¿La póliza pertenece al conjunto del concepto en el año Y? */
-  const _inYr = (p, Y)=>{
-    if(_isAA){ const a=_aaSum(p,Y); return (a.ars!==0 || a.usd!==0); }
-    if(_concOf){ const v=_valYr(p,Y); return (v.ars!==0 || v.usd!==0); }
-    if(p['tipo'+Y] !== _tipoOf) return false;
-    const f = calcEmisionFiltrada(p, Y, _mc);
-    return (f.breakdownARS.primaMin>0 || f.breakdownUSD.primaMin>0);
-  };
-  const _mkRec = (p, Y)=>{
-    const v = _valYr(p, Y);
+  /* ===== Comparación 2025 vs 2026: MISMO conjunto que la leyenda/detalle =====
+     2026 = data.polizas (idéntico al donut/leyenda/detalle), enriquecido con proy/tasa/sin
+     del 2026 y el valor del concepto (ars26/usd26). 2025 = set central state._ejecCS25
+     (tipo2025 / concepto / AA). Así TODO coincide. */
+  const enriched26 = data.polizas.map(r=>{
+    const full = polByClave.get(r.clave) || polByClave.get(r.poliza) || {};
     return {
-      moneda: p.moneda, rubro: p.rubro,
-      val_ars: v.ars||0, val_usd: v.usd||0,
-      proy_ars: Y===2025?(p.proyARS2025||0):(p.proyARS2026||0),
-      proy_usd: Y===2025?(p.proyUSD2025||0):(p.proyUSD2026||0),
-      tasa: Y===2025?p.tasa2025:p.tasa2026,
-      sinUV: Y===2025?p.sinUV2025:p.sinUV2026,
-      sinH: Y===2025?p.sinH2025:p.sinH2026,
+      moneda: r.moneda, rubro: r.rubro,
+      val_ars: r.ars26||0, val_usd: r.usd26||0,
+      proy_ars: full.proyARS2026||0, proy_usd: full.proyUSD2026||0,
+      tasa: full.tasa2026, sinUV: full.sinUV2026, sinH: full.sinH2026,
     };
-  };
-  const enriched25 = _POL.filter(p=>_inYr(p,2025)).map(p=>_mkRec(p,2025));
-  const enriched26 = _POL.filter(p=>_inYr(p,2026)).map(p=>_mkRec(p,2026));
+  });
+  const enriched25 = (state._ejecCS25 || {})[bucketKey] || [];
 
   /* fila de póliza: poliza/asegurado + rubro a la izquierda, cuadrito gris con
      variaciones del concepto / PV / Tasa / SinUV / SinH abajo, monto 2026 + % a
