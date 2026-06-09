@@ -5490,6 +5490,8 @@ window.toggleEjecCausa = function(id){
       const d = info.s26 - info.s25, pct = info.s25 ? d/Math.abs(info.s25) : null;
       return cellMontoR({n:info.n, s25:info.s25, s26:info.s26, d, pct}, isUS);
     };
+    /* En Desvíos, Tasa y Siniestralidad SIEMPRE quedan en blanco (no aplican a las causas). */
+    const blankCellD = `<div style="background:#fafbfc;border:1px dashed var(--line);border-radius:7px;padding:13px 16px;display:flex;align-items:center;justify-content:center;color:var(--ink-3);font-size:11px;font-style:italic;min-height:78px">— no aplica —</div>`;
     return `<div style="margin-bottom:14px;overflow-x:auto">
       <div style="display:grid;grid-template-columns:auto repeat(5,minmax(150px,1fr));gap:11px;align-items:stretch;min-width:800px">
         <div></div>
@@ -5501,14 +5503,14 @@ window.toggleEjecCausa = function(id){
         ${refCell('$', nColARS)}
         ${montoCell(monARS,false)}
         ${proyCell(proyARS,false)}
-        ${cellPctR(tasaARS, fmtT, false)}
-        ${cellSinUnifR(sinUVARS, sinHARS)}
+        ${blankCellD}
+        ${blankCellD}
         <div style="grid-row:span 2">${rubrosCellR}</div>
         ${refCell('US', nColUSD)}
         ${montoCell(monUSD,true)}
         ${proyCell(proyUSD,true)}
-        ${cellPctR(tasaUSD, fmtT, false)}
-        ${cellSinUnifR(sinUVUSD, sinHUSD)}
+        ${blankCellD}
+        ${blankCellD}
       </div>
     </div>`;
   })();
