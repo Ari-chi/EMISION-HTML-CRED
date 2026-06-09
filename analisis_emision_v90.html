@@ -5797,6 +5797,26 @@ function drawEjecChartMensual(canvasId, polArr, presArr, mesCorte, useUSD, show2
   /* Opciones base + meses más grandes (pedido del usuario) + margen superior
      para que entren las etiquetas de valor arriba de las barras/puntos. */
   const opts = chartOpts({yMoney:useUSD?'usd':'ars',legend:true});
+  /* Tooltip de "Real 2026": muestra el DESGLOSE MENSUAL por concepto del mes
+     (prima mínima · ajuste · bono · malus) de lo emitido ese mes. */
+  const _c26 = useUSD
+    ? {pm:md.concept26.primaMin.usd, aj:md.concept26.ajuste.usd, bo:md.concept26.bono.usd, ma:md.concept26.malus.usd}
+    : {pm:md.concept26.primaMin.ars, aj:md.concept26.ajuste.ars, bo:md.concept26.bono.ars, ma:md.concept26.malus.ars};
+  opts.plugins = opts.plugins || {};
+  opts.interaction = {mode:'index', intersect:false};
+  opts.plugins.tooltip = Object.assign({}, opts.plugins.tooltip, {
+    callbacks: Object.assign({}, (opts.plugins.tooltip||{}).callbacks, {
+      afterBody: (its)=>{
+        const it = (its||[]).find(x=>x.dataset && x.dataset.label==='Real 2026');
+        if(!it) return '';
+        const m = it.dataIndex;
+        const out = ['', 'Emitido este mes:'];
+        const add=(lbl,v)=>{ if(Math.abs(v||0)>0.5) out.push('  '+lbl+': '+(v<0?'−':'')+fmtCompact(Math.abs(v),useUSD)); };
+        add('Prima mín.', _c26.pm[m]); add('Ajuste', _c26.aj[m]); add('Bono', _c26.bo[m]); add('Malus', _c26.ma[m]);
+        return out.length>2 ? out : ['', '(sin desglose)'];
+      }
+    })
+  });
   opts.scales.x.ticks.font = {family:'Calibri', size:13, weight:'700'};
   opts.scales.x.ticks.color = '#3d5475';
   opts.layout = {padding:{top:22}};
