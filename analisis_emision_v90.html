@@ -6508,12 +6508,18 @@ function renderRubroCard(it, idx, useUSD, mesCorte, opts){
     let t25=0,t26=0,tn25=0,tn26=0,uv25=0,uv26=0,uvn25=0,uvn26=0,h25=0,h26=0,hn25=0,hn26=0;
     let pend=0;
     for(const p of pols){
-      /* EMISIÓN: 2025 y 2026 acumulados hasta el mes de corte; el conteo por año puede diferir. */
+      /* EMISIÓN: el TOTAL y los conteos se basan en las pólizas que EMITIERON en 2026
+         (mismo conjunto que el desglose por póliza), comparando su 2026 contra SU 2025.
+         Las que solo emitieron en 2025 NO entran al total (van a Pendientes), así el total
+         y el desglose coinciden. n26 = emitidas 2026; n25 = de esas, cuántas también en 2025. */
       const f25=calcEmisionFiltrada(p,2025,mesCorte), f26=calcEmisionFiltrada(p,2026,mesCorte);
-      e25+=isUS?f25.totUSD:f25.totARS; e26+=isUS?f26.totUSD:f26.totARS;
-      /* CONTEO de emisión = emitió ese año en CUALQUIER moneda (no solo la de la vista). */
-      if(f25.totARS>0||f25.totUSD>0) n25++;
-      if(f26.totARS>0||f26.totUSD>0) n26++;
+      const emitio26 = (f26.totARS>0 || f26.totUSD>0);
+      if(emitio26){
+        e25 += isUS?f25.totUSD:f25.totARS;
+        e26 += isUS?f26.totUSD:f26.totARS;
+        if(f25.totARS>0 || f25.totUSD>0) n25++;
+        n26++;
+      }
       /* PROYECCIÓN / TASA / SINIESTRALIDAD: la póliza cuenta para un año SOLO si su PRIMA
          MÍNIMA de ese año ya se emitió dentro del corte (fecha de emisión de la prima mínima
          como referencia para ubicarla en el mes). Cada año filtra por separado. */
@@ -6537,6 +6543,18 @@ function renderRubroCard(it, idx, useUSD, mesCorte, opts){
       h25:hn25?h25/hn25:0,h26:hn26?h26/hn26:0,pend};
   };
   const gA=aggCur(false), gU=aggCur(true);
+  /* Total del HEADER en la moneda de la vista, sobre el MISMO conjunto que la grilla y el
+     desglose (solo pólizas emitidas en 2026), para que todo coincida. */
+  let hv25=0, hv26=0, hn25=0, hn26=0;
+  for(const p of _pols){
+    const ff26=calcEmisionFiltrada(p,2026,mesCorte);
+    if(!(ff26.totARS>0 || ff26.totUSD>0)) continue;
+    const ff25=calcEmisionFiltrada(p,2025,mesCorte);
+    hv25 += useUSD?ff25.totUSD:ff25.totARS;
+    hv26 += useUSD?ff26.totUSD:ff26.totARS;
+    if(ff25.totARS>0 || ff25.totUSD>0) hn25++;
+    hn26++;
+  }
   /* Mismo formato que el desglose de Emisión 2026: tarjetas resaltadas, conteo de
      pólizas al lado de la moneda original, año arriba de cada valor, siniestralidad
      unificada (UV/H). Las celdas siguen siendo clickeables (drilldown por concepto). */
@@ -6561,12 +6579,12 @@ function renderRubroCard(it, idx, useUSD, mesCorte, opts){
     <div style="display:flex;justify-content:space-between;align-items:baseline;gap:14px;flex-wrap:wrap;margin-bottom:6px">
       <div style="display:flex;align-items:baseline;gap:14px">
         <span style="font-size:19px;font-weight:800;color:var(--accent-3)">${it.rubro}</span>
-        <span style="font-size:13px;color:var(--ink-3);font-weight:600">${(it.n25!=null?it.n25:it.n)||0} → ${(it.n26!=null?it.n26:it.n)||0} pólizas emitidas (2025 → 2026)</span>
+        <span style="font-size:13px;color:var(--ink-3);font-weight:600">${hn25} → ${hn26} pólizas (emitidas 2026; con dato 2025 → 2026)</span>
       </div>
       <div style="font-family:var(--font-mono);text-align:right">
-        <span style="font-size:14px;color:var(--ink-3)">${FMTc(val25)} → <strong style="color:var(--accent-3)">${FMTc(val26)}</strong></span>
-        <span style="font-size:17px;color:${dC};font-weight:800;margin-left:10px">${d>=0?'+':''}${FMTc(d)}</span>
-        ${dP!=null?`<span style="font-size:13px;color:${dC};font-weight:800;margin-left:4px">(${d>=0?'+':''}${FMT_PCT(dP)})</span>`:''}
+        <span style="font-size:14px;color:var(--ink-3)">${FMTc(hv25)} → <strong style="color:var(--accent-3)">${FMTc(hv26)}</strong></span>
+        <span style="font-size:17px;color:${(hv26-hv25)>=0?'var(--pos)':'var(--neg)'};font-weight:800;margin-left:10px">${(hv26-hv25)>=0?'+':''}${FMTc(hv26-hv25)}</span>
+        ${hv25?`<span style="font-size:13px;color:${(hv26-hv25)>=0?'var(--pos)':'var(--neg)'};font-weight:800;margin-left:4px">(${(hv26-hv25)>=0?'+':''}${FMT_PCT((hv26-hv25)/Math.abs(hv25))})</span>`:''}
       </div>
     </div>
     ${conclTxt}
