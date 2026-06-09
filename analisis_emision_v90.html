@@ -3293,7 +3293,7 @@ function desglosePendientePorConcepto(polFiltradas, mesCorte){
 /* Pendiente de UNA póliza (misma lógica que el desglose: excluye Bono, con fallback a
    prima 2025 si está marcada pendiente sin items). Devuelve montos en ambas monedas y
    la lista de conceptos pendientes (Prima mínima / Ajuste / Malus). */
-function pendPolizaInfo(p, mesCorte){
+function pendPolizaInfo(p, mesCorte, incluirBono){
   const cp = conceptosPendientes(p, mesCorte);
   let items = cp.items;
   if(items.length===0){
@@ -3306,9 +3306,12 @@ function pendPolizaInfo(p, mesCorte){
   }
   let ars=0, usd=0; const concepts=[];
   for(const it of items){
-    if(it.concepto==='Bono') continue;
+    /* El BONO es nota de crédito (RESTA emisión). Por defecto se excluye del pendiente;
+       si incluirBono=true, se contempla en NEGATIVO (reduce el pendiente). */
+    if(it.concepto==='Bono' && !incluirBono) continue;
     const cv = convertirPendienteTC(it.ars, it.usd, p.moneda);
-    ars+=cv.ars; usd+=cv.usd;
+    const sgn = (it.concepto==='Bono') ? -1 : 1;
+    ars += sgn*cv.ars; usd += sgn*cv.usd;
     if(!concepts.includes(it.concepto)) concepts.push(it.concepto);
   }
   return {ars, usd, concepts};
@@ -3607,14 +3610,16 @@ function ejecJustificacion(S, useUSD, dual, useUSDprimary){
   if(state._ejecEstimOpen[sufijo] && dd && polPend){
     /* TODAS las pólizas con algún concepto pendiente (prima/ajuste/malus). Se incluyen
        si tienen pendiente en CUALQUIER moneda — misma fuente que la leyenda del Pendiente. */
-    const cLbl = {'Prima mínima':'Prima','Ajuste':'Ajuste','Malus':'Malus'};
+    const cLbl = {'Prima mínima':'Prima','Ajuste':'Ajuste','Malus':'Malus','Bono':'Bono'};
     /* Lista = pólizas PENDIENTES por fecha + pólizas que NO están pendientes por fecha pero
        que igual hay que emitir (las marcamos en el Excel, o cargadas a mano) y NO están
-       emitidas ni terminadas. Todas suman. Se ordena por VALOR de mayor a menor. */
+       emitidas ni terminadas. Todas suman. Se ordena por VALOR de mayor a menor.
+       El BONO se contempla (en negativo: resta) en el valor y se muestra como concepto. */
     const lista = (polPend||[]).map(p=>{
-      const inf = pendPolizaInfo(p, dd.mesCorte);
+      const infNoBono = pendPolizaInfo(p, dd.mesCorte);            /* para decidir si es pendiente */
+      const inf = pendPolizaInfo(p, dd.mesCorte, true);            /* con bono, para mostrar/sumar */
       const pendV = useUSD ? inf.usd : inf.ars;
-      const esPend = Math.max(inf.ars||0, inf.usd||0) > 0.5;
+      const esPend = Math.max(infNoBono.ars||0, infNoBono.usd||0) > 0.5;
       const ex = _excelEstimVal(p, sufijo);
       const manual = estStore[p.clave];
       const hasManual = isFinite(manual) && manual>0;
@@ -3625,12 +3630,15 @@ function ejecJustificacion(S, useUSD, dual, useUSDprimary){
         const terminada = (p.tipo2026==='Póliza terminada');
         if(!yaEmit && !terminada){ incluir = true; soloEstim = true; }
       }
-      const sortVal = hasManual ? manual : (esPend ? pendV : ex);
+      /* Orden por EMISIÓN de mayor a menor: usa la estimación cargada (manual o autocompletada);
+         si no hay, el pendiente; si no, el valor del Excel. */
+      const sortVal = hasManual ? manual : (esPend ? Math.abs(pendV) : ex);
       return {p, pendV, concepts:inf.concepts, esPend, soloEstim, incluir, sortVal};
     }).filter(x=>x.incluir).sort((a,b)=> b.sortVal - a.sortVal);
     const nPrima = lista.filter(x=>x.esPend && x.concepts.includes('Prima mínima')).length;
     const nAjuste = lista.filter(x=>x.esPend && x.concepts.includes('Ajuste')).length;
     const nMalus = lista.filter(x=>x.esPend && x.concepts.includes('Malus')).length;
+    const nBono = lista.filter(x=>x.esPend && x.concepts.includes('Bono')).length;
     const nAEmitir = lista.filter(x=>x.soloEstim).length;
     const pctTomado = dvAbs>0 ? Math.round(estimEff/dvAbs*100) : 0;
     const rows = lista.map(({p,pendV,concepts,esPend,soloEstim})=>{
@@ -3650,18 +3658,24 @@ function ejecJustificacion(S, useUSD, dual, useUSDprimary){
         <input type="text" inputmode="decimal" value="${eDisp}" placeholder="estimación ${useUSD?'US':'$'}" onchange="setEjecEstim('${sufijo}','${p.clave}', this.value)" style="width:100%;padding:6px 8px;font-family:var(--font-mono);font-size:13px;border:1.5px solid ${has?'var(--pos)':'var(--line-2)'};border-radius:6px;text-align:right;color:var(--ink);background:var(--panel)" />
       </div>`;
     }).join('');
+    const excedente = Math.max(0, estimRaw - _sinCubrirBase);
     estimPanel = `<div style="margin-top:14px;border:1.5px solid #c5cdd9;border-radius:8px;overflow:hidden">
-      <div style="padding:12px 16px;background:rgba(197,205,217,.30);color:#5a6b85;display:flex;justify-content:space-between;align-items:center;gap:14px;flex-wrap:wrap">
-        <span style="font-size:12.5px;font-weight:800">✎ Sin justificar<br><span style="font-weight:600;color:#7a879c">${lista.length} pólizas · Prima ${nPrima} · Ajuste ${nAjuste} · Malus ${nMalus}${nAEmitir>0?` · A emitir ${nAEmitir}`:''} (una póliza puede tener varios conceptos)</span></span>
-        <span style="display:flex;align-items:center;gap:14px;white-space:nowrap">
-          <span style="display:flex;flex-direction:column;gap:4px">
-            <button onclick="ejecEstimOkAll('${sufijo}')" title="Autocompleta TODAS las pendientes con la proyección del Excel (bloque AF–AH). Respeta los valores que ya cargaste a mano." style="padding:8px 16px;font-size:13px;font-weight:800;border-radius:7px;cursor:pointer;border:1.5px solid var(--pos);background:var(--pos);color:#fff">OK ✓ autocompletar todas</button>
-            <button onclick="ejecEstimClearAll('${sufijo}')" title="Borra todas las estimaciones cargadas (manuales y del Excel)" style="padding:3px 10px;font-size:10.5px;font-weight:700;border-radius:6px;cursor:pointer;border:1px solid var(--line-2);background:var(--panel);color:#7a879c">Limpiar todo</button>
+      <div style="padding:10px 14px;background:rgba(197,205,217,.30);color:#5a6b85;display:flex;justify-content:space-between;align-items:center;gap:12px;flex-wrap:wrap">
+        <span style="font-size:11px;color:#7a879c;font-weight:600;line-height:1.3"><strong style="color:#5a6b85;font-size:11.5px">✎ Sin justificar</strong> · ${lista.length} pól. · Prima ${nPrima} · Ajuste ${nAjuste}${nBono>0?` · Bono ${nBono}`:''} · Malus ${nMalus}${nAEmitir>0?` · A emitir ${nAEmitir}`:''}</span>
+        <span style="display:flex;align-items:center;gap:12px;white-space:nowrap;flex-wrap:wrap">
+          <span style="display:flex;flex-direction:column;gap:3px">
+            <button onclick="ejecEstimOkAll('${sufijo}')" title="Autocompleta TODAS con la proyección del Excel (bloque AF–AH). Respeta los valores cargados a mano." style="padding:7px 14px;font-size:12.5px;font-weight:800;border-radius:7px;cursor:pointer;border:1.5px solid var(--pos);background:var(--pos);color:#fff">OK ✓ autocompletar todas</button>
+            <button onclick="ejecEstimClearAll('${sufijo}')" title="Borra todas las estimaciones cargadas" style="padding:3px 10px;font-size:10px;font-weight:700;border-radius:6px;cursor:pointer;border:1px solid var(--line-2);background:var(--panel);color:#7a879c">Limpiar todo</button>
+          </span>
+          <span style="text-align:right;background:var(--panel);border:1px solid var(--line-2);border-radius:7px;padding:6px 12px">
+            <span style="font-size:9.5px;text-transform:uppercase;letter-spacing:.05em;font-weight:700;color:#7a879c">Total a emitir (estimado)</span><br>
+            <span style="font-family:var(--font-mono);font-size:20px;font-weight:800;color:var(--accent-3)">${fmtCompact(estimRaw,useUSD)}</span>
+            ${excedente>1?`<br><span style="font-size:10px;font-weight:700;color:#b9760f">supera lo sin justificar por ${fmtCompact(excedente,useUSD)} → se compensa (emisión de más)</span>`:''}
           </span>
           <span style="text-align:right">
             <span style="font-size:10.5px;text-transform:uppercase;letter-spacing:.05em;font-weight:700;color:#7a879c">Desvío que se está tomando</span><br>
-            <span style="font-family:var(--font-mono);font-size:26px;font-weight:800;color:var(--pos)">${fmtCompact(estimEff,useUSD)}</span>
-            <span style="font-family:var(--font-mono);font-size:14px;font-weight:800;color:var(--pos)">(${pctTomado}% del desvío)</span>
+            <span style="font-family:var(--font-mono);font-size:24px;font-weight:800;color:var(--pos)">${fmtCompact(estimEff,useUSD)}</span>
+            <span style="font-family:var(--font-mono);font-size:13px;font-weight:800;color:var(--pos)">(${pctTomado}% del desvío)</span>
           </span>
         </span>
       </div>
