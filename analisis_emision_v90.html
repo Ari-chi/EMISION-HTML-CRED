@@ -4981,9 +4981,10 @@ window.toggleEjecCausa = function(id){
       mostrar = Math.abs(vOrig);
     }
 
-    const equivLine = (monOrig!==monBtn)
-      ? `<div style="font-size:11.5px;color:var(--ink-3);font-family:var(--font-mono);text-align:right;margin-top:2px">${sgn}${fmtCompact(Math.abs(vBtn), btnUSD)}</div>`
-      : '';
+    /* Cada póliza se muestra SOLO en su moneda original (sin equivalente en la otra
+       moneda). La conversión/unificación se hace únicamente en el total cuando el HTML
+       pide una sola moneda. */
+    const equivLine = '';
 
     /* % de variación a la derecha (solo cuando hay 25 y 26 reales). */
     let pctLine = '';
