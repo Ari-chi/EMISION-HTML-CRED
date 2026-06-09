@@ -11335,11 +11335,17 @@ function drawTop10(){
      directo de f.cur, que es lo que setea el botón. */
   const modoUnico = (f.cur === 'usd' || f.cur === 'ars');
   const unicoUSD = (f.cur === 'usd');
-  /* Variación de EMISIÓN TOTAL (prima mínima + ajuste + bono + malus): 2026 − 2025, en la
-     moneda unificada elegida o, si es "Moneda Original", en la moneda propia de la póliza. */
-  const varEnMoneda = (x, usd)=> usd ? (x._just.f26.totUSD - x._just.f25.totUSD)
-                                     : (x._just.f26.totARS - x._just.f25.totARS);
-  const calcVar = (x)=> modoUnico ? varEnMoneda(x, unicoUSD) : varEnMoneda(x, x.p.moneda==='US');
+  /* RANKING FIJO (pedido del usuario): el Top 5 de mejoras/caídas NO debe cambiar según la
+     moneda que se muestre. Se rankea por el IMPACTO en una base común (USD), tomando la
+     variación de EMISIÓN TOTAL (prima+ajuste+bono+malus) en la moneda ORIGINAL de cada póliza
+     y convirtiéndola con el TC del 7° (f.tc). El botón 4° de moneda SOLO cambia la conversión
+     visual de los valores, no qué pólizas entran al Top. */
+  const TC = (f.tc && f.tc>0) ? f.tc : 1400;
+  const calcVar = (x)=>{
+    const varU = x._just.f26.totUSD - x._just.f25.totUSD;
+    const varA = x._just.f26.totARS - x._just.f25.totARS;
+    return (x.p.moneda==='US') ? varU : (TC>0 ? varA/TC : varA);
+  };
   let arr = polFiltradas
     .map(p=>{
       const _just = justificarPoliza(p, mesCorte);
