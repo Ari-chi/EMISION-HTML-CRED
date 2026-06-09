@@ -5420,50 +5420,52 @@ window.toggleEjecCausa = function(id){
     /* Mismo formato que Emisión 2026: referencia de moneda a la izquierda y cards
        sin repetir la etiqueta (solo cantidad de pólizas + valores). */
     const catHead = (label, bg, txt, border)=>`<div style="font-size:12px;font-weight:800;text-transform:uppercase;letter-spacing:.05em;padding:7px 10px;border-radius:7px;text-align:center;background:${bg};color:${txt};border:1.5px solid ${border};white-space:nowrap">${label}</div>`;
-    const refCell = (sym)=>{
+    const arrowYears = (v25,v26)=>`<div style="display:flex;align-items:flex-end;justify-content:center;gap:9px;margin-top:7px">
+        <div style="text-align:center;line-height:1.1"><div style="font-size:9.5px;color:var(--ink-3);font-weight:800">2025</div><div style="font-family:var(--font-mono);font-size:13px;color:var(--ink-2);white-space:nowrap">${v25}</div></div>
+        <span style="color:var(--ink-3);font-size:13px;padding-bottom:1px">→</span>
+        <div style="text-align:center;line-height:1.1"><div style="font-size:9.5px;color:var(--ink-3);font-weight:800">2026</div><strong style="font-family:var(--font-mono);font-size:15.5px;color:var(--accent-3);white-space:nowrap">${v26}</strong></div>
+      </div>`;
+    const refCell = (sym, n)=>{
       const c = sym==='US' ? '#8b5cf6' : '#e89b1e';
       return `<div style="display:flex;flex-direction:column;align-items:flex-end;justify-content:center;padding:4px 8px;text-align:right;line-height:1.15">
         <span style="font-size:10px;color:var(--ink-3);font-weight:700;text-transform:uppercase;letter-spacing:.03em">Pólizas<br>Moneda Orig</span>
         <span style="font-size:22px;font-weight:900;color:${c};margin-top:2px">${sym}</span>
+        <span style="font-size:11px;font-weight:800;color:var(--ink-2);font-family:var(--font-mono);margin-top:3px">${n||0} <span style="color:var(--ink-3);font-weight:600">pól.</span></span>
       </div>`;
     };
-    const nLbl = (n)=>`<div style="font-size:10.5px;color:var(--ink-3);text-transform:uppercase;letter-spacing:.03em;font-weight:700">${n||0} pól.</div>`;
-    const zeroCard = `<div style="background:#fbfcfe;border:1px solid var(--line-2);border-radius:7px;padding:13px 16px;box-shadow:0 1px 4px rgba(10,31,58,.06);opacity:.6">${nLbl(0)}<div style="font-family:var(--font-mono);font-size:15px;font-weight:800;color:var(--ink-3);margin-top:4px">0</div></div>`;
+    const _cardCss = "background:#fbfcfe;border:1px solid var(--line-2);border-radius:7px;padding:13px 16px;box-shadow:0 1px 4px rgba(10,31,58,.06)";
+    const nLbl = ()=>'';
+    const zeroCard = `<div style="${_cardCss};opacity:.6"><div style="font-family:var(--font-mono);font-size:15px;font-weight:800;color:var(--ink-3);text-align:center">—</div></div>`;
     const cellPctR = (info, fmt, neg)=>{
       if(!info || info.n===0) return zeroCard;
       const c = info.d===0?'var(--accent)':(info.d>0?(neg?'var(--neg)':'var(--pos)'):(neg?'var(--pos)':'var(--neg)'));
-      return `<div style="background:#fbfcfe;border:1px solid var(--line-2);border-radius:7px;padding:13px 16px;box-shadow:0 1px 4px rgba(10,31,58,.06)">
-        ${nLbl(info.n)}
-        <div style="font-family:var(--font-mono);font-size:13px;color:var(--ink-2);margin-top:4px;line-height:1.4">${fmt(info.v25)} <span style="color:var(--ink-3)">→</span> <strong style="color:var(--accent-3);font-size:15px">${fmt(info.v26)}</strong></div>
-        <div style="font-family:var(--font-mono);font-size:15px;font-weight:800;color:${c};margin-top:4px">${info.d>=0?'+':''}${fmt(info.d)}</div>
-      </div>`;
+      return `<div style="${_cardCss}">${arrowYears(fmt(info.v25), fmt(info.v26))}<div style="font-family:var(--font-mono);font-size:15px;font-weight:800;color:${c};margin-top:9px;text-align:center">${info.d>=0?'+':''}${fmt(info.d)}</div></div>`;
     };
     const cellMontoR = (info, isUS)=>{
       if(!info || info.n===0) return zeroCard;
       const c = info.d>=0?'var(--pos)':'var(--neg)';
-      return `<div style="background:#fbfcfe;border:1px solid var(--line-2);border-radius:7px;padding:13px 16px;box-shadow:0 1px 4px rgba(10,31,58,.06)">
-        ${nLbl(info.n)}
-        <div style="font-family:var(--font-mono);font-size:13px;color:var(--ink-2);margin-top:4px;line-height:1.4">${fmtCompact(info.s25,isUS)} <span style="color:var(--ink-3)">→</span> <strong style="color:var(--accent-3);font-size:15px">${fmtCompact(info.s26,isUS)}</strong></div>
-        <div style="font-family:var(--font-mono);font-size:15px;font-weight:800;color:${c};margin-top:4px">${info.d>=0?'+':''}${fmtCompact(info.d,isUS)}${info.pct!=null?' ('+(info.d>=0?'+':'')+FMT_PCT(info.pct)+')':''}</div>
-      </div>`;
+      return `<div style="${_cardCss}">${arrowYears(fmtCompact(info.s25,isUS), fmtCompact(info.s26,isUS))}<div style="font-family:var(--font-mono);font-size:15px;font-weight:800;color:${c};margin-top:9px;text-align:center">${info.d>=0?'+':''}${fmtCompact(info.d,isUS)}${info.pct!=null?' ('+(info.d>=0?'+':'')+FMT_PCT(info.pct)+')':''}</div></div>`;
+    };
+    /* Siniestralidad unificada (UV arriba / H abajo), igual que Emisión 2026. */
+    const cellSinUnifR = (uvInfo, hInfo)=>{
+      const linea=(lbl,info)=>{
+        if(!info || info.n===0) return `<div style="display:flex;align-items:baseline;gap:6px;font-size:12.5px"><strong style="color:var(--ink-2);min-width:24px">${lbl}:</strong> <span style="color:var(--ink-3);font-style:italic;font-size:11.5px">— sin datos —</span></div>`;
+        const c = info.d===0?'var(--accent)':(info.d>0?'var(--neg)':'var(--pos)');
+        return `<div style="display:flex;align-items:baseline;gap:7px;flex-wrap:wrap;font-family:var(--font-mono)"><strong style="color:var(--accent-3);min-width:24px;font-family:Calibri">${lbl}:</strong><span style="font-size:13px;color:var(--ink-2)">${fmtS(info.v25)} <span style="color:var(--ink-3)">→</span> <strong style="color:var(--accent-3);font-size:14.5px">${fmtS(info.v26)}</strong></span><span style="color:${c};font-weight:800;font-size:13.5px">${info.d>=0?'+':''}${fmtS(info.d)}</span></div>`;
+      };
+      return `<div style="${_cardCss};display:flex;flex-direction:column;gap:8px;justify-content:center">${linea('UV',uvInfo)}<div style="border-top:1px dashed var(--line)"></div>${linea('H',hInfo)}</div>`;
     };
     const cellMonNegR = (info, isUS)=>{
       if(!info || info.n===0 || (info.s25===0 && info.s26===0)) return zeroCard;
       const v = Math.max(Math.abs(info.s25), Math.abs(info.s26||0));
-      return `<div style="background:#fbfcfe;border:1px solid var(--line-2);border-radius:7px;padding:13px 16px;box-shadow:0 1px 4px rgba(10,31,58,.06)">
-        ${nLbl(info.n)}
-        <div style="font-family:var(--font-mono);font-size:16px;font-weight:800;color:var(--neg);margin-top:4px">−${fmtCompact(v,isUS)}</div>
-      </div>`;
+      return `<div style="${_cardCss};display:flex;align-items:center;justify-content:center"><div style="font-family:var(--font-mono);font-size:17px;font-weight:800;color:var(--neg)">−${fmtCompact(v,isUS)}</div></div>`;
     };
     const cellMonAbsR = (info, isUS, forceNeg)=>{
       if(!info || info.n===0) return zeroCard;
       const v = forceNeg ? -Math.abs(info.val) : info.val;
       const color = forceNeg || v<0 ? 'var(--neg)' : (v>0?'var(--pos)':'var(--ink-2)');
       const sgn = (v<0 || forceNeg) ? '−' : (v>0 ? '+' : '');
-      return `<div style="background:#fbfcfe;border:1px solid var(--line-2);border-radius:7px;padding:13px 16px;box-shadow:0 1px 4px rgba(10,31,58,.06)">
-        ${nLbl(info.n)}
-        <div style="font-family:var(--font-mono);font-size:16px;font-weight:800;color:${color};margin-top:4px">${sgn}${fmtCompact(Math.abs(v),isUS)}</div>
-      </div>`;
+      return `<div style="${_cardCss};display:flex;align-items:center;justify-content:center"><div style="font-family:var(--font-mono);font-size:17px;font-weight:800;color:${color}">${sgn}${fmtCompact(Math.abs(v),isUS)}</div></div>`;
     };
     const rubrosCellR = `<div style="background:#fbfcfe;border:1px solid var(--line-2);border-radius:7px;padding:13px 16px;box-shadow:0 1px 4px rgba(10,31,58,.06);height:100%${rubArr.length>0?'':';opacity:.6'}">
       <div style="font-size:11.5px;color:var(--ink-3);text-transform:uppercase;letter-spacing:.04em;font-weight:700;margin-bottom:5px">Rubros (${rubArr.length})</div>
@@ -5481,27 +5483,24 @@ window.toggleEjecCausa = function(id){
       return cellMontoR({n:info.n, s25:info.s25, s26:info.s26, d, pct}, isUS);
     };
     return `<div style="margin-bottom:14px;overflow-x:auto">
-      <div style="display:grid;grid-template-columns:auto repeat(6,minmax(135px,1fr));gap:11px;align-items:stretch;min-width:760px">
+      <div style="display:grid;grid-template-columns:auto repeat(5,minmax(150px,1fr));gap:11px;align-items:stretch;min-width:800px">
         <div></div>
         ${catHead('Prima Mínima','#c2410c','#fff','#c2410c')}
         ${catHead('Proyección','rgba(30,111,217,.10)','#1e6fd9','#1e6fd9')}
         ${catHead('Tasa promedio','rgba(139,92,246,.12)','#7c4ddb','#8b5cf6')}
-        ${catHead('Siniestralidad UV','rgba(232,155,30,.14)','#b9760f','#e89b1e')}
-        ${catHead('Siniestralidad Hist.','rgba(212,117,31,.16)','#a85f12','#d4751f')}
+        ${catHead('Siniestralidad','rgba(232,155,30,.14)','#b9760f','#e89b1e')}
         ${catHead('Rubros','rgba(94,179,232,.16)','#2a6aa0','#5eb3e8')}
-        ${refCell('$')}
+        ${refCell('$', monARS.n)}
         ${montoCell(monARS,false)}
         ${proyCell(proyARS,false)}
         ${cellPctR(tasaARS, fmtT, false)}
-        ${cellPctR(sinUVARS, fmtS, true)}
-        ${cellPctR(sinHARS, fmtS, true)}
+        ${cellSinUnifR(sinUVARS, sinHARS)}
         <div style="grid-row:span 2">${rubrosCellR}</div>
-        ${refCell('US')}
+        ${refCell('US', monUSD.n)}
         ${montoCell(monUSD,true)}
         ${proyCell(proyUSD,true)}
         ${cellPctR(tasaUSD, fmtT, false)}
-        ${cellPctR(sinUVUSD, fmtS, true)}
-        ${cellPctR(sinHUSD, fmtS, true)}
+        ${cellSinUnifR(sinUVUSD, sinHUSD)}
       </div>
     </div>`;
   })();
