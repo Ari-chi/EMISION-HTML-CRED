@@ -503,7 +503,7 @@ h4.section-title{margin:14px 0 8px 0;font-size:13px;color:var(--accent-3);font-w
     <div id="globalMesMenu" style="display:none !important;position:relative">
       <button id="globalMesBtn" onclick="toggleGlobalMesPanel()" style="background:linear-gradient(135deg,#0a3d7a,#1e6fd9);color:#fff;border:none;padding:8px 14px;font-family:var(--font);font-size:12px;font-weight:700;border-radius:5px;cursor:pointer;letter-spacing:.02em;box-shadow:0 2px 6px rgba(10,31,58,.25);display:inline-flex;align-items:center;gap:8px">
         <span>🌐 Mes Corte 2026</span>
-        <span id="globalMesBtnLabel" style="font-family:var(--font-mono);font-size:11px;background:rgba(255,255,255,.18);padding:2px 6px;border-radius:3px">TODO</span>
+        <span id="globalMesBtnLabel" style="font-family:var(--font-mono);font-size:11px;background:rgba(255,255,255,.18);padding:2px 6px;border-radius:3px">Todo el año</span>
         <span style="font-size:9px">▼</span>
       </button>
       <div id="globalMesPanel" style="display:none;position:absolute;right:0;top:100%;margin-top:6px;background:#fff;border:1.5px solid var(--accent);border-radius:6px;padding:12px;box-shadow:0 6px 20px rgba(10,31,58,.18);min-width:300px;z-index:100;text-align:left">
@@ -2045,7 +2045,7 @@ function sectionFiltersBarHTML(sectionId, opts={}){
 
   /* 1° Mes Corte 2026 — replicado del control global; setea state.globalMes2026 */
   const gMesId = `${sectionId}_SF_globalMes`;
-  const MESES_OP_G = [{value:'0',label:'TODO'}].concat(MESES.map((m,i)=>({value:String(i+1),label:m})));
+  const MESES_OP_G = [{value:'0',label:'Todo el año'}].concat(MESES.map((m,i)=>({value:String(i+1),label:m})));
   setCur(gMesId, String(state.globalMes2026||0));
 
   /* Modo mínimo: solo los filtros de fecha (1° Mes Corte y 2° Acumulado). */
@@ -2140,7 +2140,7 @@ function bindSectionFilters(sectionId, onChange){
     state.globalMes2026 = v;
     /* Sincronizar el botón legacy de la cabecera (si todavía existe) */
     const lbl = document.getElementById('globalMesBtnLabel');
-    if(lbl) lbl.textContent = v===0 ? 'TODO' : MESES[v-1].toUpperCase();
+    if(lbl) lbl.textContent = v===0 ? 'Todo el año' : MESES[v-1].toUpperCase();
     setCur('GLOBAL_mes', String(v));
     if(typeof renderAll==='function') renderAll();
   });
@@ -2486,7 +2486,7 @@ function toggleGlobalMesPanel(){
 }
 function initGlobalMesFilter(){
   const id = 'GLOBAL_mes';
-  const MESES_OP = [{value:'0',label:'TODO'}].concat(MESES.map((m,i)=>({value:String(i+1),label:m})));
+  const MESES_OP = [{value:'0',label:'Todo el año'}].concat(MESES.map((m,i)=>({value:String(i+1),label:m})));
   setCur(id, String(state.globalMes2026));
   const wrap = document.getElementById('globalMesToggle');
   if(!wrap) return;
@@ -2494,7 +2494,7 @@ function initGlobalMesFilter(){
   /* Actualizar etiqueta del botón */
   const updateBtnLabel = ()=>{
     const lbl = document.getElementById('globalMesBtnLabel');
-    if(lbl) lbl.textContent = state.globalMes2026===0 ? 'TODO' : MESES[state.globalMes2026-1].toUpperCase();
+    if(lbl) lbl.textContent = state.globalMes2026===0 ? 'Todo el año' : MESES[state.globalMes2026-1].toUpperCase();
   };
   updateBtnLabel();
   /* Click handler */
