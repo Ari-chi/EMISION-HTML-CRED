@@ -6304,8 +6304,13 @@ function drawEjecRubroChart(polArr, f, useUSD){
   const grupos = {};
   for(const p of polArr){
     const k = p.rubro || '(sin rubro)';
+    const f25=calcEmisionFiltrada(p,2025,0), f26=calcEmisionFiltrada(p,2026,mesCorte);
+    /* UNIVERSO = pólizas EMITIDAS en 2026 (suma PM+ajuste+bono+malus 2026 > 0 en
+       cualquier moneda). El 2025 se compara con los meses en que REALMENTE se emitió
+       (año completo, mesCorte=0), no recortado por el corte de 2026 — así el conteo y
+       los totales quedan sincronizados con la tarjeta. */
+    if(!(f26.totARS>0 || f26.totUSD>0)) continue;
     if(!grupos[k]) grupos[k]={u25:0,u26:0,a25:0,a26:0,n:0,n25:0,n26:0};
-    const f25=calcEmisionFiltrada(p,2025,mesCorte), f26=calcEmisionFiltrada(p,2026,mesCorte);
     grupos[k].u25+=f25.totUSD; grupos[k].u26+=f26.totUSD;
     grupos[k].a25+=f25.totARS; grupos[k].a26+=f26.totARS;
     const e25=useUSD?f25.totUSD:f25.totARS, e26=useUSD?f26.totUSD:f26.totARS;
@@ -6348,14 +6353,13 @@ function drawEjecRubroTabla(polArr, f, useUSD){
   const grupos = {};
   for(const p of polArr){
     const k = p.rubro || '(sin rubro)';
+    const f25=calcEmisionFiltrada(p,2025,0), f26=calcEmisionFiltrada(p,2026,mesCorte);
+    /* "Pólizas comparadas" = EMITIDAS en 2026 (suma PM+ajuste+bono+malus 2026 > 0 en
+       cualquier moneda), MISMO universo que el comparativo de barras de arriba. El 2025
+       se toma de los meses en que realmente se emitió (año completo). Así el total de
+       pólizas y los montos quedan sincronizados entre barras, tarjeta y totales. */
+    if(!(f26.totARS>0 || f26.totUSD>0)) continue;
     if(!grupos[k]) grupos[k]={u25:0,u26:0,a25:0,a26:0,n:0, polizas:[]};
-    const f25=calcEmisionFiltrada(p,2025,mesCorte), f26=calcEmisionFiltrada(p,2026,mesCorte);
-    /* "Pólizas comparadas" = sólo las que tienen actividad de emisión dentro
-       del Acumulado hasta (cualquiera de los dos años, cualquier moneda).
-       Sin esto, el contador siempre mostraba todas las pólizas del rubro
-       aunque el mes de corte las dejara afuera. */
-    const tieneActividad = (f25.totARS>0 || f25.totUSD>0 || f26.totARS>0 || f26.totUSD>0);
-    if(!tieneActividad) continue;
     grupos[k].u25+=f25.totUSD; grupos[k].u26+=f26.totUSD;
     grupos[k].a25+=f25.totARS; grupos[k].a26+=f26.totARS;
     grupos[k].n++; grupos[k].polizas.push(p);
@@ -6466,7 +6470,8 @@ function renderRubroCard(it, idx, useUSD, mesCorte, opts){
     const pols = _pols.filter(p=> (p.moneda==='US')===isUS);
     let e25=0,e26=0,p25=0,p26=0,t25=0,t26=0,tn=0,uv25=0,uv26=0,uvn=0,h25=0,h26=0,hn=0,pend=0,np=0;
     for(const p of pols){
-      const f25=calcEmisionFiltrada(p,2025,mesCorte), f26=calcEmisionFiltrada(p,2026,mesCorte);
+      /* 2025 = año completo (meses en que realmente se emitió); 2026 = hasta el corte. */
+      const f25=calcEmisionFiltrada(p,2025,0), f26=calcEmisionFiltrada(p,2026,mesCorte);
       e25+=isUS?f25.totUSD:f25.totARS; e26+=isUS?f26.totUSD:f26.totARS;
       p25+=isUS?(p.proyUSD2025||0):(p.proyARS2025||0); p26+=isUS?(p.proyUSD2026||0):(p.proyARS2026||0);
       if(p.tasa2025!=null&&p.tasa2026!=null){t25+=p.tasa2025;t26+=p.tasa2026;tn++;}
@@ -6630,7 +6635,8 @@ function computarVariacionesRubro(it, mesCorte){
   for(const p of it.polizas){
     const uu = p.moneda==='US';
     const base={poliza:p.poliza, asegurado:p.asegurado, moneda:p.moneda};
-    const f25=calcEmisionFiltrada(p,2025,mesCorte), f26=calcEmisionFiltrada(p,2026,mesCorte);
+    /* 2025 = año completo (meses en que realmente se emitió); 2026 = hasta el corte. */
+    const f25=calcEmisionFiltrada(p,2025,0), f26=calcEmisionFiltrada(p,2026,mesCorte);
     /* ----- Proyección de ventas ----- */
     const pr25=uu?(p.proyUSD2025||0):(p.proyARS2025||0), pr26=uu?(p.proyUSD2026||0):(p.proyARS2026||0);
     if(esPend(p.proyCategoria) && pr25>0){
@@ -9871,8 +9877,11 @@ function drawRubroFull(){
   const grupos = {};
   for(const p of polFiltradas){
     const k = p.rubro || '(sin rubro)';
-    const f25=calcEmisionFiltrada(p,2025,mesCorte), f26=calcEmisionFiltrada(p,2026,mesCorte);
-    if(!(f25.totARS>0||f25.totUSD>0||f26.totARS>0||f26.totUSD>0)) continue;
+    /* Universo = EMITIDAS en 2026 (PM+ajuste+bono+malus 2026 > 0 en cualquier moneda);
+       2025 = año completo (meses en que realmente se emitió). Mismo criterio que el
+       comparativo de barras y la tarjeta del Resumen Ejecutivo. */
+    const f25=calcEmisionFiltrada(p,2025,0), f26=calcEmisionFiltrada(p,2026,mesCorte);
+    if(!(f26.totARS>0||f26.totUSD>0)) continue;
     if(!grupos[k]) grupos[k]={rubro:k,u25:0,u26:0,a25:0,a26:0,n:0,polizas:[]};
     grupos[k].u25+=f25.totUSD; grupos[k].u26+=f26.totUSD; grupos[k].a25+=f25.totARS; grupos[k].a26+=f26.totARS;
     grupos[k].n++; grupos[k].polizas.push(p);
