@@ -3079,6 +3079,18 @@ function ejecFlujo(S, useUSD){
      tamaño y el peso, mantener el color sutil de cada bloque. Se quita
      "objetivo del período" debajo del presupuesto. */
   const tituloCardCss = (col)=>`font-size:14px;color:${col};text-transform:uppercase;letter-spacing:.04em;font-weight:800;margin-bottom:5px;padding-bottom:4px;border-bottom:1px solid ${col};display:inline-block`;
+  /* Desglose de "Emisión Real 2026" por TIPO (para tooltip al pasar el mouse y burbuja al click). */
+  const sufijo = useUSD?'u':'a';
+  const _ec = S.emitidoCats || {};
+  const _bcats = [
+    {k:'seg',lbl:'2ª anualidad'},{k:'ren',lbl:'Renovaciones'},{k:'ter',lbl:'3ª anualidad'},
+    {k:'nuevas',lbl:'Pólizas nuevas'},{k:'ajuste',lbl:'Ajuste'},{k:'malus',lbl:'Malus'},
+    {k:'bono',lbl:'Bono',neg:true},{k:'anualant',lbl:'Corr. Anualidad Anterior'}
+  ];
+  const _brows = _bcats.map(c=>{ const d=_ec[c.k]; const n=(d&&d.polizas)?d.polizas.length:0; const tot=d?d.total:0; if(!tot && n===0) return null; return {lbl:c.lbl, val:c.neg?-Math.abs(tot):tot, n, neg:!!c.neg}; }).filter(Boolean);
+  const _bubbleRows = _brows.map(r=>`<div style="display:flex;justify-content:space-between;gap:16px;font-size:12px;padding:2.5px 0;border-bottom:1px solid var(--line)"><span style="color:var(--ink-2)">${r.lbl} <span style="color:var(--ink-3);font-size:10.5px">· ${r.n} pól.</span></span><strong style="font-family:var(--font-mono);color:${r.neg?'var(--neg)':'var(--accent-3)'}">${r.neg?'−':''}${FMTc(Math.abs(r.val))}</strong></div>`).join('');
+  const _bubbleTitle = 'Emisión 2026 por tipo:\n' + _brows.map(r=>`• ${r.lbl}: ${r.neg?'−':''}${FMTc(Math.abs(r.val))} (${r.n})`).join('\n');
+  const _bubbleHTML = `<div id="emisBubble_${sufijo}" style="display:none;position:absolute;top:100%;left:0;margin-top:6px;z-index:40;background:#fff;border:1px solid var(--line-2);border-radius:9px;box-shadow:0 6px 20px rgba(10,31,58,.20);padding:11px 13px;min-width:250px;text-align:left;cursor:default" onclick="event.stopPropagation()"><div style="font-size:10.5px;text-transform:uppercase;letter-spacing:.04em;font-weight:800;color:var(--pos);margin-bottom:6px">Emisión 2026 por tipo</div>${_bubbleRows||'<div style="font-size:12px;color:var(--ink-3)">— sin desglose —</div>'}</div>`;
   return `<div style="margin-top:8px">
     <div style="font-size:11px;color:var(--ink-3);text-transform:uppercase;letter-spacing:.05em;font-weight:700;margin-bottom:5px">${mLbl}</div>
     <div style="display:flex;align-items:stretch;gap:8px">
@@ -3087,10 +3099,11 @@ function ejecFlujo(S, useUSD){
         <div style="font-size:25px;font-weight:800;color:var(--accent-3);line-height:1;font-family:var(--font-mono);margin-top:4px">${FMTc(S.presup26)}</div>
       </div>
       <div style="display:flex;align-items:center;color:var(--ink-3);font-size:24px;font-weight:300">→</div>
-      <div style="flex:1;background:rgba(45,155,106,.10);border-radius:10px;padding:11px 13px;display:flex;flex-direction:column;justify-content:flex-start">
-        <div style="${tituloCardCss('var(--pos)')}">Emisión Real 2026</div>
+      <div title="${_bubbleTitle.replace(/"/g,'&quot;')}" onclick="window.toggleEmisBubble('${sufijo}')" style="flex:1;position:relative;background:rgba(45,155,106,.10);border-radius:10px;padding:11px 13px;display:flex;flex-direction:column;justify-content:flex-start;cursor:pointer">
+        <div style="${tituloCardCss('var(--pos)')}">Emisión Real 2026 <span style="font-size:11px;color:var(--pos)">▾</span></div>
         <div style="font-size:25px;font-weight:800;color:var(--pos);line-height:1;font-family:var(--font-mono);margin-top:4px">${FMTc(S.emis26)}</div>
         <div style="font-size:18px;font-weight:800;color:var(--pos);margin-top:8px;font-family:var(--font-mono)">${S.cumpl!=null?(S.cumpl*100).toFixed(1)+'%':'—'}<span style="font-size:12px;font-weight:600;margin-left:4px">del objetivo</span></div>
+        ${_bubbleHTML}
       </div>
       <div style="display:flex;align-items:center;color:var(--ink-3);font-size:20px;font-weight:300">=</div>
       <div style="flex:1;background:${desvio>0?'rgba(217,71,71,.10)':'rgba(45,155,106,.10)'};border-radius:10px;padding:11px 13px;display:flex;flex-direction:column;justify-content:flex-start">
@@ -3985,6 +3998,15 @@ const pctOnArcPlugin = {
    ejecEmi_<key>_<sufijo>; drillAreaId es el id del contenedor que recibe el HTML. */
 /* Toggle "Mostrar 2025" del visor de Emisión Total: compara emisión por concepto
    2025 vs 2026 (mismo corte). Solo afecta a este visor. */
+/* Burbuja con el desglose por tipo de "Emisión Real 2026". Click abre; click de nuevo
+   (o en otra) cierra. */
+window.toggleEmisBubble = function(suf){
+  const b = document.getElementById('emisBubble_'+suf);
+  if(!b) return;
+  const open = b.style.display!=='none' && b.style.display!=='';
+  document.querySelectorAll('[id^="emisBubble_"]').forEach(x=>x.style.display='none');
+  if(!open) b.style.display='block';
+};
 window.toggleEjecEmiShow25 = function(){
   /* El valor efectivo por defecto es TRUE (state._ejecEmiShow25 !== false). Hay que
      invertir ese valor efectivo, no el crudo (si invirtiéramos undefined daría true y
