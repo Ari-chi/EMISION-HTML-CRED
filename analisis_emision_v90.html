@@ -5407,12 +5407,15 @@ window.toggleEjecCausa = function(id){
     /* Columna "Prima Mínima" (antes "Monto causa"): prima mínima 2025 → 2026 por moneda. */
     const monARS = {val:sumAbs(_$r, 'montoARS'), n:_$r.length, s25:sumAbs(_$r,'pm25ARS'), s26:sumAbs(_$r,'pm26ARS')};
     const monUSD = {val:sumAbs(_usr,'montoUSD'), n:_usr.length, s25:sumAbs(_usr,'pm25USD'), s26:sumAbs(_usr,'pm26USD')};
-    /* Conteo de pólizas por moneda EXACTAMENTE como el detalle (collect + agrupar por
-       asegurado), para que la cantidad de la grilla coincida con la del sub-desglose. */
-    let nColARS = monARS.n, nColUSD = monUSD.n;
+    /* Conteo Y monto por moneda EXACTAMENTE como el detalle (collect), para que la
+       cantidad y el total de la grilla coincidan con el sub-desglose. */
+    let nColARS = monARS.n, nColUSD = monUSD.n, detMonARS = null, detMonUSD = null;
     try {
-      nColARS = agruparPorAsegurado(collect(false)).reduce((s,r)=>s+(r._nGrupo||1),0);
-      nColUSD = agruparPorAsegurado(collect(true)).reduce((s,r)=>s+(r._nGrupo||1),0);
+      const _cF = collect(false), _cT = collect(true);
+      nColARS = agruparPorAsegurado(_cF).reduce((s,r)=>s+(r._nGrupo||1),0);
+      nColUSD = agruparPorAsegurado(_cT).reduce((s,r)=>s+(r._nGrupo||1),0);
+      detMonARS = _cF.reduce((a,r)=>a+(r.montoARS||0),0);
+      detMonUSD = _cT.reduce((a,r)=>a+(r.montoUSD||0),0);
     } catch(e){}
     const fmtT = (v)=>v==null?'—':FMT_PCT_TASA(v);
     const fmtS = (v)=>v==null?'—':FMT_PCT_SIN(v);
@@ -5484,8 +5487,14 @@ window.toggleEjecCausa = function(id){
     </div>`;
     const esPendPerdNoCorr = (id==='pendiente' || /^pend_/.test(id) || id==='perdidas');
     const proyCell = (info,isUS)=> esPendPerdNoCorr ? cellMonNegR(info,isUS) : cellMontoR(info,isUS);
-    /* Prima Mínima: se muestra como Proyección (prima mínima 2025 → 2026 + variación). */
-    const montoCell = (info,isUS)=>{
+    /* Prima Mínima: en causas PENDIENTES/PERDIDAS el total se toma del detalle (collect)
+       para que coincida exactamente con el sub-desglose; se muestra como magnitud → 0.
+       En el resto (menor/concepto) se muestra prima mínima 2025 → 2026 + variación. */
+    const montoCell = (info,isUS,detMag)=>{
+      if(esPendPerdNoCorr && detMag!=null && Math.abs(detMag)>0){
+        const s25 = Math.abs(detMag);
+        return cellMontoR({n:info?info.n:0, s25, s26:0, d:-s25, pct:-1}, isUS);
+      }
       if(!info || info.n===0) return cellMontoR(info,isUS);
       const d = info.s26 - info.s25, pct = info.s25 ? d/Math.abs(info.s25) : null;
       return cellMontoR({n:info.n, s25:info.s25, s26:info.s26, d, pct}, isUS);
@@ -5501,13 +5510,13 @@ window.toggleEjecCausa = function(id){
         ${catHead('Siniestralidad','rgba(232,155,30,.14)','#b9760f','#e89b1e')}
         ${catHead('Rubros','rgba(94,179,232,.16)','#2a6aa0','#5eb3e8')}
         ${refCell('$', nColARS)}
-        ${montoCell(monARS,false)}
+        ${montoCell(monARS,false,detMonARS)}
         ${proyCell(proyARS,false)}
         ${blankCellD}
         ${blankCellD}
         <div style="grid-row:span 2">${rubrosCellR}</div>
         ${refCell('US', nColUSD)}
-        ${montoCell(monUSD,true)}
+        ${montoCell(monUSD,true,detMonUSD)}
         ${proyCell(proyUSD,true)}
         ${blankCellD}
         ${blankCellD}
