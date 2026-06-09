@@ -4210,14 +4210,16 @@ window.toggleEjecEmi = function(id){
     /* Encabezado de categoría (recuadro de color) para agrupar las cards. */
     const catHead = (label, bg, txt, border)=>`<div style="font-size:12px;font-weight:800;text-transform:uppercase;letter-spacing:.05em;padding:7px 10px;border-radius:7px;text-align:center;background:${bg};color:${txt};border:1.5px solid ${border};white-space:nowrap">${label}</div>`;
     /* Referencia de moneda a la izquierda (en vez de repetir la etiqueta en cada card). */
-    const refCell = (sym)=>{
+    const refCell = (sym, n25, n26)=>{
       const c = sym==='US' ? '#8b5cf6' : '#e89b1e';
       return `<div style="display:flex;flex-direction:column;align-items:flex-end;justify-content:center;padding:4px 8px;text-align:right;line-height:1.15">
         <span style="font-size:10px;color:var(--ink-3);font-weight:700;text-transform:uppercase;letter-spacing:.03em">Pólizas<br>Moneda Orig</span>
         <span style="font-size:22px;font-weight:900;color:${c};margin-top:2px">${sym}</span>
+        <span style="font-size:11px;font-weight:800;color:var(--ink-2);font-family:var(--font-mono);margin-top:3px">${n25||0} → ${n26||0} <span style="color:var(--ink-3);font-weight:600">pól.</span></span>
       </div>`;
     };
-    const nLbl = (info)=>`<div style="font-size:10.5px;color:var(--ink-3);letter-spacing:.02em;font-weight:700">Pólizas: ${info?(info.n25||0):0} → ${info?(info.n26||0):0}</div>`;
+    /* El conteo de pólizas va una sola vez bajo el $/US (es el mismo en toda la fila). */
+    const nLbl = (info)=>'';
     /* AA: en "Corresponde a la Anualidad Anterior" SOLO se muestran Emisión y Rubros;
        proyección/tasa/siniestralidades quedan SIEMPRE en blanco (aunque haya datos). */
     const esAAdrill = /_anualant_/.test(id);
@@ -4272,7 +4274,6 @@ window.toggleEjecEmi = function(id){
       };
       const _ni = uvInfo || hInfo || {};
       return `<div style="background:#fbfcfe;border:1px solid var(--line-2);border-radius:7px;padding:13px 16px;box-shadow:0 1px 4px rgba(10,31,58,.06);display:flex;flex-direction:column;gap:8px;justify-content:center">
-        <div style="font-size:10.5px;color:var(--ink-3);letter-spacing:.02em;font-weight:700">Pólizas: ${_ni.n25||0} → ${_ni.n26||0}</div>
         ${linea('UV', uvInfo)}
         <div style="border-top:1px dashed var(--line)"></div>
         ${linea('H', hInfo)}
@@ -4303,13 +4304,13 @@ window.toggleEjecEmi = function(id){
         ${catHead('Tasa promedio','rgba(139,92,246,.12)','#7c4ddb','#8b5cf6')}
         ${catHead('Siniestralidad','rgba(232,155,30,.14)','#b9760f','#e89b1e')}
         ${catHead('Rubros','rgba(94,179,232,.16)','#2a6aa0','#5eb3e8')}
-        ${refCell('$')}
+        ${refCell('$', monARS.n25, monARS.n26)}
         ${monARSCell}
         ${proyARSCell}
         ${pctCell('$', tasaARS, fmtTasaPct, false)}
         ${sinCell(sinUVARS, sinHARS)}
         <div style="grid-row:span 2">${rubrosCell}</div>
-        ${refCell('US')}
+        ${refCell('US', monUSD.n25, monUSD.n26)}
         ${monUSDCell}
         ${proyUSDCell}
         ${pctCell('US', tasaUSD, fmtTasaPct, false)}
