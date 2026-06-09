@@ -1789,12 +1789,15 @@ function desvioConceptoABM(p, nombreConcepto, mesCorte){
      Anterior". El desvío es la DIFERENCIA: −4 → −10 ⇒ −6 (solo cuando se hizo más negativo). */
   if(nombreConcepto === 'Bono'){
     if(categoriaEsAnualidadAnterior(catTxt)) return {entra:false, mARS:0, mUSD:0, montoOrig:0};
-    const f25b = calcEmisionFiltrada(p, 2025, mesCorte, {excluirAnualAnt:false});
-    const f26b = calcEmisionFiltrada(p, 2026, mesCorte, {excluirAnualAnt:false});
-    let dARS = (f26b.breakdownARS.bono||0) - (f25b.breakdownARS.bono||0);
-    let dUSD = (f26b.breakdownUSD.bono||0) - (f25b.breakdownUSD.bono||0);
-    dARS = dARS < 0 ? dARS : 0;  /* solo el AUMENTO de bono (más negativo) */
-    dUSD = dUSD < 0 ? dUSD : 0;
+    /* MISMO criterio de diferencia que el resto (cuotas PAREADAS, igual N). conceptoBajaPareada
+       devuelve magnitudes |bono| por moneda. El bono "aumenta" (peor) cuando |bono2026| >
+       |bono2025|; el desvío es ese AUMENTO en negativo (−6 para −4 → −10). */
+    const parA = conceptoBajaPareada(p, 'Bono', false, mesCorte);
+    const parU = conceptoBajaPareada(p, 'Bono', true, mesCorte);
+    const incA = parA.pm26 - parA.pm25;
+    const incU = parU.pm26 - parU.pm25;
+    let dARS = incA > 0.5 ? -incA : 0;
+    let dUSD = incU > 0.5 ? -incU : 0;
     if(Math.abs(dARS) < 0.5 && Math.abs(dUSD) < 0.5) return {entra:false, mARS:0, mUSD:0, montoOrig:0};
     const montoOrig = (p.moneda==='US') ? dUSD : dARS;
     return {entra:true, mARS:dARS, mUSD:dUSD, montoOrig};
@@ -5100,7 +5103,20 @@ window.toggleEjecCausa = function(id){
       else {                  lblC='Prima';  c25=isUS?r.pm25USD:r.pm25ARS; c26=isUS?r.pm26USD:r.pm26ARS; }
       const pv25 = isUS ? (r.proy25USD||0) : (r.proy25ARS||0);
       const pv26 = isUS ? (r.proy26USD||0) : (r.proy26ARS||0);
+      /* Variación del BONO (2025 → 2026) en NEGATIVO (mismo formato que las otras filas),
+         para ver de dónde sale el desvío de bono. Se calcula con cuotas pareadas. */
+      let bonoLine = '';
+      if(lblC!=='Bono'){
+        const _pF = state.polizas.find(pp=>pp.clave===r.clave || pp.poliza===r.poliza);
+        if(_pF){
+          const pb = conceptoBajaPareada(_pF, 'Bono', isUS, mesCorte);
+          if((pb.pm25||0)>0.5 || (pb.pm26||0)>0.5){
+            bonoLine = varLine('Bono', -(pb.pm25||0), -(pb.pm26||0), fmtMon, false);
+          }
+        }
+      }
       varBox = `<div style="background:rgba(0,0,0,.03);border:1px solid var(--line);border-radius:5px;padding:6px 10px;margin-top:6px;max-width:520px">
+        ${bonoLine}
         ${varLine(lblC, c25, c26, fmtMon, false)}
         ${varLine('PV',    pv25, pv26, fmtMon, false)}
         ${varLine('Tasa',  r.tasa25, r.tasa26, fmtTasa, false)}
