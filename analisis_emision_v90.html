@@ -826,6 +826,14 @@ function readExcel(file){
      filas de concepto: AG = valor en $, AH = valor en US */
 function _normProyKey(s){ return String(s==null?'':s).trim().toLowerCase(); }
 function _digitsKey(s){ const d = String(s==null?'':s).replace(/\D/g,'').replace(/^0+/,''); return d || null; }
+/* Valor de "Proyección de Emisión" del Excel (bloque AF–AH) para una póliza, por moneda
+   (suf='u' → USD, 'a' → ARS). Busca por número de póliza y, si no, por nombre de asegurado. */
+function _excelEstimVal(p, suf){
+  if(!p || !state._ejecProyEmis) return 0;
+  const tk = [_normProyKey(p.poliza), _digitsKey(p.poliza), _normProyKey(p.asegurado)];
+  for(const k of tk){ if(k && state._ejecProyEmis[k]){ const o = state._ejecProyEmis[k]; const v = (suf==='u') ? o.usd : o.ars; return isFinite(v) ? v : 0; } }
+  return 0;
+}
 function parseProyEmis(rows){
   state._ejecProyEmis = {};
   const numOf = (v)=>{ if(v==null||v==='') return NaN; if(typeof v==='number') return v; return parseFloat(String(v).replace(/[^0-9.\-]/g,'')); };
@@ -3602,31 +3610,51 @@ function ejecJustificacion(S, useUSD, dual, useUSDprimary){
     /* TODAS las pólizas con algún concepto pendiente (prima/ajuste/malus). Se incluyen
        si tienen pendiente en CUALQUIER moneda — misma fuente que la leyenda del Pendiente. */
     const cLbl = {'Prima mínima':'Prima','Ajuste':'Ajuste','Malus':'Malus'};
-    const pend = polPend.map(p=>{ const inf=pendPolizaInfo(p, dd.mesCorte); return {p, val: useUSD?inf.usd:inf.ars, concepts:inf.concepts, any:Math.max(inf.ars,inf.usd)}; })
-      .filter(x=>x.any>0.5).sort((a,b)=>b.val-a.val);
-    /* Desglose por concepto (una póliza puede tener varios → la suma de estos puede ser
-       mayor que el total de pólizas únicas). */
-    const nPrima = pend.filter(x=>x.concepts.includes('Prima mínima')).length;
-    const nAjuste = pend.filter(x=>x.concepts.includes('Ajuste')).length;
-    const nMalus = pend.filter(x=>x.concepts.includes('Malus')).length;
+    /* Lista = pólizas PENDIENTES por fecha + pólizas que NO están pendientes por fecha pero
+       que igual hay que emitir (las marcamos en el Excel, o cargadas a mano) y NO están
+       emitidas ni terminadas. Todas suman. Se ordena por VALOR de mayor a menor. */
+    const lista = (polPend||[]).map(p=>{
+      const inf = pendPolizaInfo(p, dd.mesCorte);
+      const pendV = useUSD ? inf.usd : inf.ars;
+      const esPend = Math.max(inf.ars||0, inf.usd||0) > 0.5;
+      const ex = _excelEstimVal(p, sufijo);
+      const manual = estStore[p.clave];
+      const hasManual = isFinite(manual) && manual>0;
+      let incluir = esPend, soloEstim = false;
+      if(!esPend && (ex>0 || hasManual)){
+        const est = estadoPolizaConsolidado(p, dd.mesCorte);
+        const yaEmit = (est==='sin_desvio' || est==='emitido_con_desvio');
+        const terminada = (p.tipo2026==='Póliza terminada');
+        if(!yaEmit && !terminada){ incluir = true; soloEstim = true; }
+      }
+      const sortVal = hasManual ? manual : (esPend ? pendV : ex);
+      return {p, pendV, concepts:inf.concepts, esPend, soloEstim, incluir, sortVal};
+    }).filter(x=>x.incluir).sort((a,b)=> b.sortVal - a.sortVal);
+    const nPrima = lista.filter(x=>x.esPend && x.concepts.includes('Prima mínima')).length;
+    const nAjuste = lista.filter(x=>x.esPend && x.concepts.includes('Ajuste')).length;
+    const nMalus = lista.filter(x=>x.esPend && x.concepts.includes('Malus')).length;
+    const nAEmitir = lista.filter(x=>x.soloEstim).length;
     const pctTomado = dvAbs>0 ? Math.round(estimEff/dvAbs*100) : 0;
-    const rows = pend.map(({p,val,concepts})=>{
+    const rows = lista.map(({p,pendV,concepts,esPend,soloEstim})=>{
       const e = estStore[p.clave]; const has = isFinite(e)&&e>0;
       const tipos = (concepts&&concepts.length) ? concepts.map(c=>cLbl[c]||c).join(' · ') : '—';
       const eDisp = has ? Number(e).toLocaleString('es-AR',{maximumFractionDigits:0}) : '';
+      const infoLine = esPend
+        ? `Pendiente: <strong style="color:var(--neg)">${fmtCompact(pendV,useUSD)}</strong> <span style="color:var(--neg);font-weight:700">(${tipos})</span>`
+        : `<strong style="color:#b9760f">A emitir</strong> <span style="color:var(--ink-3)">· no pendiente por fecha, pero debe emitirse</span>`;
       return `<div style="display:grid;grid-template-columns:1fr 170px;gap:10px;align-items:center;padding:8px 12px;border-bottom:1px solid var(--line)">
         <div>
           <span style="font-size:14px;font-weight:800;color:var(--accent-3);background:var(--bg-2);padding:2px 8px;border-radius:5px">${fmtPoliza(p.poliza)}</span>
           <span style="color:var(--ink-1);font-size:13px;font-weight:600;margin-left:6px">${(p.asegurado||'').substring(0,26)}</span>
           <span style="font-size:11px;color:var(--accent);font-weight:700;background:rgba(30,111,217,.10);padding:2px 7px;border-radius:4px;margin-left:6px">${p.rubro||'—'}</span>
-          <div style="font-family:var(--font-mono);font-size:11.5px;color:var(--ink-3);margin-top:3px">Pendiente: <strong style="color:var(--neg)">${fmtCompact(val,useUSD)}</strong> <span style="color:var(--neg);font-weight:700">(${tipos})</span></div>
+          <div style="font-family:var(--font-mono);font-size:11.5px;color:var(--ink-3);margin-top:3px">${infoLine}</div>
         </div>
         <input type="text" inputmode="decimal" value="${eDisp}" placeholder="estimación ${useUSD?'US':'$'}" onchange="setEjecEstim('${sufijo}','${p.clave}', this.value)" style="width:100%;padding:6px 8px;font-family:var(--font-mono);font-size:13px;border:1.5px solid ${has?'var(--pos)':'var(--line-2)'};border-radius:6px;text-align:right;color:var(--ink);background:var(--panel)" />
       </div>`;
     }).join('');
     estimPanel = `<div style="margin-top:14px;border:1.5px solid #c5cdd9;border-radius:8px;overflow:hidden">
       <div style="padding:12px 16px;background:rgba(197,205,217,.30);color:#5a6b85;display:flex;justify-content:space-between;align-items:center;gap:14px;flex-wrap:wrap">
-        <span style="font-size:12.5px;font-weight:800">✎ Sin justificar — estimá la emisión de cada pendiente a mano, o tocá <strong>OK</strong> para autocompletar TODAS con lo del Excel (igual podés editar a mano)<br><span style="font-weight:600;color:#7a879c">${pend.length} pólizas únicas · Prima ${nPrima} · Ajuste ${nAjuste} · Malus ${nMalus} (una póliza puede tener varios conceptos)</span></span>
+        <span style="font-size:12.5px;font-weight:800">✎ Sin justificar<br><span style="font-weight:600;color:#7a879c">${lista.length} pólizas · Prima ${nPrima} · Ajuste ${nAjuste} · Malus ${nMalus}${nAEmitir>0?` · A emitir ${nAEmitir}`:''} (una póliza puede tener varios conceptos)</span></span>
         <span style="display:flex;align-items:center;gap:14px;white-space:nowrap">
           <span style="display:flex;flex-direction:column;gap:4px">
             <button onclick="ejecEstimOkAll('${sufijo}')" title="Autocompleta TODAS las pendientes con la proyección del Excel (bloque AF–AH). Respeta los valores que ya cargaste a mano." style="padding:8px 16px;font-size:13px;font-weight:800;border-radius:7px;cursor:pointer;border:1.5px solid var(--pos);background:var(--pos);color:#fff">OK ✓ autocompletar todas</button>
@@ -3735,16 +3763,17 @@ window.ejecEstimOkAll = function(suf){
   const pol = ctx.pol || state.polizas || [];
   const mesCorte = ctx.mesCorte || 0;
   for(const p of pol){
-    const inf = pendPolizaInfo(p, mesCorte);
-    if(!(Math.max(inf.ars||0, inf.usd||0) > 0.5)) continue; /* solo pendientes */
     if(st[p.clave]!=null) continue;                          /* respetar lo cargado a mano */
-    let ex = null;
-    if(state._ejecProyEmis){
-      const tryKeys = [_normProyKey(p.poliza), _digitsKey(p.poliza), _normProyKey(p.asegurado)];
-      let o=null;
-      for(const k of tryKeys){ if(k && state._ejecProyEmis[k]){ o=state._ejecProyEmis[k]; break; } }
-      if(o) ex = (suf==='u') ? o.usd : o.ars;
+    const inf = pendPolizaInfo(p, mesCorte);
+    const esPend = Math.max(inf.ars||0, inf.usd||0) > 0.5;
+    if(!esPend){
+      /* No pendiente por fecha: solo se autocompleta si NO está emitida ni terminada
+         (es algo que igual hay que emitir y lo marcamos en el Excel). */
+      const est = estadoPolizaConsolidado(p, mesCorte);
+      if(est==='sin_desvio' || est==='emitido_con_desvio') continue;
+      if(p.tipo2026==='Póliza terminada') continue;
     }
+    const ex = _excelEstimVal(p, suf);
     if(isFinite(ex) && ex>0) st[p.clave] = ex;
   }
   if(typeof drawEjecutivo==='function') drawEjecutivo();
