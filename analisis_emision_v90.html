@@ -11159,25 +11159,35 @@ function drawTop10(){
   const mesCorte = f.mes;
   const motF = document.getElementById('fTop10Motivo') ? document.getElementById('fTop10Motivo').value : '';
   const polFiltradas = aplicarFiltrosPolizas(state.polizas, f);
+  /* MONEDA (botón 4°): "Moneda Original" (dual) muestra cada póliza en su moneda; si se
+     elige USD o ARS$, se UNIFICA todo a esa única moneda (columna $/US del Excel). */
+  const mon = efectivoMonedas(f);
+  const modoUnico = !(mon.showUSD && mon.showARS);
+  const unicoUSD = mon.showUSD && !mon.showARS;
+  /* Variación de EMISIÓN TOTAL (prima mínima + ajuste + bono + malus): 2026 − 2025, en la
+     moneda unificada elegida o, si es "Moneda Original", en la moneda propia de la póliza. */
+  const varEnMoneda = (x, usd)=> usd ? (x._just.f26.totUSD - x._just.f25.totUSD)
+                                     : (x._just.f26.totARS - x._just.f25.totARS);
+  const calcVar = (x)=> modoUnico ? varEnMoneda(x, unicoUSD) : varEnMoneda(x, x.p.moneda==='US');
   let arr = polFiltradas
     .map(p=>({p,_just:justificarPoliza(p,mesCorte)}))
-    .filter(x=>x._just.f25.totUSD>0 || x._just.f26.totUSD>0 || x._just.motivos.length>0)
-    /* Excluir pendientes: la hoja de Top 10 muestra movimientos reales, no
+    .filter(x=>x._just.f25.totUSD>0 || x._just.f26.totUSD>0 || x._just.f25.totARS>0 || x._just.f26.totARS>0 || x._just.motivos.length>0)
+    /* Excluir pendientes: la hoja de Top 5 muestra movimientos reales, no
        casos pendientes (regla unificada con el Resumen Ejecutivo). */
     .filter(x=> !polizaPendienteEmision(x.p, mesCorte));
   if(motF){
     arr = arr.filter(x=> x._just.motivos.some(m=>m.toLowerCase().includes(motF.toLowerCase())));
   }
-  const calcVar = (x)=> x._just.f26.totUSD - x._just.f25.totUSD;
   const mejoras = [...arr].sort((a,b)=>calcVar(b)-calcVar(a)).filter(x=>calcVar(x)>0).slice(0,5);
   const caidas = [...arr].sort((a,b)=>calcVar(a)-calcVar(b)).filter(x=>calcVar(x)<0).slice(0,5);
 
   const buildCard = (item, idx, esPos)=>{
-    const v = calcVar(item);
-    const vAr = item._just.f26.totARS - item._just.f25.totARS;
+    const v = item._just.f26.totUSD - item._just.f25.totUSD;   /* variación USD */
+    const vAr = item._just.f26.totARS - item._just.f25.totARS; /* variación ARS */
     const pctU = item._just.f25.totUSD>0 ? FMT_PCT(v/item._just.f25.totUSD) : (item._just.f26.totUSD>0?'nuevo':'—');
     const pctA = item._just.f25.totARS>0 ? FMT_PCT(vAr/item._just.f25.totARS) : (item._just.f26.totARS>0?'nuevo':'—');
-    const esUS = item.p.moneda === 'US';
+    /* Moneda a mostrar: unificada si se eligió una; si "Moneda Original", la propia. */
+    const esUS = modoUnico ? unicoUSD : (item.p.moneda === 'US');
     const cardId = `top10_card_${esPos?'mej':'cai'}_${idx}`;
     const colorPrincipal = esPos ? 'var(--pos)' : 'var(--neg)';
     /* Tipo 2026 destacado (Renovación / Segunda anualidad / Póliza nueva /
@@ -11218,9 +11228,9 @@ function drawTop10(){
           <!-- Valor principal en moneda original + equivalente clickeable -->
           <div style="font-family:var(--font-mono);text-align:right;min-width:170px">
             <div style="font-size:20px;font-weight:800;color:${colorPrincipal}" data-role="topVal">${esPos?'+':''}${fmtPrim(vPrim)} <span style="font-size:13px;font-weight:700">(${pctPrim})</span></div>
-            <div data-role="topEquiv" style="font-size:12px;font-weight:600;color:var(--ink-3);margin-top:4px;cursor:pointer;user-select:none" onclick="cambiarMonedaTop10('${cardId}')" data-cur-equiv-base="${esUS?'ars':'usd'}">
+            ${modoUnico ? '' : `<div data-role="topEquiv" style="font-size:12px;font-weight:600;color:var(--ink-3);margin-top:4px;cursor:pointer;user-select:none" onclick="cambiarMonedaTop10('${cardId}')" data-cur-equiv-base="${esUS?'ars':'usd'}">
               <span style="font-size:9.5px;text-transform:uppercase;letter-spacing:.07em;margin-right:5px" data-role="clickLbl">click</span>${esPos?'+':''}${fmtEquiv(vEquiv)} <span style="font-size:11px">(${pctEquiv})</span>
-            </div>
+            </div>`}
           </div>
         </div>
         <div class="top10-detalle" data-moneda="${esUS?'usd':'ars'}">${polizaRowDetalle(item.p, item._just, {...f, cur:(esUS?'usd':'ars')})}</div>
