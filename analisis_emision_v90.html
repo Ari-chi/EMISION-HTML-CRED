@@ -5617,7 +5617,7 @@ window.toggleEjecCausa = function(id){
       ? `${colPrima(false,'prima')}${colPrima(true,'prima')}`
       : `${colAbm(false,sub)}${colAbm(true,sub)}`;
     emisionesUI = ()=>`
-      <div style="display:flex;gap:8px;margin-bottom:14px;flex-wrap:wrap" id="ejecMenorSubsel">${mBtn('prima','Prima mínima',true)}${mBtn('ajuste','Ajuste',false)}${mBtn('malus','Malus',false)}</div>
+      <div style="display:flex;gap:8px;margin-bottom:14px;flex-wrap:wrap" id="ejecMenorSubsel">${mBtn('prima','Prima mínima',true)}${mBtn('ajuste','Ajuste',false)}${mBtn('bono','Bono',false)}${mBtn('malus','Malus',false)}</div>
       <div id="ejecMenorBody" style="display:grid;grid-template-columns:1fr 1fr;gap:16px">${emisCols('prima')}</div>`;
     /* Resumen (formato foto 4, SIN gráficos) de una variable por moneda original. */
     varResumen = (sub)=>{
