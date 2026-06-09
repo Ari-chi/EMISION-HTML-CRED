@@ -5501,6 +5501,10 @@ window.toggleEjecCausa = function(id){
     };
     /* En Desvíos, Tasa y Siniestralidad SIEMPRE quedan en blanco (no aplican a las causas). */
     const blankCellD = `<div style="background:#fafbfc;border:1px dashed var(--line);border-radius:7px;padding:13px 16px;display:flex;align-items:center;justify-content:center;color:var(--ink-3);font-size:11px;font-style:italic;min-height:78px">— no aplica —</div>`;
+    /* Tasa y Siniestralidad: en general "no aplica" en desvíos, PERO en "Menor Emisión"
+       sí se muestran (explican por qué bajó la emisión). */
+    const tasaCellD = (info)=> (id==='menor') ? cellPctR(info, fmtT, false) : blankCellD;
+    const sinCellD  = (uv,h)=> (id==='menor') ? cellSinUnifR(uv, h) : blankCellD;
     /* En "Menor Emisión" se OCULTA la columna Prima Mínima (ya aparece abajo en
        "Magnitud por concepto"). */
     const showPrima = (id !== 'menor');
@@ -5516,14 +5520,14 @@ window.toggleEjecCausa = function(id){
         ${refCell('$', nColARS)}
         ${showPrima ? montoCell(monARS,false,detMonARS) : ''}
         ${proyCell(proyARS,false)}
-        ${blankCellD}
-        ${blankCellD}
+        ${tasaCellD(tasaARS)}
+        ${sinCellD(sinUVARS, sinHARS)}
         <div style="grid-row:span 2">${rubrosCellR}</div>
         ${refCell('US', nColUSD)}
         ${showPrima ? montoCell(monUSD,true,detMonUSD) : ''}
         ${proyCell(proyUSD,true)}
-        ${blankCellD}
-        ${blankCellD}
+        ${tasaCellD(tasaUSD)}
+        ${sinCellD(sinUVUSD, sinHUSD)}
       </div>
     </div>`;
   })();
@@ -5641,8 +5645,7 @@ window.toggleEjecCausa = function(id){
     const topNow = state._ejecMenorTop || 'emisiones';
     contenido = `
       ${menorChart()}
-      <div style="display:flex;gap:8px;margin-bottom:14px;flex-wrap:wrap" id="ejecMenorTopsel">${tBtn('variables','Variables', topNow==='variables')}${tBtn('emisiones','Emisiones', topNow!=='variables')}</div>
-      <div id="ejecMenorTopBody">${topNow==='variables'?variablesUI():emisionesUI()}</div>`;
+      <div id="ejecMenorTopBody">${emisionesUI()}</div>`;
   } else if(id==='prima'){
     contenido = `<div id="ejecMenorBody" style="display:grid;grid-template-columns:1fr 1fr;gap:16px">${colPrima(false,'prima')}${colPrima(true,'prima')}</div>`;
   } else if(id==='abm'){
