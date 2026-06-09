@@ -3398,8 +3398,21 @@ function ejecJustificacion(S, useUSD, dual, useUSDprimary){
   state._ejecEstimOpen = state._ejecEstimOpen || {};
   const sufijo = useUSD?'u':'a';
   const estStore = state._ejecEstim[sufijo];
+  /* Pendiente YA contado por póliza (en la moneda de la vista). La estimación aporta
+     SOLO LA DIFERENCIA contra ese pendiente, para no duplicar: si Advanta ya suma 150k
+     en pendientes y estimamos 500k, se agregan 350k. */
+  const _pendByClave = {};
+  for(const pp of (polPend||[])){
+    const inf = pendPolizaInfo(pp, dd.mesCorte);
+    _pendByClave[pp.clave] = useUSD ? inf.usd : inf.ars;
+  }
   let estimRaw = 0;
-  for(const k in estStore){ const e = estStore[k]; if(isFinite(e) && e>0) estimRaw += e; }
+  for(const k in estStore){
+    const e = estStore[k];
+    if(!(isFinite(e) && e>0)) continue;
+    const diff = e - (_pendByClave[k] || 0);
+    if(diff > 0) estimRaw += diff;
+  }
   const _sumaBase = causas.reduce((a,c)=>a+c.val,0);
   const _sinCubrirBase = Math.max(0, dvAbs - _sumaBase);
   const estimEff = Math.min(estimRaw, _sinCubrirBase);
@@ -3564,7 +3577,7 @@ function ejecJustificacion(S, useUSD, dual, useUSDprimary){
           <div style="font-family:var(--font-mono);font-size:11.5px;color:var(--ink-3);margin-top:3px">Pendiente: <strong style="color:var(--neg)">${fmtCompact(val,useUSD)}</strong> <span style="color:var(--neg);font-weight:700">(${tipos})</span></div>
         </div>
         <input type="text" inputmode="decimal" value="${has?e:''}" placeholder="estimación ${useUSD?'US':'$'}" onchange="setEjecEstim('${sufijo}','${p.clave}', this.value)" style="width:100%;padding:6px 8px;font-family:var(--font-mono);font-size:13px;border:1.5px solid ${has?'var(--pos)':'var(--line-2)'};border-radius:6px;text-align:right;color:var(--ink);background:var(--panel)" />
-        <button onclick="ejecEstimOk('${sufijo}','${p.clave}', ${val})" title="Tomar la proyección del Excel (AF19); por ahora, si está vacía, estima el pendiente completo" style="padding:6px 11px;font-size:12px;font-weight:800;border-radius:6px;cursor:pointer;border:1.5px solid ${has?'var(--pos)':'var(--line-2)'};background:${has?'var(--pos)':'var(--panel)'};color:${has?'#fff':'var(--ink-2)'}">OK ✓</button>
+        <button onclick="ejecEstimOk('${sufijo}','${p.clave}', ${val})" title="Toma la proyección del Excel (bloque AF–AH) para esta póliza; si el Excel no tiene valor, queda vacío para cargar a mano" style="padding:6px 11px;font-size:12px;font-weight:800;border-radius:6px;cursor:pointer;border:1.5px solid ${has?'var(--pos)':'var(--line-2)'};background:${has?'var(--pos)':'var(--panel)'};color:${has?'#fff':'var(--ink-2)'}">OK ✓</button>
       </div>`;
     }).join('');
     estimPanel = `<div style="margin-top:14px;border:1.5px solid #c5cdd9;border-radius:8px;overflow:hidden">
@@ -3664,9 +3677,10 @@ window.ejecEstimOk = function(suf, clave, pendVal){
   const st = _ejecEstimStore(suf);
   if(st[clave]!=null){ delete st[clave]; }
   else {
-    /* OK = tomar la "Proyección de Emisión" del Excel, buscando primero por NÚMERO DE
-       PÓLIZA (referencia principal) y, si no, por NOMBRE de asegurado (suma Prima Mínima
-       + Ajuste + Malus). Si no hay valor cargado en el Excel, estima el pendiente completo. */
+    /* OK = tomar la "Proyección de Emisión" del Excel (bloque AF–AH), buscando primero por
+       NÚMERO DE PÓLIZA y, si no, por NOMBRE de asegurado (suma Prima Mínima + Ajuste + Malus).
+       EXCLUSIVO: solo coloca un valor SI el Excel tiene cargado algo para esa póliza. Si no
+       hay valor, el OK queda VACÍO (se completa a mano en el HTML). */
     let ex = null;
     if(state._ejecProyEmis){
       const p = (state.polizas||[]).find(x=>x.clave===clave || x.poliza===clave);
@@ -3677,7 +3691,7 @@ window.ejecEstimOk = function(suf, clave, pendVal){
       }
       if(o) ex = (suf==='u') ? o.usd : o.ars;
     }
-    st[clave] = (isFinite(ex) && ex>0) ? ex : (Math.abs(pendVal)||0);
+    if(isFinite(ex) && ex>0) st[clave] = ex;  /* sin valor en el Excel → queda vacío */
   }
   if(typeof drawEjecutivo==='function') drawEjecutivo();
 };
