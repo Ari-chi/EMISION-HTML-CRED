@@ -1782,6 +1782,23 @@ function desvioConceptoABM(p, nombreConcepto, mesCorte){
   if(!r) return {entra:false, mARS:0, mUSD:0, montoOrig:0};
   if(polizaTerminada(p)) return {entra:false, mARS:0, mUSD:0, montoOrig:0};
   const catTxt = r.categoria ? String(r.categoria).trim() : '';
+  /* ===== BONO (regla del usuario) =====
+     El bono es nota de crédito (negativo). Si AUMENTA de un año a otro (se hace MÁS
+     negativo: 0 → −100, −4 → −10, etc.) ese incremento es un DESVÍO, porque emitir más
+     bono nos resta emisión. Se EXCLUYEN las pólizas cuya categoría (Excel) sea "Anualidad
+     Anterior". El desvío es la DIFERENCIA: −4 → −10 ⇒ −6 (solo cuando se hizo más negativo). */
+  if(nombreConcepto === 'Bono'){
+    if(categoriaEsAnualidadAnterior(catTxt)) return {entra:false, mARS:0, mUSD:0, montoOrig:0};
+    const f25b = calcEmisionFiltrada(p, 2025, mesCorte, {excluirAnualAnt:false});
+    const f26b = calcEmisionFiltrada(p, 2026, mesCorte, {excluirAnualAnt:false});
+    let dARS = (f26b.breakdownARS.bono||0) - (f25b.breakdownARS.bono||0);
+    let dUSD = (f26b.breakdownUSD.bono||0) - (f25b.breakdownUSD.bono||0);
+    dARS = dARS < 0 ? dARS : 0;  /* solo el AUMENTO de bono (más negativo) */
+    dUSD = dUSD < 0 ? dUSD : 0;
+    if(Math.abs(dARS) < 0.5 && Math.abs(dUSD) < 0.5) return {entra:false, mARS:0, mUSD:0, montoOrig:0};
+    const montoOrig = (p.moneda==='US') ? dUSD : dARS;
+    return {entra:true, mARS:dARS, mUSD:dUSD, montoOrig};
+  }
   /* (1) categoría con texto y que NO sea "anualidad anterior" */
   const cuentaCat = !!catTxt && !categoriaEsAnualidadAnterior(catTxt);
   if(!cuentaCat) return {entra:false, mARS:0, mUSD:0, montoOrig:0};
