@@ -6267,62 +6267,65 @@ function drawEjecRubroExtremos(polArr, f){
       sinH: (nH25>0||nH26>0) ? {v25:avg(hSum25,nH25), v26:avg(hSum26,nH26), d:avg(hSum26,nH26)-avg(hSum25,nH25), n:nH26||nH25} : null,
     };
   });
-  /* Helpers de presentación */
+  /* === Selector dinámico: UNA métrica a la vez, en barras DIVERGENTES por rubro
+     (ordenadas por variación) para leerlo rápido y sin saturar. Sube → derecha,
+     cae → izquierda; color verde = bueno, rojo = malo (en siniestralidad se invierte). === */
   const FMTm = (v)=>fmtCompact(v, useUSD);
-  const FMTpctTasa = (v)=>FMT_PCT_TASA(v);
-  const FMTpctSin = (v)=>FMT_PCT_SIN(v);
-  /* Tarjeta con TOP 3 MEJORAS y TOP 3 BAJAS para un concepto. */
-  const card = (titulo, color, fields, fmtVal, fmtDelta, invert)=>{
-    const validas = filas.filter(r=>r[fields] && (r[fields].d!==0));
-    if(validas.length===0){
-      return `<div style="background:var(--panel);border:1px solid var(--line-2);border-radius:10px;padding:14px 16px;border-top:4px solid ${color}">
-        <div style="display:inline-block;font-size:12.5px;color:#fff;background:${color};padding:5px 12px;border-radius:6px;text-transform:uppercase;letter-spacing:.05em;font-weight:800;margin-bottom:10px">${titulo}</div>
-        <div style="font-size:12.5px;color:var(--ink-3);font-style:italic">— sin variaciones —</div>
-      </div>`;
-    }
-    const sortedDesc = [...validas].sort((a,b)=>b[fields].d - a[fields].d);
-    /* Mejoras = los con mayor delta positivo; bajas = los con mayor delta negativo. */
-    const mejoras = sortedDesc.filter(r=>r[fields].d>0).slice(0,3);
-    const bajas   = sortedDesc.filter(r=>r[fields].d<0).slice(-3).reverse();
-    const row = (r, isMax)=>{
-      const v25 = r[fields].v25, v26 = r[fields].v26, d = r[fields].d;
-      /* En siniestralidad la connotación se invierte: subir es MALO (rojo), bajar es BUENO (verde). */
-      const good = invert ? !isMax : isMax;
+  const METRICS = [
+    {k:'emi',  lbl:'Emisión',                 col:'#2d9b6a', invert:false, fmtV:FMTm,         fmtD:(d)=>(d>=0?'+':'')+FMTm(d)},
+    {k:'proy', lbl:'Proyección de ventas',     col:'#1e6fd9', invert:false, fmtV:FMTm,         fmtD:(d)=>(d>=0?'+':'')+FMTm(d)},
+    {k:'tasa', lbl:'Tasa promedio',            col:'#8b5cf6', invert:false, fmtV:FMT_PCT_TASA, fmtD:(d)=>(d>=0?'+':'')+FMT_PCT_TASA(d)},
+    {k:'sinUV',lbl:'Siniestralidad UV',        col:'#e89b1e', invert:true,  fmtV:FMT_PCT_SIN,  fmtD:(d)=>(d>=0?'+':'')+FMT_PCT_SIN(d)},
+    {k:'sinH', lbl:'Siniestralidad histórica', col:'#d4751f', invert:true,  fmtV:FMT_PCT_SIN,  fmtD:(d)=>(d>=0?'+':'')+FMT_PCT_SIN(d)},
+  ];
+  let sel = state._ejecRubroExtSel || 'emi';
+  if(!METRICS.some(m=>m.k===sel)) sel = 'emi';
+  const panelHTML = (mk)=>{
+    const M = METRICS.find(m=>m.k===mk) || METRICS[0];
+    const validas = filas.filter(r=>r[M.k] && r[M.k].d!==0);
+    if(validas.length===0) return '<div style="font-size:13px;color:var(--ink-3);font-style:italic;padding:18px 4px">— sin variaciones para este concepto —</div>';
+    const sorted = [...validas].sort((a,b)=> b[M.k].d - a[M.k].d);
+    const maxAbs = Math.max(1, ...validas.map(r=>Math.abs(r[M.k].d)));
+    const barRow = (r)=>{
+      const o=r[M.k], sube=o.d>0, good=M.invert?!sube:sube;
       const c = good ? 'var(--pos)' : 'var(--neg)';
-      const bg = good ? 'rgba(45,155,106,.06)' : 'rgba(217,71,71,.05)';
-      return `<div style="background:${bg};border-radius:5px;padding:7px 10px;margin-bottom:4px;border-left:3px solid ${c};display:grid;grid-template-columns:1fr auto;gap:8px;align-items:baseline">
-        <div>
-          <div style="font-size:13.5px;color:var(--accent-3);font-weight:700">${r.rubro} <span style="font-size:11px;color:var(--ink-3);font-weight:500">${r[fields].n} pól.</span></div>
-          <div style="font-family:var(--font-mono);font-size:11.5px;color:var(--ink-2);margin-top:1px">${fmtVal(v25)} → <strong>${fmtVal(v26)}</strong></div>
-        </div>
-        <div style="font-family:var(--font-mono);font-size:13.5px;font-weight:800;color:${c};white-space:nowrap">${fmtDelta(d)}</div>
+      const w = Math.max(2, Math.round(Math.abs(o.d)/maxAbs*50));
+      const bar = sube
+        ? `<div style="position:absolute;left:50%;top:0;bottom:0;width:${w}%;background:${c};border-radius:0 4px 4px 0;opacity:.85"></div>`
+        : `<div style="position:absolute;right:50%;top:0;bottom:0;width:${w}%;background:${c};border-radius:4px 0 0 4px;opacity:.85"></div>`;
+      return `<div style="display:grid;grid-template-columns:168px 1fr 196px;gap:12px;align-items:center;padding:5px 0;border-bottom:1px solid var(--line)">
+        <div style="font-size:13px;font-weight:700;color:var(--accent-3);white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${r.rubro} <span style="font-size:10.5px;color:var(--ink-3);font-weight:500">${o.n} pól.</span></div>
+        <div style="position:relative;height:16px;background:var(--bg-2);border-radius:4px"><div style="position:absolute;left:50%;top:-3px;bottom:-3px;width:1px;background:var(--line-2)"></div>${bar}</div>
+        <div style="text-align:right;font-family:var(--font-mono);font-size:12px;white-space:nowrap"><span style="color:var(--ink-3)">${M.fmtV(o.v25)} → ${M.fmtV(o.v26)}</span> <strong style="color:${c}">${M.fmtD(o.d)}</strong></div>
       </div>`;
     };
-    const seccion = (titulo, items, esMejora)=>{
-      if(items.length===0) return '';
-      const good = invert ? !esMejora : esMejora;
-      const color = good ? 'var(--pos)' : 'var(--neg)';
-      const bg = good ? 'rgba(45,155,106,.10)' : 'rgba(217,71,71,.08)';
-      return `<div style="margin-bottom:12px">
-        <div style="display:inline-block;background:${bg};color:${color};font-size:12px;font-weight:800;padding:5px 12px;border-radius:14px;text-transform:uppercase;letter-spacing:.06em;margin-bottom:8px">${titulo}</div>
-        ${items.map(r=>row(r, esMejora)).join('')}
-      </div>`;
-    };
-    return `<div style="background:var(--panel);border:1px solid var(--line-2);border-radius:10px;padding:14px 16px;border-top:4px solid ${color};box-shadow:0 1px 3px rgba(10,31,58,.04)">
-      <div style="display:inline-block;font-size:12.5px;color:#fff;background:${color};padding:5px 12px;border-radius:6px;text-transform:uppercase;letter-spacing:.05em;font-weight:800;margin-bottom:10px;box-shadow:0 1px 4px ${color}55">${titulo}</div>
-      ${seccion('▲ Top 3 aumentos', mejoras, true)}
-      ${seccion('▼ Top 3 disminuciones', bajas, false)}
-      ${mejoras.length===0 && bajas.length===0 ? '<div style="font-size:12.5px;color:var(--ink-3);font-style:italic">— sin variaciones —</div>' : ''}
-    </div>`;
+    return `<div style="margin-top:4px">${sorted.map(barRow).join('')}</div>`;
   };
+  const btns = METRICS.map(m=>{
+    const on=m.k===sel;
+    return `<button data-mk="${m.k}" onclick="ejecRubroExtSel('${m.k}')" style="border:1.5px solid ${m.col};background:${on?m.col:'transparent'};color:${on?'#fff':m.col};font-size:12.5px;font-weight:800;padding:6px 14px;border-radius:18px;cursor:pointer;white-space:nowrap;transition:all .15s">${m.lbl}</button>`;
+  }).join('');
   wrap.innerHTML = `
-    <div style="display:grid;grid-template-columns:repeat(5,minmax(0,1fr));gap:12px;align-items:start">
-      ${card('Emisión',             '#2d9b6a',      'emi',   FMTm,       (d)=>(d>=0?'+':'')+FMTm(d))}
-      ${card('Proyección de ventas','var(--accent)','proy',  FMTm,       (d)=>(d>=0?'+':'')+FMTm(d))}
-      ${card('Tasa promedio',       '#8b5cf6',      'tasa',  FMTpctTasa, (d)=>(d>=0?'+':'')+FMTpctTasa(d))}
-      ${card('Siniestralidad UV',   'var(--warn)',  'sinUV', FMTpctSin,  (d)=>(d>=0?'+':'')+FMTpctSin(d), true)}
-      ${card('Siniestralidad histórica', '#d4751f', 'sinH',  FMTpctSin,  (d)=>(d>=0?'+':'')+FMTpctSin(d), true)}
-    </div>`;
+    <div id="ejecRubroExtBtns" style="display:flex;flex-wrap:wrap;gap:8px;margin-bottom:12px">${btns}</div>
+    <div style="display:flex;justify-content:space-between;align-items:baseline;margin-bottom:2px;padding:0 2px">
+      <span style="font-size:10.5px;color:var(--ink-3);font-weight:700;text-transform:uppercase;letter-spacing:.04em">◀ Cae / Disminuye</span>
+      <span style="font-size:10.5px;color:var(--ink-3);font-weight:700;text-transform:uppercase;letter-spacing:.04em">Sube / Aumenta ▶</span>
+    </div>
+    <div id="ejecRubroExtPanel">${panelHTML(sel)}</div>`;
+  window.ejecRubroExtSel = function(mk){
+    state._ejecRubroExtSel = mk;
+    const panel = document.getElementById('ejecRubroExtPanel');
+    if(panel) panel.innerHTML = panelHTML(mk);
+    const cont = document.getElementById('ejecRubroExtBtns');
+    if(cont){
+      [...cont.querySelectorAll('button')].forEach(b=>{
+        const m = METRICS.find(x=>x.k===b.dataset.mk); if(!m) return;
+        const on = m.k===mk;
+        b.style.background = on?m.col:'transparent';
+        b.style.color = on?'#fff':m.col;
+      });
+    }
+  };
 }
 
 /* Mini-gráfico comparativo: emisión 2025 vs 2026 por rubro, en la moneda y mes
