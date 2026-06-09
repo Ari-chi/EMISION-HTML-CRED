@@ -3785,9 +3785,9 @@ function ejecEmitido(S, useUSD, dual){
      una flecha chica en el medio; si no, el donut 2026 solo. */
   const chartsBlock = show25
     ? `<div style="display:flex;align-items:center;justify-content:flex-start;gap:0;flex-shrink:0">
-        <div style="text-align:center"><div style="font-size:16px;font-weight:800;color:var(--ink-3);margin-bottom:2px">2025</div><div style="width:280px"><canvas id="${pieId25}" style="max-height:295px"></canvas></div></div>
+        <div style="text-align:center"><div style="display:inline-block;font-size:15px;font-weight:800;color:#fff;background:#7a8ca8;padding:3px 18px;border-radius:6px;margin-bottom:6px;letter-spacing:.04em">2025</div><div style="width:280px"><canvas id="${pieId25}" style="max-height:295px"></canvas></div></div>
         <span style="font-size:26px;color:var(--ink-3);font-weight:800;align-self:center">→</span>
-        <div style="text-align:center"><div style="font-size:16px;font-weight:800;color:var(--pos);margin-bottom:2px">2026</div><div style="width:280px"><canvas id="${pieId}" style="max-height:295px"></canvas></div></div>
+        <div style="text-align:center"><div style="display:inline-block;font-size:15px;font-weight:800;color:#fff;background:var(--pos);padding:3px 18px;border-radius:6px;margin-bottom:6px;letter-spacing:.04em">2026</div><div style="width:280px"><canvas id="${pieId}" style="max-height:295px"></canvas></div></div>
       </div>`
     : `<div style="width:100%;max-width:340px;justify-self:center"><canvas id="${pieId}" style="max-height:320px"></canvas></div>`;
 
@@ -4116,8 +4116,10 @@ window.toggleEjecEmi = function(id){
     const dOrig = v26orig - v25orig;
     const dpct = v25orig ? dOrig/Math.abs(v25orig) : null;
     let cc;
-    if(esBono) cc='var(--neg)';
-    else if(dOrig>0) cc='var(--pos)';
+    /* Bono: SIEMPRE es negativo. La variación define el color como cualquier otro
+       concepto: si el bono se hace MÁS negativo (dOrig<0) es PEOR → rojo; si se hace
+       MENOS negativo (dOrig>0) es MEJOR → verde. */
+    if(dOrig>0) cc='var(--pos)';
     else if(dOrig<0) cc='var(--neg)';
     else cc='var(--accent)';
     const equivLine = (monOrig!==monBtn)
