@@ -6603,25 +6603,40 @@ window.toggleEjrConcepto = function(rubroIdx, cid){
   const mesCorte = state._ejecRubroMesCorte || 0;
   const V = computarVariacionesRubro(it, mesCorte);
   const mc = (v,uu)=>fmtCompact(v,uu);
+  /* Filas en formato GRILLA: columnas alineadas (2025 · → · 2026 · variación) para que
+     los valores de la derecha queden ordenados verticalmente entre todas las pólizas. */
+  const _rowBase = "padding:7px 0;border-bottom:1px solid var(--line);align-items:baseline;font-size:13.5px";
+  const _aseg = (r,extra)=>`<span style="overflow:hidden;text-overflow:ellipsis;white-space:nowrap"><strong>${fmtPoliza(r.poliza)}</strong> <span style="color:var(--ink-2)">${(r.asegurado||'').substring(0,22)}</span>${extra||''}</span>`;
+  const _arrow = '<span style="color:var(--ink-3);text-align:center">→</span>';
   const filaMonto = (r)=>{
     const cc = r.d>=0?'var(--pos)':'var(--neg)';
-    return `<div style="padding:7px 0;border-bottom:1px solid var(--line);display:flex;justify-content:space-between;gap:10px;font-size:13.5px">
-      <span><strong>${fmtPoliza(r.poliza)}</strong> <span style="color:var(--ink-2)">${(r.asegurado||'').substring(0,22)}</span> <span style="font-size:11px;color:${r.moneda==='US'?'var(--pos)':'var(--accent)'};font-weight:700">${r.moneda}</span></span>
-      <span style="font-family:var(--font-mono);font-weight:700">${mc(r.v25,r.moneda==='US')} → ${mc(r.v26,r.moneda==='US')} <span style="color:${cc};font-weight:800">${r.dpct!=null?'('+(r.d>=0?'+':'')+FMT_PCT(r.dpct)+')':''}</span></span>
+    return `<div style="${_rowBase};display:grid;grid-template-columns:minmax(0,1fr) 92px 16px 92px 74px;gap:6px">
+      ${_aseg(r, ` <span style="font-size:11px;color:${r.moneda==='US'?'var(--pos)':'var(--accent)'};font-weight:700">${r.moneda}</span>`)}
+      <span style="font-family:var(--font-mono);text-align:right;color:var(--ink-2)">${mc(r.v25,r.moneda==='US')}</span>
+      ${_arrow}
+      <span style="font-family:var(--font-mono);text-align:right;font-weight:700">${mc(r.v26,r.moneda==='US')}</span>
+      <span style="font-family:var(--font-mono);text-align:right;color:${cc};font-weight:800">${r.dpct!=null?(r.d>=0?'+':'')+FMT_PCT(r.dpct):''}</span>
     </div>`;
   };
   const filaTasa = (r)=>{
     const cc = r.d>=0?'var(--pos)':'var(--neg)';
-    return `<div style="padding:7px 0;border-bottom:1px solid var(--line);display:flex;justify-content:space-between;gap:10px;font-size:13.5px">
-      <span><strong>${fmtPoliza(r.poliza)}</strong> <span style="color:var(--ink-2)">${(r.asegurado||'').substring(0,22)}</span></span>
-      <span style="font-family:var(--font-mono);font-weight:700">${FMT_PCT_TASA(r.t25)} → ${FMT_PCT_TASA(r.t26)} <span style="color:${cc};font-weight:800">(${r.d>=0?'+':''}${FMT_PCT_TASA(r.d)})</span></span>
+    return `<div style="${_rowBase};display:grid;grid-template-columns:minmax(0,1fr) 66px 16px 66px 66px;gap:6px">
+      ${_aseg(r)}
+      <span style="font-family:var(--font-mono);text-align:right;color:var(--ink-2)">${FMT_PCT_TASA(r.t25)}</span>
+      ${_arrow}
+      <span style="font-family:var(--font-mono);text-align:right;font-weight:700">${FMT_PCT_TASA(r.t26)}</span>
+      <span style="font-family:var(--font-mono);text-align:right;color:${cc};font-weight:800">${r.d>=0?'+':''}${FMT_PCT_TASA(r.d)}</span>
     </div>`;
   };
   const filaSin = (lbl)=>(r)=>{
     const cc = r.d>=0?'var(--neg)':'var(--pos)';
-    return `<div style="padding:7px 0;border-bottom:1px solid var(--line);display:flex;justify-content:space-between;gap:10px;font-size:13.5px">
-      <span><strong>${fmtPoliza(r.poliza)}</strong> <span style="color:var(--ink-2)">${(r.asegurado||'').substring(0,22)}</span></span>
-      <span style="font-family:var(--font-mono);font-weight:700">${lbl} ${FMT_PCT_SIN(r.s25)} → ${FMT_PCT_SIN(r.s26)} <span style="color:${cc};font-weight:800">(${r.d>=0?'+':''}${FMT_PCT_SIN(r.d)})</span></span>
+    return `<div style="${_rowBase};display:grid;grid-template-columns:minmax(0,1fr) 40px 58px 16px 58px 64px;gap:6px">
+      ${_aseg(r)}
+      <span style="font-family:var(--font-mono);text-align:right;color:var(--ink-3);font-size:11px">${lbl}</span>
+      <span style="font-family:var(--font-mono);text-align:right;color:var(--ink-2)">${FMT_PCT_SIN(r.s25)}</span>
+      ${_arrow}
+      <span style="font-family:var(--font-mono);text-align:right;font-weight:700">${FMT_PCT_SIN(r.s26)}</span>
+      <span style="font-family:var(--font-mono);text-align:right;color:${cc};font-weight:800">${r.d>=0?'+':''}${FMT_PCT_SIN(r.d)}</span>
     </div>`;
   };
   const filaPend = (r)=>{
@@ -6629,9 +6644,11 @@ window.toggleEjrConcepto = function(rubroIdx, cid){
     const v25Disp = (r.v25!=null) ? mc(r.v25, r.moneda==='US')
       : (r.t25!=null ? FMT_PCT_TASA(r.t25)
       : (r.s25!=null ? FMT_PCT_SIN(r.s25) : '—'));
-    return `<div style="padding:7px 0;border-bottom:1px solid var(--line);display:flex;justify-content:space-between;gap:10px;font-size:13.5px;align-items:baseline">
-      <span><strong>${fmtPoliza(r.poliza)}</strong> <span style="color:var(--ink-2)">${(r.asegurado||'').substring(0,22)}</span> <span style="font-size:11px;color:var(--ink-3);font-style:italic">${motivo}</span></span>
-      <span style="font-family:var(--font-mono);font-weight:700">${v25Disp} → <span style="color:#4ba3c7;font-weight:800;background:rgba(75,163,199,.10);padding:1px 7px;border-radius:4px">Pendiente</span></span>
+    return `<div style="${_rowBase};display:grid;grid-template-columns:minmax(0,1fr) 92px 16px 92px;gap:6px">
+      ${_aseg(r, ` <span style="font-size:11px;color:var(--ink-3);font-style:italic">${motivo}</span>`)}
+      <span style="font-family:var(--font-mono);text-align:right;color:var(--ink-2)">${v25Disp}</span>
+      ${_arrow}
+      <span style="font-family:var(--font-mono);text-align:right"><span style="color:#4ba3c7;font-weight:800;background:rgba(75,163,199,.10);padding:1px 7px;border-radius:4px">Pendiente</span></span>
     </div>`;
   };
   const concMap = {
