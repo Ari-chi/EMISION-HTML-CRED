@@ -4180,10 +4180,13 @@ window.toggleEjecEmi = function(id){
     const sinUVUSD = avgYr(aU25, aU26, 'sinUV');
     const sinHARS  = avgYr(a$25, a$26, 'sinH');
     const sinHUSD  = avgYr(aU25, aU26, 'sinH');
-    /* Rubros del conjunto 2026 (la emisión vigente). */
-    const rubros = {};
-    for(const r of enriched26){ const k=r.rubro||'(sin rubro)'; rubros[k]=(rubros[k]||0)+1; }
-    const rubArr = Object.entries(rubros).sort((a,b)=>b[1]-a[1]);
+    /* Rubros: conteo por rubro en cada conjunto (2025 y 2026) para mostrar variación. */
+    const rub25 = {}, rub26 = {};
+    for(const r of enriched25){ const k=r.rubro||'(sin rubro)'; rub25[k]=(rub25[k]||0)+1; }
+    for(const r of enriched26){ const k=r.rubro||'(sin rubro)'; rub26[k]=(rub26[k]||0)+1; }
+    const rubArr = [...new Set([...Object.keys(rub25), ...Object.keys(rub26)])]
+      .map(k=>[k, rub25[k]||0, rub26[k]||0])
+      .sort((a,b)=> b[2]-a[2] || b[1]-a[1]);
     const monARS = sumYr(a$25, a$26, 'val_ars');
     const monUSD = sumYr(aU25, aU26, 'val_usd');
     /* Helpers de formato */
@@ -4268,8 +4271,8 @@ window.toggleEjecEmi = function(id){
       </div>`;
     };
     const rubrosCell = `<div style="background:#fbfcfe;border:1px solid var(--line-2);border-radius:7px;padding:13px 16px;box-shadow:0 1px 4px rgba(10,31,58,.06);height:100%${rubArr.length>0?'':';opacity:.6'}">
-      <div style="font-size:11.5px;color:var(--ink-3);text-transform:uppercase;letter-spacing:.04em;font-weight:700">Rubros (${rubArr.length})</div>
-      <div style="font-size:12.5px;color:var(--accent-3);margin-top:4px;line-height:1.55">${rubArr.length>0 ? rubArr.map(([k,n])=>`<div><strong>${k}:</strong> <span style="color:var(--ink-2)">${n} pól.</span></div>`).join('') : '<span style="color:var(--ink-3);font-style:italic">— sin rubros —</span>'}</div>
+      <div style="font-size:11.5px;color:var(--ink-3);text-transform:uppercase;letter-spacing:.04em;font-weight:700">Rubros (${rubArr.length}) · 2025 → 2026</div>
+      <div style="font-size:12.5px;color:var(--accent-3);margin-top:4px;line-height:1.6">${rubArr.length>0 ? rubArr.map(([k,n25,n26])=>{ const d=n26-n25, dc=d>0?'var(--pos)':(d<0?'var(--neg)':'var(--ink-3)'); return `<div><strong>${k}:</strong> <span style="color:var(--ink-2);font-family:var(--font-mono)">${n25} → ${n26}</span> <span style="color:var(--ink-3);font-size:11px">pól.</span>${d!==0?` <span style="color:${dc};font-weight:800;font-size:11px">(${d>0?'+':''}${d})</span>`:''}</div>`; }).join('') : '<span style="color:var(--ink-3);font-style:italic">— sin rubros —</span>'}</div>
     </div>`;
     const proyARSCell = esAAdrill ? blankCell : cellMonto('', '$',  proyARS, false);
     const proyUSDCell = esAAdrill ? blankCell : cellMonto('', 'US', proyUSD, true);
