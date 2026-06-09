@@ -5537,13 +5537,23 @@ window.toggleEjecCausa = function(id){
      (Prima Mínima / Ajuste / Bono / Malus) para que se vea de un vistazo cuál
      pesa más antes de seleccionar el sub-botón. */
   const menorChart = ()=>{
-    const cd = state._ejecCausasCnt || {};
     const u = d.useUSD;
+    /* Totales por concepto tomados del MISMO collect que el desglose, para que el gráfico
+       y el detalle estén sincronizados (antes usaban state._ejecCausasCnt, otra cuenta). */
+    const concT = (effId)=>{
+      let totARS=0, totUSD=0; const cl=new Set();
+      try {
+        [...collect(false, effId), ...collect(true, effId)].forEach(r=>{
+          totARS+=(r.montoARS||0); totUSD+=(r.montoUSD||0); cl.add(r.clave||r.poliza);
+        });
+      } catch(e){}
+      return {val: Math.abs(u?totUSD:totARS), n: cl.size};
+    };
     const vals = [
-      {k:'prima',  lbl:'Prima mín.', col:APP_CONFIG.colores.prima,    val:Math.abs(cd.prima ? (u?cd.prima.totUSD:cd.prima.totARS) : 0), n:cd.prima?cd.prima.n:0},
-      {k:'ajuste', lbl:'Ajuste',     col:APP_CONFIG.colores.abm,      val:Math.abs(cd.ajuste? (u?cd.ajuste.totUSD:cd.ajuste.totARS) : 0), n:cd.ajuste?cd.ajuste.n:0},
-      {k:'bono',   lbl:'Bono',       col:'#d94747',                   val:Math.abs(cd.bono  ? (u?cd.bono.totUSD:cd.bono.totARS)   : 0), n:cd.bono?cd.bono.n:0},
-      {k:'malus',  lbl:'Malus',      col:'#7c4dff',                   val:Math.abs(cd.malus ? (u?cd.malus.totUSD:cd.malus.totARS) : 0), n:cd.malus?cd.malus.n:0},
+      {k:'prima',  lbl:'Prima mín.', col:APP_CONFIG.colores.prima, ...concT('prima')},
+      {k:'ajuste', lbl:'Ajuste',     col:APP_CONFIG.colores.abm,   ...concT('ajuste')},
+      {k:'bono',   lbl:'Bono',       col:'#d94747',                ...concT('bono')},
+      {k:'malus',  lbl:'Malus',      col:'#7c4dff',                ...concT('malus')},
     ];
     const max = Math.max(1, ...vals.map(v=>v.val));
     const FMTcL = (v)=>fmtCompact(v, u);
