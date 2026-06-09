@@ -535,7 +535,6 @@ h4.section-title{margin:14px 0 8px 0;font-size:13px;color:var(--accent-3);font-w
     <button class="tab" data-tab="top10"><span class="num">02</span>Top 5 Casos</button>
     <button class="tab" data-tab="polizas"><span class="num">03</span>Justificación por Póliza</button>
     <button class="tab" data-tab="desvios"><span class="num">04</span>Desvíos de Fecha</button>
-    <button class="tab" data-tab="rubro"><span class="num">05</span>Por Rubro</button>
   </nav>
 </div>
 
@@ -2464,7 +2463,7 @@ function renderAll(){
   document.getElementById('emptyState')?.remove();
   const content = document.getElementById('content');
   content.innerHTML='';
-  ['ejecutivo','desvios','rubro','polizas','top10'].forEach(id=>{
+  ['ejecutivo','desvios','polizas','top10'].forEach(id=>{
     const sec = document.createElement('section');
     sec.className = 'section' + (id==='ejecutivo'?' active':'');
     sec.dataset.section = id;
@@ -2475,7 +2474,6 @@ function renderAll(){
   bindGlobalToggles();
   renderEjecutivo();
   renderDesvios();
-  renderRubro();
   renderPolizas();
   renderTop10();
   setupTabs();
@@ -8815,7 +8813,8 @@ function drawDesvios(){
     if(isPendMayor) acumular(bPendMayor, 2025);
     if(isEmitDesv) acumular(bEmitDesv, 2026);
   }
-  const polTotal = polFiltradas.length;
+  /* Pólizas totales = cantidad de pólizas ÚNICAS (sin duplicados por número de póliza). */
+  const polTotal = new Set(polFiltradas.map(p=> _digitsKey(p.poliza) || String(p.poliza||p.clave||'') )).size;
   const mon = efectivoMonedas(f);
   /* Helper para filas del breakdown (igual al de Resumen) */
   const rowBreakdown = (label, cls, b)=>{
