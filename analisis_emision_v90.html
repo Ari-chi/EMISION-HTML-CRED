@@ -6220,41 +6220,50 @@ function drawEjecRubroExtremos(polArr, f){
   const mon = efectivoMonedas(f);
   const useUSD = mon.showUSD && !mon.showARS ? true : (mon.showARS && !mon.showUSD ? false : (f.cur==='ars'?false:true));
   const mesCorte = f.mes;
-  /* UNIVERSO DE REFERENCIA (pedido del usuario): comparar SOLO las pólizas que
-     EMITIERON PRIMA MÍNIMA en 2026 (mismo criterio que "Emitidas 2026" del resto
-     del dashboard). Sobre ese mismo conjunto se comparan 2025 vs 2026, de modo que
-     la comparación es pareada: idéntica cantidad de pólizas en ambos años. */
-  const emitio26 = (p)=>{
-    const e = estadoPolizaConsolidado(p, mesCorte);
-    return e === 'emitido_con_desvio' || e === 'sin_desvio';
-  };
-  const baseArr = polArr.filter(emitio26);
-  /* Agrupar por rubro y calcular variación neta por concepto. */
+  /* MISMAS PAUTAS que el comparativo por rubro (pedido del usuario):
+     - EMISIÓN: 2025 y 2026 acumulados hasta el mes de corte (suma PM+ajuste+bono+malus),
+       en la moneda de la vista. El conteo por año puede diferir.
+     - PROYECCIÓN / TASA / SINIESTRALIDADES: cada año cuenta solo si la PRIMA MÍNIMA de ese
+       año ya se emitió dentro del corte (fecha de emisión de la prima mínima como referencia).
+       La proyección además exige tener proyección y prima mínima. */
   const grupos = {};
-  for(const p of baseArr){
+  for(const p of polArr){
     const k = p.rubro || '(sin rubro)';
     (grupos[k] = grupos[k] || []).push(p);
   }
   const filas = Object.entries(grupos).map(([rubro, pols])=>{
-    let proy25=0, proy26=0, nProy=0;
-    let tasaSum25=0, tasaSum26=0, nTasa=0;
-    let sinUVSum25=0, sinUVSum26=0, nSinUV=0;
-    let sinHSum25=0, sinHSum26=0, nSinH=0;
+    let emi25=0, emi26=0, nEmi25=0, nEmi26=0;
+    let proy25=0, proy26=0, nProy25=0, nProy26=0;
+    let tasaSum25=0, tasaSum26=0, nTasa25=0, nTasa26=0;
+    let uvSum25=0, uvSum26=0, nUV25=0, nUV26=0;
+    let hSum25=0, hSum26=0, nH25=0, nH26=0;
     for(const p of pols){
-      const uu = p.moneda==='US';
-      const pr25 = uu?(p.proyUSD2025||0):(p.proyARS2025||0);
-      const pr26 = uu?(p.proyUSD2026||0):(p.proyARS2026||0);
-      if(pr25>0||pr26>0){ proy25+=pr25; proy26+=pr26; nProy++; }
-      if(p.tasa2025!=null && p.tasa2026!=null){ tasaSum25+=p.tasa2025; tasaSum26+=p.tasa2026; nTasa++; }
-      if(p.sinUV2025!=null && p.sinUV2026!=null){ sinUVSum25+=p.sinUV2025; sinUVSum26+=p.sinUV2026; nSinUV++; }
-      if(p.sinH2025!=null && p.sinH2026!=null){ sinHSum25+=p.sinH2025; sinHSum26+=p.sinH2026; nSinH++; }
+      const fe25=calcEmisionFiltrada(p,2025,mesCorte), fe26=calcEmisionFiltrada(p,2026,mesCorte);
+      const e25=useUSD?fe25.totUSD:fe25.totARS, e26=useUSD?fe26.totUSD:fe26.totARS;
+      emi25+=e25; emi26+=e26;
+      if(e25>0) nEmi25++;
+      if(e26>0) nEmi26++;
+      const pm25ok = primaMinEmitidaCorte(p,2025,mesCorte);
+      const pm26ok = primaMinEmitidaCorte(p,2026,mesCorte);
+      const pr25 = useUSD?(p.proyUSD2025||0):(p.proyARS2025||0);
+      const pr26 = useUSD?(p.proyUSD2026||0):(p.proyARS2026||0);
+      if(pm25ok && pr25>0){ proy25+=pr25; nProy25++; }
+      if(pm26ok && pr26>0){ proy26+=pr26; nProy26++; }
+      if(pm25ok && p.tasa2025!=null){ tasaSum25+=p.tasa2025; nTasa25++; }
+      if(pm26ok && p.tasa2026!=null){ tasaSum26+=p.tasa2026; nTasa26++; }
+      if(pm25ok && p.sinUV2025!=null){ uvSum25+=p.sinUV2025; nUV25++; }
+      if(pm26ok && p.sinUV2026!=null){ uvSum26+=p.sinUV2026; nUV26++; }
+      if(pm25ok && p.sinH2025!=null){ hSum25+=p.sinH2025; nH25++; }
+      if(pm26ok && p.sinH2026!=null){ hSum26+=p.sinH2026; nH26++; }
     }
+    const avg=(s,n)=>n?s/n:0;
     return {
       rubro,
-      proy:  nProy>0  ? {v25:proy25, v26:proy26, d:proy26-proy25, dpct:proy25?(proy26-proy25)/Math.abs(proy25):null, n:nProy} : null,
-      tasa:  nTasa>0  ? {v25:tasaSum25/nTasa, v26:tasaSum26/nTasa, d:(tasaSum26-tasaSum25)/nTasa, n:nTasa} : null,
-      sinUV: nSinUV>0 ? {v25:sinUVSum25/nSinUV, v26:sinUVSum26/nSinUV, d:(sinUVSum26-sinUVSum25)/nSinUV, n:nSinUV} : null,
-      sinH:  nSinH>0  ? {v25:sinHSum25/nSinH,  v26:sinHSum26/nSinH,  d:(sinHSum26-sinHSum25)/nSinH,  n:nSinH} : null,
+      emi:  (nEmi25>0||nEmi26>0) ? {v25:emi25, v26:emi26, d:emi26-emi25, dpct:emi25?(emi26-emi25)/Math.abs(emi25):null, n:nEmi26||nEmi25} : null,
+      proy: (nProy25>0||nProy26>0) ? {v25:proy25, v26:proy26, d:proy26-proy25, dpct:proy25?(proy26-proy25)/Math.abs(proy25):null, n:nProy26||nProy25} : null,
+      tasa: (nTasa25>0||nTasa26>0) ? {v25:avg(tasaSum25,nTasa25), v26:avg(tasaSum26,nTasa26), d:avg(tasaSum26,nTasa26)-avg(tasaSum25,nTasa25), n:nTasa26||nTasa25} : null,
+      sinUV:(nUV25>0||nUV26>0) ? {v25:avg(uvSum25,nUV25), v26:avg(uvSum26,nUV26), d:avg(uvSum26,nUV26)-avg(uvSum25,nUV25), n:nUV26||nUV25} : null,
+      sinH: (nH25>0||nH26>0) ? {v25:avg(hSum25,nH25), v26:avg(hSum26,nH26), d:avg(hSum26,nH26)-avg(hSum25,nH25), n:nH26||nH25} : null,
     };
   });
   /* Helpers de presentación */
@@ -6306,7 +6315,8 @@ function drawEjecRubroExtremos(polArr, f){
     </div>`;
   };
   wrap.innerHTML = `
-    <div style="display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:12px;align-items:start">
+    <div style="display:grid;grid-template-columns:repeat(5,minmax(0,1fr));gap:12px;align-items:start">
+      ${card('Emisión',             '#2d9b6a',      'emi',   FMTm,       (d)=>(d>=0?'+':'')+FMTm(d))}
       ${card('Proyección de ventas','var(--accent)','proy',  FMTm,       (d)=>(d>=0?'+':'')+FMTm(d))}
       ${card('Tasa promedio',       '#8b5cf6',      'tasa',  FMTpctTasa, (d)=>(d>=0?'+':'')+FMTpctTasa(d))}
       ${card('Siniestralidad UV',   'var(--warn)',  'sinUV', FMTpctSin,  (d)=>(d>=0?'+':'')+FMTpctSin(d), true)}
