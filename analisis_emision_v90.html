@@ -6254,7 +6254,9 @@ window.toggleEjecRubroChartRow = function(idx, rubroName){
    visual + 3 grupos de conceptos (Cadena de prima · Emisión · Siniestralidad). Cada
    concepto trae el arrow 25→26 y, al click, abre su drilldown propio
    (Aumentos / Disminuciones / Pendientes — pendientes NO aplica a tasa/sin). */
-function renderRubroCard(it, idx, useUSD, mesCorte){
+function renderRubroCard(it, idx, useUSD, mesCorte, opts){
+  opts = opts || {};
+  const _stat = !!opts.static; /* hoja 05: tarjetas expandidas sin sub-drill clickeable */
   const V = computarVariacionesRubro(it, mesCorte);
   const val25 = useUSD ? it.u25 : it.a25;
   const val26 = useUSD ? it.u26 : it.a26;
@@ -6332,11 +6334,12 @@ function renderRubroCard(it, idx, useUSD, mesCorte){
   const cH=(label,bg,txt,bd)=>`<div style="font-size:12px;font-weight:800;text-transform:uppercase;letter-spacing:.05em;padding:7px 10px;border-radius:7px;text-align:center;background:${bg};color:${txt};border:1.5px solid ${bd};white-space:nowrap">${label}</div>`;
   const rC=(sym,n)=>{const c=sym==='US'?'#8b5cf6':'#e89b1e';return `<div style="display:flex;flex-direction:column;align-items:flex-end;justify-content:center;padding:4px 8px;text-align:right;line-height:1.15"><span style="font-size:10px;color:var(--ink-3);font-weight:700;text-transform:uppercase;letter-spacing:.03em">Pólizas<br>Moneda Orig</span><span style="font-size:22px;font-weight:900;color:${c};margin-top:2px">${sym}</span><span style="font-size:11px;font-weight:800;color:var(--ink-2);font-family:var(--font-mono);margin-top:3px">${n||0} <span style="color:var(--ink-3);font-weight:600">pól.</span></span></div>`;};
   const _ay=(v25,v26)=>`<div style="display:flex;align-items:flex-end;justify-content:center;gap:9px;margin-top:7px"><div style="text-align:center;line-height:1.1"><div style="font-size:9.5px;color:var(--ink-3);font-weight:800">2025</div><div style="font-family:var(--font-mono);font-size:13px;color:var(--ink-2);white-space:nowrap">${v25}</div></div><span style="color:var(--ink-3);font-size:13px;padding-bottom:1px">→</span><div style="text-align:center;line-height:1.1"><div style="font-size:9.5px;color:var(--ink-3);font-weight:800">2026</div><strong style="font-family:var(--font-mono);font-size:15.5px;color:var(--accent-3);white-space:nowrap">${v26}</strong></div></div>`;
-  const _clk = (cid)=>`onclick="toggleEjrConcepto(${idx},'${cid}')" title="Ver pólizas de este concepto"`;
-  const cMon=(v25,v26,isUS,cid)=>{const dd=v26-v25,c=dd>=0?'var(--pos)':'var(--neg)',pct=v25?dd/Math.abs(v25):null;return `<div ${_clk(cid)} style="${_card};cursor:pointer">${_ay(fmtCompact(v25,isUS),fmtCompact(v26,isUS))}<div style="font-family:var(--font-mono);font-size:15px;font-weight:800;color:${c};margin-top:9px;text-align:center">${dd>=0?'+':''}${fmtCompact(dd,isUS)}${pct!=null?' ('+(dd>=0?'+':'')+FMT_PCT(pct)+')':''}</div></div>`;};
-  const cPct=(v25,v26,neg,fmt,cid)=>{const dd=v26-v25,c=dd===0?'var(--accent)':(dd>0?(neg?'var(--neg)':'var(--pos)'):(neg?'var(--pos)':'var(--neg)'));return `<div ${_clk(cid)} style="${_card};cursor:pointer">${_ay(fmt(v25),fmt(v26))}<div style="font-family:var(--font-mono);font-size:15px;font-weight:800;color:${c};margin-top:9px;text-align:center">${dd>=0?'+':''}${fmt(dd)}</div></div>`;};
+  const _clk = (cid)=> _stat ? '' : `onclick="toggleEjrConcepto(${idx},'${cid}')" title="Ver pólizas de este concepto"`;
+  const _cur = _stat ? '' : ';cursor:pointer';
+  const cMon=(v25,v26,isUS,cid)=>{const dd=v26-v25,c=dd>=0?'var(--pos)':'var(--neg)',pct=v25?dd/Math.abs(v25):null;return `<div ${_clk(cid)} style="${_card}${_cur}">${_ay(fmtCompact(v25,isUS),fmtCompact(v26,isUS))}<div style="font-family:var(--font-mono);font-size:15px;font-weight:800;color:${c};margin-top:9px;text-align:center">${dd>=0?'+':''}${fmtCompact(dd,isUS)}${pct!=null?' ('+(dd>=0?'+':'')+FMT_PCT(pct)+')':''}</div></div>`;};
+  const cPct=(v25,v26,neg,fmt,cid)=>{const dd=v26-v25,c=dd===0?'var(--accent)':(dd>0?(neg?'var(--neg)':'var(--pos)'):(neg?'var(--pos)':'var(--neg)'));return `<div ${_clk(cid)} style="${_card}${_cur}">${_ay(fmt(v25),fmt(v26))}<div style="font-family:var(--font-mono);font-size:15px;font-weight:800;color:${c};margin-top:9px;text-align:center">${dd>=0?'+':''}${fmt(dd)}</div></div>`;};
   const cSin=(uv25,uv26,h25,h26)=>{const linea=(lbl,a,b,cid)=>{const dd=b-a,c=dd===0?'var(--accent)':(dd>0?'var(--neg)':'var(--pos)');return `<div ${_clk(cid)} style="display:flex;align-items:baseline;gap:7px;flex-wrap:wrap;font-family:var(--font-mono);cursor:pointer"><strong style="color:var(--accent-3);min-width:24px;font-family:Calibri">${lbl}:</strong><span style="font-size:13px;color:var(--ink-2)">${FMT_PCT_SIN(a)} <span style="color:var(--ink-3)">→</span> <strong style="color:var(--accent-3);font-size:14.5px">${FMT_PCT_SIN(b)}</strong></span><span style="color:${c};font-weight:800;font-size:13.5px">${dd>=0?'+':''}${FMT_PCT_SIN(dd)}</span></div>`;};return `<div style="${_card};display:flex;flex-direction:column;gap:8px;justify-content:center">${linea('UV',uv25,uv26,'uv')}<div style="border-top:1px dashed var(--line)"></div>${linea('H',h25,h26,'sinh')}</div>`;};
-  const cPend=(v,isUS)=>`<div ${_clk('pend')} style="${_card};cursor:pointer;display:flex;flex-direction:column;justify-content:center"><div style="font-family:var(--font-mono);font-size:16px;font-weight:800;color:${v>0?'var(--neg)':'var(--ink-3)'};text-align:center">${v>0?'−':''}${fmtCompact(v,isUS)}</div></div>`;
+  const cPend=(v,isUS)=>`<div ${_clk('pend')} style="${_card}${_cur};display:flex;flex-direction:column;justify-content:center"><div style="font-family:var(--font-mono);font-size:16px;font-weight:800;color:${v>0?'var(--neg)':'var(--ink-3)'};text-align:center">${v>0?'−':''}${fmtCompact(v,isUS)}</div></div>`;
   const foto4Grid = `<div style="overflow-x:auto;margin-top:14px"><div style="display:grid;grid-template-columns:auto repeat(5,minmax(150px,1fr));gap:11px;align-items:stretch;min-width:800px">
     <div></div>
     ${cH('Emisión','#2d9b6a','#fff','#2d9b6a')}${cH('Proyección','rgba(30,111,217,.10)','#1e6fd9','#1e6fd9')}${cH('Tasa promedio','rgba(139,92,246,.12)','#7c4ddb','#8b5cf6')}${cH('Siniestralidad','rgba(232,155,30,.14)','#b9760f','#e89b1e')}${cH('Pendientes','rgba(123,77,255,.12)','#5a3db8','#7c4dff')}
@@ -6360,7 +6363,7 @@ function renderRubroCard(it, idx, useUSD, mesCorte){
     <!-- Conceptos: cada uno en su propio cuadrito para diferenciarlos -->
     ${foto4Grid}
     <!-- Drilldown del concepto seleccionado -->
-    <div id="ejrDrill_${idx}" style="margin-top:14px"></div>
+    ${_stat ? '' : `<div id="ejrDrill_${idx}" style="margin-top:14px"></div>`}
   </div>`;
 }
 
@@ -9694,7 +9697,43 @@ function renderVarMiniChart(cid, grpKey, vs, varDef, M){
   });
 }
 
-function renderRubro(){ makeFieldSection('rubro','rubro','Rubro'); }
+/* Hoja 05 — Por Rubro: mismo bloque que el Resumen Ejecutivo pero AMPLIADO:
+   cada rubro como tarjeta completa (grilla Emisión/Proyección/Tasa/Siniestralidad/
+   Pendientes por moneda), expandidas. Dinámico al corte del Excel. */
+function renderRubro(){
+  const sec = document.getElementById('sec-rubro');
+  if(!sec) return;
+  sec.innerHTML = `
+    <div class="section-head"><h2>Emisión <em>por rubro · 2025 vs 2026</em></h2></div>
+    ${sectionFiltersBarHTML('rubro')}
+    <div id="rubroFullWrap"></div>`;
+  bindSectionFilters('rubro', ()=>drawRubroFull());
+  drawRubroFull();
+}
+function drawRubroFull(){
+  const f = getSectionFilters('rubro');
+  setActiveCtx(f);
+  const mesCorte = f.mes;
+  const mon = efectivoMonedas(f);
+  const useUSD = mon.showUSD && !mon.showARS;
+  const polFiltradas = aplicarFiltrosPolizas(state.polizas, f);
+  const grupos = {};
+  for(const p of polFiltradas){
+    const k = p.rubro || '(sin rubro)';
+    const f25=calcEmisionFiltrada(p,2025,mesCorte), f26=calcEmisionFiltrada(p,2026,mesCorte);
+    if(!(f25.totARS>0||f25.totUSD>0||f26.totARS>0||f26.totUSD>0)) continue;
+    if(!grupos[k]) grupos[k]={rubro:k,u25:0,u26:0,a25:0,a26:0,n:0,polizas:[]};
+    grupos[k].u25+=f25.totUSD; grupos[k].u26+=f26.totUSD; grupos[k].a25+=f25.totARS; grupos[k].a26+=f26.totARS;
+    grupos[k].n++; grupos[k].polizas.push(p);
+  }
+  const v26=(g)=>useUSD?g.u26:g.a26;
+  const items = Object.values(grupos).sort((a,b)=> v26(b)-v26(a));
+  const wrap = document.getElementById('rubroFullWrap');
+  if(!wrap) return;
+  wrap.innerHTML = items.length
+    ? items.map((it,idx)=>`<div style="margin-bottom:16px">${renderRubroCard(it, idx, useUSD, mesCorte, {static:true})}</div>`).join('')
+    : '<div style="font-size:13px;color:var(--ink-3);font-style:italic;padding:20px">— sin datos para el corte seleccionado —</div>';
+}
 function renderProducto(){ makeFieldSection('producto','producto','Producto'); }
 
 /* ============================================================
