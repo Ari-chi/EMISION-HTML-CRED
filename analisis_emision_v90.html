@@ -1701,7 +1701,7 @@ function primaMinTienePendiente(p, mesCorte){
    cantidad de cuotas el monto 2026 no baja respecto del 2025 → NO es "menor".
    Devuelve {pm25:..., pm26:..., baja:Boolean} en la moneda pedida (usd o ars).
    Ordena las cuotas por fecha (las sin fecha al final) y respeta el corte por año. */
-function conceptoBajaPareada(p, nombreConcepto, monedaUSD, mesCorte){
+function conceptoBajaPareada(p, nombreConcepto, monedaUSD, mesCorte, pair25FullYear){
   const r = p.conceptos && p.conceptos[nombreConcepto];
   const campo = monedaUSD ? 'usd' : 'ars';
   if(!r) return {pm25:0, pm26:0, baja:false};
@@ -1724,7 +1724,13 @@ function conceptoBajaPareada(p, nombreConcepto, monedaUSD, mesCorte){
               ((r.fechaEm2025 || r.ars2025 || r.usd2025) ? [{fecha:r.fechaEm2025, ars:r.ars2025||0, usd:r.usd2025||0}] : []);
   const e26 = (r._entries26 && r._entries26.length) ? r._entries26 :
               ((r.fechaEm2026 || r.ars2026 || r.usd2026) ? [{fecha:r.fechaEm2026, ars:r.ars2026||0, usd:r.usd2026||0}] : []);
-  const c25 = tomar(e25, cutoff);
+  /* Para parear cuotas, el AÑO ANTERIOR (2025) es la referencia y ya está cerrado:
+     no debe recortarse por el mes de corte, porque la misma cuota puede emitirse en
+     meses distintos en cada año (p.ej. bono 2025 en septiembre vs 2026 en mayo). Si
+     filtramos 2025 por el corte, perderíamos esa cuota y el desvío quedaría inflado.
+     pair25FullYear=true compara contra el 2025 completo (igual que la columna Desvío
+     del Excel, que usa el total emitido del año). */
+  const c25 = tomar(e25, pair25FullYear ? 12 : cutoff);
   const c26 = tomar(e26, cutoff26);
   const n = c26.length;                  /* cantidad de cuotas EMITIDAS en 2026 */
   /* ¿La categoría tiene justificación que cuente como BAJA real? Debe tener texto y NO ser
@@ -1792,8 +1798,8 @@ function desvioConceptoABM(p, nombreConcepto, mesCorte){
     /* MISMO criterio de diferencia que el resto (cuotas PAREADAS, igual N). conceptoBajaPareada
        devuelve magnitudes |bono| por moneda. El bono "aumenta" (peor) cuando |bono2026| >
        |bono2025|; el desvío es ese AUMENTO en negativo (−6 para −4 → −10). */
-    const parA = conceptoBajaPareada(p, 'Bono', false, mesCorte);
-    const parU = conceptoBajaPareada(p, 'Bono', true, mesCorte);
+    const parA = conceptoBajaPareada(p, 'Bono', false, mesCorte, true);
+    const parU = conceptoBajaPareada(p, 'Bono', true, mesCorte, true);
     const incA = parA.pm26 - parA.pm25;
     const incU = parU.pm26 - parU.pm25;
     let dARS = incA > 0.5 ? -incA : 0;
@@ -5109,7 +5115,7 @@ window.toggleEjecCausa = function(id){
       if(lblC!=='Bono'){
         const _pF = state.polizas.find(pp=>pp.clave===r.clave || pp.poliza===r.poliza);
         if(_pF){
-          const pb = conceptoBajaPareada(_pF, 'Bono', isUS, mesCorte);
+          const pb = conceptoBajaPareada(_pF, 'Bono', isUS, mesCorte, true);
           if((pb.pm25||0)>0.5 || (pb.pm26||0)>0.5){
             bonoLine = varLine('Bono', -(pb.pm25||0), -(pb.pm26||0), fmtMon, false);
           }
