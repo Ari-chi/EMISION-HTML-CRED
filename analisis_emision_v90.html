@@ -532,11 +532,10 @@ h4.section-title{margin:14px 0 8px 0;font-size:13px;color:var(--accent-3);font-w
 <div class="tabs-wrap" id="tabsWrap" style="display:none">
   <nav class="tabs" id="tabs">
     <button class="tab active" data-tab="ejecutivo"><span class="num">01</span>Resumen Ejecutivo</button>
-    <button class="tab" data-tab="top10"><span class="num">02</span>Top 10 Casos</button>
+    <button class="tab" data-tab="top10"><span class="num">02</span>Top 5 Casos</button>
     <button class="tab" data-tab="polizas"><span class="num">03</span>Justificación por Póliza</button>
     <button class="tab" data-tab="desvios"><span class="num">04</span>Desvíos de Fecha</button>
     <button class="tab" data-tab="rubro"><span class="num">05</span>Por Rubro</button>
-    <button class="tab" data-tab="mensual"><span class="num">06</span>Mensual</button>
   </nav>
 </div>
 
@@ -1991,6 +1990,24 @@ function sectionFiltersBarHTML(sectionId, opts={}){
   const MESES_OP_G = [{value:'0',label:'TODO'}].concat(MESES.map((m,i)=>({value:String(i+1),label:m})));
   setCur(gMesId, String(state.globalMes2026||0));
 
+  /* Modo mínimo: solo los filtros de fecha (1° Mes Corte y 2° Acumulado). */
+  if(opts.minimal){
+    return `<div class="sf-bar" data-sf="${sectionId}">
+      <div class="sf-cols">
+        <div class="sf-col">
+          <div class="sf-group">
+            <span class="sf-lbl">1° Mes Corte 2026 <span style="color:var(--ink-3);font-style:italic;font-weight:400;text-transform:none;letter-spacing:0;margin-left:3px;font-size:8.5px">(solo 2026)</span></span>
+            <select id="${gMesId}" class="sf-select">${MESES_OP_G.map(o=>`<option value="${o.value}"${String(state.globalMes2026||0)===o.value?' selected':''}>${o.label}</option>`).join('')}</select>
+          </div>
+          <div class="sf-group">
+            <span class="sf-lbl">2° Acumulado hasta <span style="color:var(--ink-3);font-style:italic;font-weight:400;text-transform:none;letter-spacing:0;margin-left:3px;font-size:8.5px">(ambos años)</span></span>
+            <select id="${mesId}" class="sf-select">${MESES_OP.map(o=>`<option value="${o.value}"${String(f.mes)===o.value?' selected':''}>${o.label}</option>`).join('')}</select>
+          </div>
+        </div>
+      </div>
+    </div>`;
+  }
+
   return `<div class="sf-bar" data-sf="${sectionId}">
     ${gMesBanner}
     <div class="sf-cols">
@@ -2370,7 +2387,7 @@ function renderAll(){
   document.getElementById('emptyState')?.remove();
   const content = document.getElementById('content');
   content.innerHTML='';
-  ['ejecutivo','mensual','desvios','rubro','polizas','top10'].forEach(id=>{
+  ['ejecutivo','desvios','rubro','polizas','top10'].forEach(id=>{
     const sec = document.createElement('section');
     sec.className = 'section' + (id==='ejecutivo'?' active':'');
     sec.dataset.section = id;
@@ -2380,7 +2397,7 @@ function renderAll(){
   destroyCharts();
   bindGlobalToggles();
   renderEjecutivo();
-  renderMensual(); renderDesvios();
+  renderDesvios();
   renderRubro();
   renderPolizas();
   renderTop10();
@@ -3062,6 +3079,18 @@ function ejecFlujo(S, useUSD){
      tamaño y el peso, mantener el color sutil de cada bloque. Se quita
      "objetivo del período" debajo del presupuesto. */
   const tituloCardCss = (col)=>`font-size:14px;color:${col};text-transform:uppercase;letter-spacing:.04em;font-weight:800;margin-bottom:5px;padding-bottom:4px;border-bottom:1px solid ${col};display:inline-block`;
+  /* Desglose de "Emisión Real 2026" por TIPO (para tooltip al pasar el mouse y burbuja al click). */
+  const sufijo = useUSD?'u':'a';
+  const _ec = S.emitidoCats || {};
+  const _bcats = [
+    {k:'seg',lbl:'2ª anualidad'},{k:'ren',lbl:'Renovaciones'},{k:'ter',lbl:'3ª anualidad'},
+    {k:'nuevas',lbl:'Pólizas nuevas'},{k:'ajuste',lbl:'Ajuste'},{k:'malus',lbl:'Malus'},
+    {k:'bono',lbl:'Bono',neg:true},{k:'anualant',lbl:'Corr. Anualidad Anterior'}
+  ];
+  const _brows = _bcats.map(c=>{ const d=_ec[c.k]; const n=(d&&d.polizas)?d.polizas.length:0; const tot=d?d.total:0; if(!tot && n===0) return null; return {lbl:c.lbl, val:c.neg?-Math.abs(tot):tot, n, neg:!!c.neg}; }).filter(Boolean);
+  const _bubbleRows = _brows.map(r=>`<div style="display:flex;justify-content:space-between;gap:16px;font-size:12px;padding:2.5px 0;border-bottom:1px solid var(--line)"><span style="color:var(--ink-2)">${r.lbl} <span style="color:var(--ink-3);font-size:10.5px">· ${r.n} pól.</span></span><strong style="font-family:var(--font-mono);color:${r.neg?'var(--neg)':'var(--accent-3)'}">${r.neg?'−':''}${FMTc(Math.abs(r.val))}</strong></div>`).join('');
+  const _bubbleTitle = 'Emisión 2026 por tipo:\n' + _brows.map(r=>`• ${r.lbl}: ${r.neg?'−':''}${FMTc(Math.abs(r.val))} (${r.n})`).join('\n');
+  const _bubbleHTML = `<div id="emisBubble_${sufijo}" style="display:none;position:absolute;top:100%;left:0;margin-top:6px;z-index:40;background:#fff;border:1px solid var(--line-2);border-radius:9px;box-shadow:0 6px 20px rgba(10,31,58,.20);padding:11px 13px;min-width:250px;text-align:left;cursor:default" onclick="event.stopPropagation()"><div style="font-size:10.5px;text-transform:uppercase;letter-spacing:.04em;font-weight:800;color:var(--pos);margin-bottom:6px">Emisión 2026 por tipo</div>${_bubbleRows||'<div style="font-size:12px;color:var(--ink-3)">— sin desglose —</div>'}</div>`;
   return `<div style="margin-top:8px">
     <div style="font-size:11px;color:var(--ink-3);text-transform:uppercase;letter-spacing:.05em;font-weight:700;margin-bottom:5px">${mLbl}</div>
     <div style="display:flex;align-items:stretch;gap:8px">
@@ -3070,10 +3099,11 @@ function ejecFlujo(S, useUSD){
         <div style="font-size:25px;font-weight:800;color:var(--accent-3);line-height:1;font-family:var(--font-mono);margin-top:4px">${FMTc(S.presup26)}</div>
       </div>
       <div style="display:flex;align-items:center;color:var(--ink-3);font-size:24px;font-weight:300">→</div>
-      <div style="flex:1;background:rgba(45,155,106,.10);border-radius:10px;padding:11px 13px;display:flex;flex-direction:column;justify-content:flex-start">
-        <div style="${tituloCardCss('var(--pos)')}">Emisión Real 2026</div>
+      <div title="${_bubbleTitle.replace(/"/g,'&quot;')}" onclick="window.toggleEmisBubble('${sufijo}')" style="flex:1;position:relative;background:rgba(45,155,106,.10);border-radius:10px;padding:11px 13px;display:flex;flex-direction:column;justify-content:flex-start;cursor:pointer">
+        <div style="${tituloCardCss('var(--pos)')}">Emisión Real 2026 <span style="font-size:11px;color:var(--pos)">▾</span></div>
         <div style="font-size:25px;font-weight:800;color:var(--pos);line-height:1;font-family:var(--font-mono);margin-top:4px">${FMTc(S.emis26)}</div>
         <div style="font-size:18px;font-weight:800;color:var(--pos);margin-top:8px;font-family:var(--font-mono)">${S.cumpl!=null?(S.cumpl*100).toFixed(1)+'%':'—'}<span style="font-size:12px;font-weight:600;margin-left:4px">del objetivo</span></div>
+        ${_bubbleHTML}
       </div>
       <div style="display:flex;align-items:center;color:var(--ink-3);font-size:20px;font-weight:300">=</div>
       <div style="flex:1;background:${desvio>0?'rgba(217,71,71,.10)':'rgba(45,155,106,.10)'};border-radius:10px;padding:11px 13px;display:flex;flex-direction:column;justify-content:flex-start">
@@ -3968,6 +3998,15 @@ const pctOnArcPlugin = {
    ejecEmi_<key>_<sufijo>; drillAreaId es el id del contenedor que recibe el HTML. */
 /* Toggle "Mostrar 2025" del visor de Emisión Total: compara emisión por concepto
    2025 vs 2026 (mismo corte). Solo afecta a este visor. */
+/* Burbuja con el desglose por tipo de "Emisión Real 2026". Click abre; click de nuevo
+   (o en otra) cierra. */
+window.toggleEmisBubble = function(suf){
+  const b = document.getElementById('emisBubble_'+suf);
+  if(!b) return;
+  const open = b.style.display!=='none' && b.style.display!=='';
+  document.querySelectorAll('[id^="emisBubble_"]').forEach(x=>x.style.display='none');
+  if(!open) b.style.display='block';
+};
 window.toggleEjecEmiShow25 = function(){
   /* El valor efectivo por defecto es TRUE (state._ejecEmiShow25 !== false). Hay que
      invertir ese valor efectivo, no el crudo (si invirtiéramos undefined daría true y
@@ -7838,6 +7877,7 @@ function drawResumenTabla(t, filters){
 ============================================================ */
 function renderMensual(){
   const sec = document.getElementById('sec-mensual');
+  if(!sec) return; /* hoja Mensual eliminada */
   sec.innerHTML = `
     <div class="section-head"><h2>Emisión <em>mensual</em></h2></div>
     ${sectionFiltersBarHTML('mensual')}
@@ -9789,7 +9829,7 @@ function renderPolizas(){
   const categoriasList = [...cats].sort();
   sec.innerHTML = `
     <div class="section-head"><h2>Justificación <em>por póliza</em></h2></div>
-    ${sectionFiltersBarHTML('polizas')}
+    ${sectionFiltersBarHTML('polizas', {minimal:true})}
     <div id="polizas-nlabel" style="display:none"></div>
     <div class="filters">
       <span class="label">Filtrar</span>
@@ -10753,7 +10793,7 @@ function renderConclBroker(){ renderConclByField('broker','conclbroker','Broker'
 function renderTop10(){
   const sec = document.getElementById('sec-top10');
   sec.innerHTML = `
-    <div class="section-head"><h2>Top 10 <em>casos relevantes</em></h2></div>
+    <div class="section-head"><h2>Top 5 <em>· mejoras y caídas por emisión total 2025 → 2026</em></h2></div>
     ${sectionFiltersBarHTML('top10', {dualLabel:'Moneda Original'})}
     <div class="filters" style="margin-top:6px">
       <span class="label">Filtrar por motivo</span>
@@ -10769,8 +10809,8 @@ function renderTop10(){
         <option>Póliza nueva 2026</option>
       </select>
     </div>
-    <div class="card"><h3 style="color:var(--pos);margin-bottom:14px">Top 10 — Mejoras</h3><div id="topMejoras"></div></div>
-    <div class="card"><h3 style="color:var(--neg);margin-bottom:14px">Top 10 — Caídas</h3><div id="topCaidas"></div></div>`;
+    <div class="card"><h3 style="color:var(--pos);margin-bottom:14px">Top 5 — Mejoras <span style="font-size:12px;color:var(--ink-3);font-weight:500">(mayor aumento de emisión total)</span></h3><div id="topMejoras"></div></div>
+    <div class="card"><h3 style="color:var(--neg);margin-bottom:14px">Top 5 — Caídas <span style="font-size:12px;color:var(--ink-3);font-weight:500">(mayor baja de emisión total)</span></h3><div id="topCaidas"></div></div>`;
   bindSectionFilters('top10',()=>drawTop10());
   document.getElementById('fTop10Motivo').addEventListener('change',()=>drawTop10());
   drawTop10();
@@ -10791,8 +10831,8 @@ function drawTop10(){
     arr = arr.filter(x=> x._just.motivos.some(m=>m.toLowerCase().includes(motF.toLowerCase())));
   }
   const calcVar = (x)=> x._just.f26.totUSD - x._just.f25.totUSD;
-  const mejoras = [...arr].sort((a,b)=>calcVar(b)-calcVar(a)).slice(0,10);
-  const caidas = [...arr].sort((a,b)=>calcVar(a)-calcVar(b)).slice(0,10);
+  const mejoras = [...arr].sort((a,b)=>calcVar(b)-calcVar(a)).filter(x=>calcVar(x)>0).slice(0,5);
+  const caidas = [...arr].sort((a,b)=>calcVar(a)-calcVar(b)).filter(x=>calcVar(x)<0).slice(0,5);
 
   const buildCard = (item, idx, esPos)=>{
     const v = calcVar(item);
