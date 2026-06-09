@@ -1286,6 +1286,17 @@ function calcEmisionFiltrada(p, anio, mesCorte, opts){
   return {totARS, totUSD, breakdownARS, breakdownUSD};
 }
 
+/* ¿La póliza tuvo ALGUNA emisión en el año (cualquier concepto: prima/ajuste/bono/malus),
+   INCLUIDO el bono que es NEGATIVO? El check por total (>0) dejaba afuera pólizas cuyo neto
+   2026 era ≤0 (p.ej. solo un bono, o bono > prima), perdiendo ese bono. Acá miramos los
+   componentes, así un bono también cuenta como emisión. Recibe el resultado de calcEmisionFiltrada. */
+function tuvoEmision(f){
+  if(!f) return false;
+  const a=f.breakdownARS||{}, u=f.breakdownUSD||{};
+  return Math.abs(a.primaMin||0)>0.005 || Math.abs(a.ajuste||0)>0.005 || Math.abs(a.bono||0)>0.005 || Math.abs(a.malus||0)>0.005
+      || Math.abs(u.primaMin||0)>0.005 || Math.abs(u.ajuste||0)>0.005 || Math.abs(u.bono||0)>0.005 || Math.abs(u.malus||0)>0.005;
+}
+
 /* Suma SOLO de los conceptos con categoría "Anualidad Anterior" de una póliza, por año,
    hasta el corte. (Para el bucket "Corr. Anualidad Anterior".) */
 function _aaSumYr(p, year, mesCorte){
@@ -6345,10 +6356,10 @@ function drawEjecRubroChart(polArr, f, useUSD){
     if(!grupos[k]) grupos[k]={u25:0,u26:0,a25:0,a26:0,n:0,n25:0,n26:0};
     grupos[k].u25+=f25.totUSD; grupos[k].u26+=f26.totUSD;
     grupos[k].a25+=f25.totARS; grupos[k].a26+=f26.totARS;
-    /* CONTEO por año = pólizas que emitieron ese año en CUALQUIER moneda (no solo la de la
-       vista), para que el número coincida con el real de pólizas emitidas. */
-    if(f25.totARS>0||f25.totUSD>0) grupos[k].n25++;
-    if(f26.totARS>0||f26.totUSD>0) grupos[k].n26++;
+    /* CONTEO por año = pólizas que emitieron ese año cualquier concepto (incl. bono negativo),
+       en cualquier moneda, para que el número coincida con el real de pólizas emitidas. */
+    if(tuvoEmision(f25)) grupos[k].n25++;
+    if(tuvoEmision(f26)) grupos[k].n26++;
     grupos[k].n++;
   }
   const v25 = (g)=>useUSD?g.u25:g.a25;
@@ -6390,7 +6401,7 @@ function drawEjecRubroTabla(polArr, f, useUSD){
        emitió en cualquiera de los dos años; los conteos por año (n25/n26) pueden diferir,
        igual que en el comparativo de barras. */
     const f25=calcEmisionFiltrada(p,2025,mesCorte), f26=calcEmisionFiltrada(p,2026,mesCorte);
-    const em25=(f25.totARS>0||f25.totUSD>0), em26=(f26.totARS>0||f26.totUSD>0);
+    const em25=tuvoEmision(f25), em26=tuvoEmision(f26);
     if(!em25 && !em26) continue;
     if(!grupos[k]) grupos[k]={u25:0,u26:0,a25:0,a26:0,n:0,n25:0,n26:0, polizas:[]};
     grupos[k].u25+=f25.totUSD; grupos[k].u26+=f26.totUSD;
@@ -6513,11 +6524,11 @@ function renderRubroCard(it, idx, useUSD, mesCorte, opts){
          Las que solo emitieron en 2025 NO entran al total (van a Pendientes), así el total
          y el desglose coinciden. n26 = emitidas 2026; n25 = de esas, cuántas también en 2025. */
       const f25=calcEmisionFiltrada(p,2025,mesCorte), f26=calcEmisionFiltrada(p,2026,mesCorte);
-      const emitio26 = (f26.totARS>0 || f26.totUSD>0);
+      const emitio26 = tuvoEmision(f26);
       if(emitio26){
         e25 += isUS?f25.totUSD:f25.totARS;
         e26 += isUS?f26.totUSD:f26.totARS;
-        if(f25.totARS>0 || f25.totUSD>0) n25++;
+        if(tuvoEmision(f25)) n25++;
         n26++;
       }
       /* PROYECCIÓN / TASA / SINIESTRALIDAD: la póliza cuenta para un año SOLO si su PRIMA
@@ -6548,11 +6559,11 @@ function renderRubroCard(it, idx, useUSD, mesCorte, opts){
   let hv25=0, hv26=0, hn25=0, hn26=0;
   for(const p of _pols){
     const ff26=calcEmisionFiltrada(p,2026,mesCorte);
-    if(!(ff26.totARS>0 || ff26.totUSD>0)) continue;
+    if(!tuvoEmision(ff26)) continue;
     const ff25=calcEmisionFiltrada(p,2025,mesCorte);
     hv25 += useUSD?ff25.totUSD:ff25.totARS;
     hv26 += useUSD?ff26.totUSD:ff26.totARS;
-    if(ff25.totARS>0 || ff25.totUSD>0) hn25++;
+    if(tuvoEmision(ff25)) hn25++;
     hn26++;
   }
   /* Mismo formato que el desglose de Emisión 2026: tarjetas resaltadas, conteo de
@@ -6730,7 +6741,7 @@ function computarVariacionesRubro(it, mesCorte){
      corresponde ni como pendiente ni como baja: se excluye. Si ya emitió algo en 2026, está
      activa y entra igual. Aplica a TODOS los desgloses por rubro. */
   const dueEnCorte2026 = (p, f26)=>{
-    if(f26 && (f26.totARS>0 || f26.totUSD>0)) return true; /* ya emitió: está activa */
+    if(tuvoEmision(f26)) return true; /* ya emitió (cualquier concepto, incl. bono): está activa */
     const espKey = mesEsperadoEmision(p.vigDesde, p.vigHasta, 2026, p.inicioAnualidad2026);
     if(!espKey) return false; /* sin anualidad 2026 esperada → no corresponde aún */
     const [ey,em] = espKey.split('-').map(Number);
@@ -6750,7 +6761,7 @@ function computarVariacionesRubro(it, mesCorte){
        no perder ninguna por la moneda. Se muestra en la moneda en que emitió (la propia si
        tiene monto ahí; si no, la otra). Si emitió en 2025 pero NO en 2026 → no va al detalle
        (irá a Pendientes si corresponde), así no infla el conteo ni los totales. */
-    const emitio26 = (f26.totARS>0 || f26.totUSD>0);
+    const emitio26 = tuvoEmision(f26);
     if(emitio26){
       const enUSD = uu ? !(f26.totUSD<=0 && f26.totARS>0) : (f26.totARS<=0 && f26.totUSD>0);
       const v25 = enUSD ? f25.totUSD : f25.totARS;
@@ -10017,7 +10028,7 @@ function drawRubroFull(){
        de los dos años; los conteos por año (n25/n26) pueden diferir. Mismo criterio que el
        comparativo de barras y la tarjeta del Resumen Ejecutivo. */
     const f25=calcEmisionFiltrada(p,2025,mesCorte), f26=calcEmisionFiltrada(p,2026,mesCorte);
-    const em25=(f25.totARS>0||f25.totUSD>0), em26=(f26.totARS>0||f26.totUSD>0);
+    const em25=tuvoEmision(f25), em26=tuvoEmision(f26);
     if(!em25 && !em26) continue;
     if(!grupos[k]) grupos[k]={rubro:k,u25:0,u26:0,a25:0,a26:0,n:0,n25:0,n26:0,polizas:[]};
     grupos[k].u25+=f25.totUSD; grupos[k].u26+=f26.totUSD; grupos[k].a25+=f25.totARS; grupos[k].a26+=f26.totARS;
