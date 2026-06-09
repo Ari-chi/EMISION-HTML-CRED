@@ -11171,17 +11171,24 @@ function drawTop10(){
   const motF = document.getElementById('fTop10Motivo') ? document.getElementById('fTop10Motivo').value : '';
   const polFiltradas = aplicarFiltrosPolizas(state.polizas, f);
   /* MONEDA (botón 4°): "Moneda Original" (dual) muestra cada póliza en su moneda; si se
-     elige USD o ARS$, se UNIFICA todo a esa única moneda (columna $/US del Excel). */
-  const mon = efectivoMonedas(f);
-  const modoUnico = !(mon.showUSD && mon.showARS);
-  const unicoUSD = mon.showUSD && !mon.showARS;
+     elige USD o ARS$, se UNIFICA todo a esa única moneda (columna $/US del Excel). Se lee
+     directo de f.cur, que es lo que setea el botón. */
+  const modoUnico = (f.cur === 'usd' || f.cur === 'ars');
+  const unicoUSD = (f.cur === 'usd');
   /* Variación de EMISIÓN TOTAL (prima mínima + ajuste + bono + malus): 2026 − 2025, en la
      moneda unificada elegida o, si es "Moneda Original", en la moneda propia de la póliza. */
   const varEnMoneda = (x, usd)=> usd ? (x._just.f26.totUSD - x._just.f25.totUSD)
                                      : (x._just.f26.totARS - x._just.f25.totARS);
   const calcVar = (x)=> modoUnico ? varEnMoneda(x, unicoUSD) : varEnMoneda(x, x.p.moneda==='US');
   let arr = polFiltradas
-    .map(p=>({p,_just:justificarPoliza(p,mesCorte)}))
+    .map(p=>{
+      const _just = justificarPoliza(p, mesCorte);
+      /* El 2025 es la REFERENCIA del año anterior: se toma COMPLETO (sin recortar al mes de
+         corte), porque la emisión puede caer en meses distintos cada año. Así, si una póliza
+         emitió lo mismo en 2025 y 2026, la variación es 0 (no aparece como "nuevo"). */
+      _just.f25 = calcEmisionFiltrada(p, 2025, 0);
+      return {p, _just};
+    })
     .filter(x=>x._just.f25.totUSD>0 || x._just.f26.totUSD>0 || x._just.f25.totARS>0 || x._just.f26.totARS>0 || x._just.motivos.length>0)
     /* Excluir pendientes: la hoja de Top 5 muestra movimientos reales, no
        casos pendientes (regla unificada con el Resumen Ejecutivo). */
