@@ -2557,6 +2557,9 @@ function drawEjecutivo(){
   const showUSD = mon.showUSD, showARS = mon.showARS;
   const dual = showUSD && showARS;
   const polFiltradas = aplicarFiltrosPolizas(state.polizas, f);
+  /* Contexto para los drills de "Emisión 2026" (comparación 2025 vs 2026 por concepto,
+     cada año desde su propio conjunto de pólizas). */
+  state._ejecDrillCtx = {pol: polFiltradas, mesCorte};
   document.getElementById('ejecutivo-nlabel').innerHTML = '';
 
   /* Selección oculta del presupuesto: por defecto, Continental. Si el usuario
@@ -3998,6 +4001,66 @@ window.toggleEjecEmi = function(id){
     anualant:'AA'
   })[bucketKey] || 'Prima';
 
+  /* ===== Comparación 2025 vs 2026 por concepto: cada año desde su PROPIO conjunto =====
+     Para Segunda/Renovación/Tercera/Pólizas nuevas se filtra por TIPO del año (tipo2025 para
+     2025, tipo2026 para 2026) con prima mínima emitida hasta el corte. Para Ajuste/Bono/Malus,
+     por ese concepto emitido en el año. Para "Corr. Anualidad Anterior", por categoría AA,
+     sumando prima+ajuste+bono+malus de ese año. Así n y rubros pueden diferir entre años. */
+  const _ctxD = state._ejecDrillCtx || {pol: state.polizas, mesCorte: 0};
+  const _mc = _ctxD.mesCorte || 0;
+  const _POL = _ctxD.pol || state.polizas;
+  const _tipoOf = ({seg:'Segunda anualidad', ren:'Renovación', ter:'Tercera anualidad', nuevas:'Póliza nueva'})[bucketKey] || null;
+  const _concOf = ({ajuste:'ajuste', bono:'bono', malus:'malus'})[bucketKey] || null;
+  const _isAA = bucketKey==='anualant';
+  /* Suma SOLO de los conceptos con categoría "Anualidad Anterior", por año, hasta el corte. */
+  const _aaSum = (p, Y)=>{
+    let ars=0, usd=0;
+    let cutoff = _mc===0?12:_mc;
+    if(Y===2026 && state.globalMes2026 && state.globalMes2026>0) cutoff = Math.min(cutoff, state.globalMes2026);
+    for(const c of CONCEPTOS_EMISIBLES){
+      const r = p.conceptos[c]; if(!r) continue;
+      if(!categoriaEsAnualidadAnterior(r.categoria)) continue;
+      const entries = Y===2025
+        ? ((r._entries25 && r._entries25.length) ? r._entries25 : [{fecha:r.fechaEm2025, ars:r.ars2025, usd:r.usd2025}])
+        : ((r._entries26 && r._entries26.length) ? r._entries26 : [{fecha:r.fechaEm2026, ars:r.ars2026, usd:r.usd2026}]);
+      for(const e of entries){
+        const a=e.ars||0, u=e.usd||0; if(!a && !u) continue;
+        if(e.fecha){ if((e.fecha.getMonth()+1)<=cutoff){ ars+=a; usd+=u; } }
+        else if(cutoff===12){ ars+=a; usd+=u; }
+      }
+    }
+    return {ars, usd};
+  };
+  /* Valor del concepto de la póliza en el año Y (en ambas monedas). */
+  const _valYr = (p, Y)=>{
+    if(_isAA) return _aaSum(p, Y);
+    const f = calcEmisionFiltrada(p, Y, _mc);
+    if(_concOf) return {ars:f.breakdownARS[_concOf], usd:f.breakdownUSD[_concOf]};
+    return {ars:f.breakdownARS.primaMin, usd:f.breakdownUSD.primaMin};
+  };
+  /* ¿La póliza pertenece al conjunto del concepto en el año Y? */
+  const _inYr = (p, Y)=>{
+    if(_isAA){ const a=_aaSum(p,Y); return (a.ars!==0 || a.usd!==0); }
+    if(_concOf){ const v=_valYr(p,Y); return (v.ars!==0 || v.usd!==0); }
+    if(p['tipo'+Y] !== _tipoOf) return false;
+    const f = calcEmisionFiltrada(p, Y, _mc);
+    return (f.breakdownARS.primaMin>0 || f.breakdownUSD.primaMin>0);
+  };
+  const _mkRec = (p, Y)=>{
+    const v = _valYr(p, Y);
+    return {
+      moneda: p.moneda, rubro: p.rubro,
+      val_ars: v.ars||0, val_usd: v.usd||0,
+      proy_ars: Y===2025?(p.proyARS2025||0):(p.proyARS2026||0),
+      proy_usd: Y===2025?(p.proyUSD2025||0):(p.proyUSD2026||0),
+      tasa: Y===2025?p.tasa2025:p.tasa2026,
+      sinUV: Y===2025?p.sinUV2025:p.sinUV2026,
+      sinH: Y===2025?p.sinH2025:p.sinH2026,
+    };
+  };
+  const enriched25 = _POL.filter(p=>_inYr(p,2025)).map(p=>_mkRec(p,2025));
+  const enriched26 = _POL.filter(p=>_inYr(p,2026)).map(p=>_mkRec(p,2026));
+
   /* fila de póliza: poliza/asegurado + rubro a la izquierda, cuadrito gris con
      variaciones del concepto / PV / Tasa / SinUV / SinH abajo, monto 2026 + % a
      la derecha (verde sube, rojo baja, azul tenue igual). Debajo del monto
@@ -4096,23 +4159,33 @@ window.toggleEjecEmi = function(id){
     return n>0 ? {v25:s25/n, v26:s26/n, d:(s26-s25)/n, n} : null;
   };
   const renderResumen = ()=>{
-    /* Proyección por moneda original (sumando ARS para pólizas $ y USD para US) */
-    const proyARS = sumByMon(enriched.filter(r=>r.moneda==='$'), (r,k)=>r['proyARS'+k]);
-    const proyUSD = sumByMon(enriched.filter(r=>r.moneda==='US'), (r,k)=>r['proyUSD'+k]);
-    /* Tasa y siniestralidad divididas por moneda original ($ y US). */
-    const _ars = enriched.filter(r=>r.moneda==='$');
-    const _usd = enriched.filter(r=>r.moneda==='US');
-    const tasaARS = avgByMon(_ars, r=>r.tasa25, r=>r.tasa26);
-    const tasaUSD = avgByMon(_usd, r=>r.tasa25, r=>r.tasa26);
-    const sinUVARS = avgByMon(_ars, r=>r.sinUV25, r=>r.sinUV26);
-    const sinUVUSD = avgByMon(_usd, r=>r.sinUV25, r=>r.sinUV26);
-    const sinHARS  = avgByMon(_ars, r=>r.sinH25,  r=>r.sinH26);
-    const sinHUSD  = avgByMon(_usd, r=>r.sinH25,  r=>r.sinH26);
+    /* Cada año desde su PROPIO conjunto (enriched25 / enriched26), separados por moneda. */
+    const a$25 = enriched25.filter(r=>r.moneda==='$'), a$26 = enriched26.filter(r=>r.moneda==='$');
+    const aU25 = enriched25.filter(r=>r.moneda==='US'), aU26 = enriched26.filter(r=>r.moneda==='US');
+    const sumYr = (arr25, arr26, key)=>{
+      const s25 = arr25.reduce((x,r)=>x+(r[key]||0),0);
+      const s26 = arr26.reduce((x,r)=>x+(r[key]||0),0);
+      return {s25, s26, d:s26-s25, pct: s25?(s26-s25)/Math.abs(s25):null, n25:arr25.length, n26:arr26.length};
+    };
+    const avgYr = (arr25, arr26, key)=>{
+      const av=(arr)=>{ let s=0,n=0; for(const r of arr){ if(r[key]!=null){ s+=r[key]; n++; } } return n?s/n:null; };
+      const v25=av(arr25), v26=av(arr26);
+      return {v25, v26, d:(v25!=null&&v26!=null)?(v26-v25):null, n25:arr25.length, n26:arr26.length};
+    };
+    const proyARS = sumYr(a$25, a$26, 'proy_ars');
+    const proyUSD = sumYr(aU25, aU26, 'proy_usd');
+    const tasaARS = avgYr(a$25, a$26, 'tasa');
+    const tasaUSD = avgYr(aU25, aU26, 'tasa');
+    const sinUVARS = avgYr(a$25, a$26, 'sinUV');
+    const sinUVUSD = avgYr(aU25, aU26, 'sinUV');
+    const sinHARS  = avgYr(a$25, a$26, 'sinH');
+    const sinHUSD  = avgYr(aU25, aU26, 'sinH');
+    /* Rubros del conjunto 2026 (la emisión vigente). */
     const rubros = {};
-    for(const r of enriched){ const k=r.rubro||'(sin rubro)'; rubros[k]=(rubros[k]||0)+1; }
+    for(const r of enriched26){ const k=r.rubro||'(sin rubro)'; rubros[k]=(rubros[k]||0)+1; }
     const rubArr = Object.entries(rubros).sort((a,b)=>b[1]-a[1]);
-    const monARS = sumByMon(enriched.filter(r=>r.moneda==='$'), (r,k)=>r['ars'+k]);
-    const monUSD = sumByMon(enriched.filter(r=>r.moneda==='US'), (r,k)=>r['usd'+k]);
+    const monARS = sumYr(a$25, a$26, 'val_ars');
+    const monUSD = sumYr(aU25, aU26, 'val_usd');
     /* Helpers de formato */
     const fmtTasaPct = (v)=>v==null?'—':FMT_PCT_TASA(v);
     const fmtSinPct = (v)=>v==null?'—':FMT_PCT_SIN(v);
@@ -4133,7 +4206,7 @@ window.toggleEjecEmi = function(id){
         <span style="font-size:22px;font-weight:900;color:${c};margin-top:2px">${sym}</span>
       </div>`;
     };
-    const nLbl = (info)=>`<div style="font-size:10.5px;color:var(--ink-3);letter-spacing:.02em;font-weight:700">Pólizas: ${info?info.n:0}</div>`;
+    const nLbl = (info)=>`<div style="font-size:10.5px;color:var(--ink-3);letter-spacing:.02em;font-weight:700">Pólizas: ${info?(info.n25||0):0} → ${info?(info.n26||0):0}</div>`;
     /* AA: en "Corresponde a la Anualidad Anterior" SOLO se muestran Emisión y Rubros;
        proyección/tasa/siniestralidades quedan SIEMPRE en blanco (aunque haya datos). */
     const esAAdrill = /_anualant_/.test(id);
@@ -4145,7 +4218,7 @@ window.toggleEjecEmi = function(id){
         <div style="text-align:center;line-height:1.1"><div style="font-size:9.5px;color:var(--ink-3);font-weight:800">2026</div><strong style="font-family:var(--font-mono);font-size:15.5px;color:${c26||'var(--accent-3)'};white-space:nowrap">${v26}</strong></div>
       </div>`;
     const cellMonto = (titulo, sym, info, isUS)=>{
-      if(!info || info.n===0){
+      if(!info || ((info.n25||0)===0 && (info.n26||0)===0)){
         return `<div style="background:#fbfcfe;border:1px solid var(--line-2);border-radius:7px;padding:13px 16px;box-shadow:0 1px 4px rgba(10,31,58,.06);opacity:.6">
           ${nLbl(null)}
           ${arrowYears(fmtCompact(0,isUS), fmtCompact(0,isUS), 'var(--ink-3)', 'var(--ink-2)')}
@@ -4160,7 +4233,7 @@ window.toggleEjecEmi = function(id){
       </div>`;
     };
     const cellPct = (sym, info, fmt, neg)=>{
-      if(!info || info.n===0){
+      if(!info || ((info.n25||0)===0 && (info.n26||0)===0)){
         return `<div style="background:#fbfcfe;border:1px solid var(--line-2);border-radius:7px;padding:13px 16px;box-shadow:0 1px 4px rgba(10,31,58,.06);opacity:.6">
           ${nLbl(null)}
           ${arrowYears(fmt(0), fmt(0), 'var(--ink-3)', 'var(--ink-2)')}
@@ -4178,7 +4251,7 @@ window.toggleEjecEmi = function(id){
        (cada uno: 2025 → 2026 + variación). Sube de siniestralidad = negativo (rojo). */
     const cellSinUnif = (uvInfo, hInfo, fmt)=>{
       const linea = (lbl, info)=>{
-        if(!info || info.n===0) return `<div style="display:flex;align-items:baseline;gap:6px;font-size:12.5px"><strong style="color:var(--ink-2);min-width:24px">${lbl}:</strong> <span style="color:var(--ink-3);font-style:italic;font-size:11.5px">— sin datos —</span></div>`;
+        if(!info || ((info.n25||0)===0 && (info.n26||0)===0)) return `<div style="display:flex;align-items:baseline;gap:6px;font-size:12.5px"><strong style="color:var(--ink-2);min-width:24px">${lbl}:</strong> <span style="color:var(--ink-3);font-style:italic;font-size:11.5px">— sin datos —</span></div>`;
         const c = info.d===0?'var(--accent)':(info.d>0?'var(--neg)':'var(--pos)');
         return `<div style="display:flex;align-items:baseline;gap:7px;flex-wrap:wrap;font-family:var(--font-mono)">
           <strong style="color:var(--accent-3);min-width:24px;font-family:Calibri">${lbl}:</strong>
@@ -4186,9 +4259,9 @@ window.toggleEjecEmi = function(id){
           <span style="color:${c};font-weight:800;font-size:13.5px">${info.d>=0?'+':''}${fmt(info.d)}</span>
         </div>`;
       };
-      const n = (uvInfo&&uvInfo.n) || (hInfo&&hInfo.n) || 0;
+      const _ni = uvInfo || hInfo || {};
       return `<div style="background:#fbfcfe;border:1px solid var(--line-2);border-radius:7px;padding:13px 16px;box-shadow:0 1px 4px rgba(10,31,58,.06);display:flex;flex-direction:column;gap:8px;justify-content:center">
-        <div style="font-size:10.5px;color:var(--ink-3);letter-spacing:.02em;font-weight:700">Pólizas: ${n}</div>
+        <div style="font-size:10.5px;color:var(--ink-3);letter-spacing:.02em;font-weight:700">Pólizas: ${_ni.n25||0} → ${_ni.n26||0}</div>
         ${linea('UV', uvInfo)}
         <div style="border-top:1px dashed var(--line)"></div>
         ${linea('H', hInfo)}
@@ -4206,8 +4279,8 @@ window.toggleEjecEmi = function(id){
     const monUSDCell  = cellMonto('', 'US', monUSD, true);
     /* Variación total emisión 2025→2026, unificada en la moneda elegida (valBtn ya
        devuelve el equivalente en USD o ARS$ según el botón de Moneda). */
-    const _t25 = enriched.reduce((a,r)=>a+valBtn(r,'25'),0);
-    const _t26 = enriched.reduce((a,r)=>a+valBtn(r,'26'),0);
+    const _t25 = enriched25.reduce((a,r)=>a+(useUSD?r.val_usd:r.val_ars),0);
+    const _t26 = enriched26.reduce((a,r)=>a+(useUSD?r.val_usd:r.val_ars),0);
     const _dT = _t26 - _t25, _dTp = _t25 ? _dT/Math.abs(_t25) : null;
     /* Grilla unificada: 1ª columna = referencia de moneda ($ arriba / US abajo);
        luego Emisión · Proyección · Tasa · Sin. UV · Sin. Hist. · Rubros. */
