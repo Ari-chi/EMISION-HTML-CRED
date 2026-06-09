@@ -2016,21 +2016,17 @@ function sectionFiltersBarHTML(sectionId, opts={}){
       </div>
       <div class="sf-col">
         <div class="sf-group">
-          <span class="sf-lbl">5° Segmento</span>
-          ${viewToggleHTML(segId,[{value:'all',label:'Todas'},{value:'arsArs',label:'Pólizas $ en $'},{value:'usdUsd',label:'Pólizas US en US'},{value:'vs',label:'Comparación US vs $'}],f.segmento)}
-        </div>
-        <div class="sf-group">
-          <span class="sf-lbl">6° Pólizas nuevas 25/26</span>
+          <span class="sf-lbl">5° Pólizas nuevas 25/26</span>
           ${viewToggleHTML(nuevId,[{value:'incluir',label:'Sí'},{value:'excluir',label:'No'}],f.polNuevas||'incluir')}
         </div>
       </div>
       <div class="sf-col">
         <div class="sf-group">
-          <span class="sf-lbl">7° "Anualidad Anterior" 2026</span>
+          <span class="sf-lbl">6° "Anualidad Anterior" 2026</span>
           ${viewToggleHTML(aantId,[{value:'incluir',label:'Sí'},{value:'excluir',label:'No'}],f.anualAnt||'incluir')}
         </div>
         <div class="sf-group">
-          <span class="sf-lbl">8° TC <span style="color:var(--ink-3);font-style:italic;font-weight:400;text-transform:none;letter-spacing:0;margin-left:3px;font-size:8.5px">(Pendiente)</span></span>
+          <span class="sf-lbl">7° TC <span style="color:var(--ink-3);font-style:italic;font-weight:400;text-transform:none;letter-spacing:0;margin-left:3px;font-size:8.5px">(Pendiente)</span></span>
           <input type="number" id="${sectionId}_SF_tc" min="0" step="any" placeholder="1400" value="${(f.tc!=null && f.tc>0)?f.tc:''}"
             style="width:72px;padding:2px 6px;font-family:var(--font-mono);font-size:10.5px;border:1px solid var(--line-2);border-radius:5px;color:var(--ink);background:var(--panel)" />
         </div>
@@ -2055,7 +2051,7 @@ function bindSectionFilters(sectionId, onChange){
     f.mes = _mSel ? (parseInt(_mSel.value,10)||0) : (parseInt(getCur(mesId,'0'),10)||0);
     f.universo = getCur(univId,'todos');
     f.cur = getCur(curId,'dual');
-    f.segmento = getCur(segId,'all');
+    f.segmento = 'all'; /* 5° Segmento eliminado: siempre todas las monedas */
     f.polNuevas = getCur(nuevId,'incluir');
     f.anualAnt = getCur(aantId,'excluir');
     if(onChange) onChange(f);
