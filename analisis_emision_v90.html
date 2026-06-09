@@ -6727,16 +6727,18 @@ function computarVariacionesRubro(it, mesCorte){
     /* EMISIÓN (PM/ajuste/bono/malus): 2025 y 2026 acumulados hasta el mes de corte. */
     const f25=calcEmisionFiltrada(p,2025,mesCorte), f26=calcEmisionFiltrada(p,2026,mesCorte);
     if(!dueEnCorte2026(p, f26)) continue; /* 2026 no vencido al corte → fuera de los desgloses */
-    /* ----- EMISIÓN TOTAL de la póliza (una sola línea): suma de los 4 conceptos en su moneda. */
+    /* ----- EMISIÓN TOTAL de la póliza (una sola línea): suma de los 4 conceptos en su moneda.
+       DETALLE = SOLO lo EFECTIVAMENTE EMITIDO en 2026 (et26>0), comparado contra su 2025.
+       Si emitió en 2025 pero NO en 2026, NO va al detalle (irá a Pendientes si corresponde);
+       así no infla el conteo ni los totales. */
     const et25 = uu?f25.totUSD:f25.totARS, et26 = uu?f26.totUSD:f26.totARS;
-    if(et25>0 || et26>0){
+    if(et26 > 0){
       const de = et26-et25;
-      if(Math.abs(de) > 0.5){
-        const recE = {...base, v25:et25, v26:et26, d:de, dpct: et25?de/Math.abs(et25):null};
-        (de>0?emiSube:emiBaja).push(recE);
-      }
+      const recE = {...base, v25:et25, v26:et26, d:de, dpct: et25?de/Math.abs(et25):null};
+      (de>=0?emiSube:emiBaja).push(recE);
     }
-    /* Pendiente TOTAL de la póliza (estimado según 2025, timing-aware vía pendPolizaInfo). */
+    /* Pendiente TOTAL de la póliza (estimado según 2025, timing-aware vía pendPolizaInfo).
+       Solo informativo: se lista en Pendientes y NO suma en el detalle ni en los totales. */
     const _pi = pendPolizaInfo(p, mesCorte);
     const ePend = uu?_pi.usd:_pi.ars;
     if(ePend > 0.5) emiPend.push({...base, v25:ePend, v26:null, cat:(_pi.concepts||[]).join(', ')||null});
