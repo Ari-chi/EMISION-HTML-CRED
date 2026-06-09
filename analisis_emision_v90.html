@@ -6663,8 +6663,8 @@ window.toggleEjrConcepto = function(rubroIdx, cid){
     ma:   {lbl:'Malus',                 sube:V.maSube,   baja:V.maBaja,   pend:V.maPend,   fila:filaMonto, hasPend:true},
     sinh: {lbl:'Siniestralidad histórica', sube:V.sinHSube, baja:V.sinHBaja, pend:[], fila:filaSin('Sin.H'), hasPend:false},
     uv:   {lbl:'Siniestralidad UV',     sube:V.uvSube,   baja:V.uvBaja,   pend:[],         fila:filaSin('UV'), hasPend:false},
-    emi:  {lbl:'Emisión (Prima + Ajuste + Bono + Malus)', sube:[...V.pmSube,...V.ajSube,...V.boSube,...V.maSube], baja:[...V.pmBaja,...V.ajBaja,...V.boBaja,...V.maBaja], pend:[...V.pmPend,...V.ajPend,...V.maPend], fila:filaMonto, hasPend:true},
-    pend: {lbl:'Pendientes de emisión (hasta el mes de corte)', sube:[], baja:[], pend:[...V.pmPend,...V.ajPend,...V.maPend], fila:filaMonto, hasPend:true},
+    emi:  {lbl:'Emisión (Prima + Ajuste + Bono + Malus)', sube:V.emiSube, baja:V.emiBaja, pend:V.emiPend, fila:filaMonto, hasPend:true},
+    pend: {lbl:'Pendientes de emisión (hasta el mes de corte)', sube:[], baja:[], pend:V.emiPend, fila:filaMonto, hasPend:true},
   };
   const c = concMap[cid]; if(!c) return;
   const bloque = (arr, titulo, color, bg, formatter)=>{
@@ -6698,6 +6698,9 @@ function computarVariacionesRubro(it, mesCorte){
   const ajSube=[], ajBaja=[], ajPend=[];
   const boSube=[], boBaja=[], boPend=[];
   const maSube=[], maBaja=[], maPend=[];
+  /* EMISIÓN TOTAL por póliza (UNA línea por póliza = suma PM+ajuste+bono+malus), para que
+     en el desglose de Emisión no se repita la misma póliza una vez por concepto. */
+  const emiSube=[], emiBaja=[], emiPend=[];
   /* Helper: ¿una categoría implica que el concepto está pendiente?
      (vacía o "Corresponde a la Anualidad Anterior"). */
   const esPend = (cat)=>{
@@ -6724,6 +6727,19 @@ function computarVariacionesRubro(it, mesCorte){
     /* EMISIÓN (PM/ajuste/bono/malus): 2025 y 2026 acumulados hasta el mes de corte. */
     const f25=calcEmisionFiltrada(p,2025,mesCorte), f26=calcEmisionFiltrada(p,2026,mesCorte);
     if(!dueEnCorte2026(p, f26)) continue; /* 2026 no vencido al corte → fuera de los desgloses */
+    /* ----- EMISIÓN TOTAL de la póliza (una sola línea): suma de los 4 conceptos en su moneda. */
+    const et25 = uu?f25.totUSD:f25.totARS, et26 = uu?f26.totUSD:f26.totARS;
+    if(et25>0 || et26>0){
+      const de = et26-et25;
+      if(Math.abs(de) > 0.5){
+        const recE = {...base, v25:et25, v26:et26, d:de, dpct: et25?de/Math.abs(et25):null};
+        (de>0?emiSube:emiBaja).push(recE);
+      }
+    }
+    /* Pendiente TOTAL de la póliza (estimado según 2025, timing-aware vía pendPolizaInfo). */
+    const _pi = pendPolizaInfo(p, mesCorte);
+    const ePend = uu?_pi.usd:_pi.ars;
+    if(ePend > 0.5) emiPend.push({...base, v25:ePend, v26:null, cat:(_pi.concepts||[]).join(', ')||null});
     /* PROYECCIÓN / TASA / SINIESTRALIDAD: cada año cuenta solo si la PRIMA MÍNIMA de ese
        año ya se emitió dentro del corte (fecha de emisión de la prima mínima como referencia). */
     const pm25ok = primaMinEmitidaCorte(p,2025,mesCorte);
@@ -6790,12 +6806,13 @@ function computarVariacionesRubro(it, mesCorte){
   }
   const byAbsD=(a,b)=>Math.abs(b.d)-Math.abs(a.d);
   const byV25Desc=(a,b)=>(b.v25||0)-(a.v25||0);
-  [proySube,proyBaja,tasaSube,tasaBaja,uvSube,uvBaja,sinHSube,sinHBaja,pmSube,pmBaja,ajSube,ajBaja,boSube,boBaja,maSube,maBaja].forEach(a=>a.sort(byAbsD));
-  [proyPend, tasaPend, uvPend, sinHPend, pmPend, ajPend, boPend, maPend].forEach(a=>a.sort(byV25Desc));
+  [proySube,proyBaja,tasaSube,tasaBaja,uvSube,uvBaja,sinHSube,sinHBaja,pmSube,pmBaja,ajSube,ajBaja,boSube,boBaja,maSube,maBaja,emiSube,emiBaja].forEach(a=>a.sort(byAbsD));
+  [proyPend, tasaPend, uvPend, sinHPend, pmPend, ajPend, boPend, maPend, emiPend].forEach(a=>a.sort(byV25Desc));
   return {proySube,proyBaja,proyPend, tasaSube,tasaBaja,tasaPend,
     uvSube,uvBaja,uvPend, sinHSube,sinHBaja,sinHPend,
     pmSube,pmBaja,pmPend, ajSube,ajBaja,ajPend,
-    boSube,boBaja,boPend, maSube,maBaja,maPend};
+    boSube,boBaja,boPend, maSube,maBaja,maPend,
+    emiSube,emiBaja,emiPend};
 }
 
 /* Conclusión visual corta y ÚNICA: explica el principal motivo del desvío del rubro.
