@@ -3072,8 +3072,7 @@ function drawEjecutivo(){
     <!-- BLOQUE 5 -->
     <div class="card">
       <div class="ejec-block-title">Detalle por rubro 2025 VS 2026</div>
-      <!-- 5.0 Máximos y mínimos por concepto (proy/tasa/sinies) -->
-      <div id="ejecRubroExtremos" style="margin-top:12px"></div>
+      <!-- 5.0 (TOP por concepto / barras divergentes) — OCULTO temporalmente a pedido del usuario -->
       <!-- 5.1 Comparativo emisión 2025 vs 2026 por rubro -->
       <div id="ejecRubroChartWrap" style="margin-top:14px"></div>
       <!-- 5.2 Detalle tradicional por rubro -->
@@ -3081,7 +3080,7 @@ function drawEjecutivo(){
     </div>`;
 
   /* Charts */
-  drawEjecRubroExtremos(polFiltradas, f);
+  /* drawEjecRubroExtremos(polFiltradas, f); — bloque TOP oculto temporalmente (pedido del usuario) */
   drawEjecRubroChart(polFiltradas, f, primary.useUSD);
   /* La tabla de cards por rubro se renderiza on-demand al hacer click en una
      fila del comparativo de arriba (foto 2 → foto 1). Igual mantenemos el
