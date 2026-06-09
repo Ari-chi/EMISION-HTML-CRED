@@ -5407,6 +5407,13 @@ window.toggleEjecCausa = function(id){
     /* Columna "Prima Mínima" (antes "Monto causa"): prima mínima 2025 → 2026 por moneda. */
     const monARS = {val:sumAbs(_$r, 'montoARS'), n:_$r.length, s25:sumAbs(_$r,'pm25ARS'), s26:sumAbs(_$r,'pm26ARS')};
     const monUSD = {val:sumAbs(_usr,'montoUSD'), n:_usr.length, s25:sumAbs(_usr,'pm25USD'), s26:sumAbs(_usr,'pm26USD')};
+    /* Conteo de pólizas por moneda EXACTAMENTE como el detalle (collect + agrupar por
+       asegurado), para que la cantidad de la grilla coincida con la del sub-desglose. */
+    let nColARS = monARS.n, nColUSD = monUSD.n;
+    try {
+      nColARS = agruparPorAsegurado(collect(false)).reduce((s,r)=>s+(r._nGrupo||1),0);
+      nColUSD = agruparPorAsegurado(collect(true)).reduce((s,r)=>s+(r._nGrupo||1),0);
+    } catch(e){}
     const fmtT = (v)=>v==null?'—':FMT_PCT_TASA(v);
     const fmtS = (v)=>v==null?'—':FMT_PCT_SIN(v);
     /* Tasa y siniestralidad por moneda original ($ / US), igual que Emisión 2026. */
@@ -5491,13 +5498,13 @@ window.toggleEjecCausa = function(id){
         ${catHead('Tasa promedio','rgba(139,92,246,.12)','#7c4ddb','#8b5cf6')}
         ${catHead('Siniestralidad','rgba(232,155,30,.14)','#b9760f','#e89b1e')}
         ${catHead('Rubros','rgba(94,179,232,.16)','#2a6aa0','#5eb3e8')}
-        ${refCell('$', monARS.n)}
+        ${refCell('$', nColARS)}
         ${montoCell(monARS,false)}
         ${proyCell(proyARS,false)}
         ${cellPctR(tasaARS, fmtT, false)}
         ${cellSinUnifR(sinUVARS, sinHARS)}
         <div style="grid-row:span 2">${rubrosCellR}</div>
-        ${refCell('US', monUSD.n)}
+        ${refCell('US', nColUSD)}
         ${montoCell(monUSD,true)}
         ${proyCell(proyUSD,true)}
         ${cellPctR(tasaUSD, fmtT, false)}
