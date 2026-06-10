@@ -5507,35 +5507,43 @@ window.toggleEjecCausa = function(id){
     const headBg = monOrigUSD?'rgba(45,155,106,.12)':'rgba(30,111,217,.10)';
     let inner='';
     if(rows.length===0){ inner = `<div style="font-size:13px;color:var(--ink-3);font-style:italic;padding:8px 0">— sin pólizas en moneda original ${moneda==='US'?'dólares':'pesos'} —</div>`; }
+    /* Los sub-títulos solo se muestran cuando hay DOS grupos (para distinguirlos). Si hay un
+       solo grupo, no se pone título (duplicaría el header de la columna de arriba). */
     else if(esPend){
       const titBase = {pend_prima:'Prima mínima pendiente', pend_ajuste:'Ajuste pendiente', pend_bono:'Bono pendiente', pend_malus:'Malus pendiente'}[id] || 'Pendiente de emisión';
       const p2=rows.filter(r=>r.mayor2m), p1=rows.filter(r=>!r.mayor2m);
-      inner = subTabla(p1,titBase,null,'pend',false) + subTabla(p2,titBase+' >2 meses',null,'pend',true);
+      const dos = p1.length>0 && p2.length>0;
+      inner = subTabla(p1, dos?titBase:'', null,'pend',false) + subTabla(p2, dos?titBase+' >2 meses':'', null,'pend',true);
     }
     else if(id==='perdidas'){
       const e26=rows.filter(r=>r.anio==='2026'), e25=rows.filter(r=>r.anio==='2025');
-      inner = subTabla(e26,'Se fueron en 2026',null,'perd',false) + subTabla(e25,'Se fueron en 2025',null,'perd',false);
+      const dos = e26.length>0 && e25.length>0;
+      inner = subTabla(e26, dos?'Se fueron en 2026':'', null,'perd',false) + subTabla(e25, dos?'Se fueron en 2025':'', null,'perd',false);
     }
     else if(id==='prima'){
       const bajan = rows.filter(r=>r.baja && r.justif);
       const sinJustif = rows.filter(r=>r.baja && !r.justif);
-      inner = subTabla(bajan,'Con baja de prima mínima (justificada)',null,'prima',true)
-            + subTabla(sinJustif,'Pendiente — concepto sin justificación',null,'prima',true);
+      const dos = bajan.length>0 && sinJustif.length>0;
+      inner = subTabla(bajan, dos?'Con baja de prima mínima (justificada)':'', null,'prima',true)
+            + subTabla(sinJustif, dos?'Pendiente — concepto sin justificación':'', null,'prima',true);
     }
     else if(id==='ajuste'){
       const just=rows.filter(r=>r.justif), nojust=rows.filter(r=>!r.justif);
-      inner = subTabla(just,'Caída de ajuste (justificada)',null,'ajuste',true)
-            + subTabla(nojust,'Pendiente — sin justificación',null,'ajuste',true);
+      const dos = just.length>0 && nojust.length>0;
+      inner = subTabla(just, dos?'Caída de ajuste (justificada)':'', null,'ajuste',true)
+            + subTabla(nojust, dos?'Pendiente — sin justificación':'', null,'ajuste',true);
     }
     else if(id==='bono'){
       const just=rows.filter(r=>r.justif), nojust=rows.filter(r=>!r.justif);
-      inner = subTabla(just,'Caída de bono (justificada)',null,'bono',true)
-            + subTabla(nojust,'Pendiente — sin justificación',null,'bono',true);
+      const dos = just.length>0 && nojust.length>0;
+      inner = subTabla(just, dos?'Caída de bono (justificada)':'', null,'bono',true)
+            + subTabla(nojust, dos?'Pendiente — sin justificación':'', null,'bono',true);
     }
     else if(id==='malus'){
       const just=rows.filter(r=>r.justif), nojust=rows.filter(r=>!r.justif);
-      inner = subTabla(just,'Caída de malus (justificada)',null,'malus',true)
-            + subTabla(nojust,'Pendiente — sin justificación',null,'malus',true);
+      const dos = just.length>0 && nojust.length>0;
+      inner = subTabla(just, dos?'Caída de malus (justificada)':'', null,'malus',true)
+            + subTabla(nojust, dos?'Pendiente — sin justificación':'', null,'malus',true);
     }
     /* Total del header por columna de moneda original. Para conceptos con variación con
        signo (prima/ajuste/malus), el neto puede ser negativo (desvío) o positivo (a favor).
