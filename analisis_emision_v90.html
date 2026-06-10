@@ -3287,11 +3287,13 @@ function desglosePendientePorConcepto(polFiltradas, mesCorte){
     if(items.length===0) continue;
 
     /* Grupo de la póliza según el DATO de emisión, en su moneda propia. */
-    const suf = (p.moneda==='US') ? 'u' : 'a';
-    const manual = (state._ejecEstim[suf]||{})[p.clave];
-    const hasManual = isFinite(manual) && manual>0;
-    const excel = _excelEstimVal(p, suf);
-    const hasData = (excel>0) || hasManual;
+    /* DATO de emisión: el Excel (bloque AF–AH) trae el monto en AMBAS monedas ($ y US$); o se
+       carga a mano por moneda. Con dato → "se emite este mes" ('mes'); sin dato → "pendiente
+       sin fecha" ('anio'). */
+    const excelA = _excelEstimVal(p, 'a'), excelU = _excelEstimVal(p, 'u');
+    const manA = (state._ejecEstim.a||{})[p.clave], manU = (state._ejecEstim.u||{})[p.clave];
+    const hasManA = isFinite(manA) && manA>0, hasManU = isFinite(manU) && manU>0;
+    const hasData = (excelA>0)||(excelU>0)||hasManA||hasManU;
     const grupo = hasData ? 'mes' : 'anio';
     if(!_contab[grupo]) continue;   /* grupo NO contabilizado → no aporta nada al desvío */
 
@@ -3305,21 +3307,24 @@ function desglosePendientePorConcepto(polFiltradas, mesCorte){
     if(!conc.length) continue;
     out.total.n++;
 
-    /* Valor efectivo: si hay dato (Excel/manual) usamos ESE total y lo repartimos entre los
-       conceptos en proporción a su peso automático; si no, cada concepto suma su valor 2025. */
-    const eff = hasManual ? manual : (excel>0 ? excel : null);
-    if(eff!=null){
+    if(hasData){
+      /* "Se emite este mes": el monto en CADA moneda viene del Excel (o cargado a mano) tal
+         cual — el TC NO se aplica (el Excel ya trae $ y US$). Se reparte entre los conceptos
+         según su peso automático en esa misma moneda. */
+      const vARS = hasManA ? manA : excelA;
+      const vUSD = hasManU ? manU : excelU;
       const sumA = conc.reduce((a,x)=>a+Math.abs(x.ars),0);
       const sumU = conc.reduce((a,x)=>a+Math.abs(x.usd),0);
-      const effCv = convertirPendienteTC(p.moneda==='US'?0:eff, p.moneda==='US'?eff:0, p.moneda);
       for(const x of conc){
         const wA = sumA>0 ? Math.abs(x.ars)/sumA : (1/conc.length);
         const wU = sumU>0 ? Math.abs(x.usd)/sumU : (1/conc.length);
-        const vA = effCv.ars*wA, vU = effCv.usd*wU;
+        const vA = vARS*wA, vU = vUSD*wU;
         out[x.k].n++; out[x.k].totARS+=vA; out[x.k].totUSD+=vU;
         out.total.totARS+=vA; out.total.totUSD+=vU;
       }
     } else {
+      /* "Pendiente sin fecha": pendiente 2025 en la MONEDA ORIGINAL; el equivalente en la otra
+         moneda se calcula con el TC del 7° ($ → US dividiendo, US → $ multiplicando). */
       for(const x of conc){
         out[x.k].n++; out[x.k].totARS+=x.ars; out[x.k].totUSD+=x.usd;
         out.total.totARS+=x.ars; out.total.totUSD+=x.usd;
@@ -5489,14 +5494,21 @@ window.toggleEjecCausa = function(id){
     /* Mostramos TODAS las pólizas pendientes (no un solo concepto): el valor editable es por
        póliza y el total de cada columna coincide con lo que aporta ese grupo al gráfico. */
     const all = [...collect(false,'pendiente'), ...collect(true,'pendiente')];
+    const otherSuf = btnUSD?'a':'u';
     const items = all.map(r=>{
-      const excel = _excelEstimVal(r, suf);
+      const excelV = _excelEstimVal(r, suf);            /* Excel en la moneda de la vista */
+      const excelO = _excelEstimVal(r, otherSuf);       /* Excel en la otra moneda */
       const manual = store[r.clave];
+      const manualO = (state._ejecEstim[otherSuf]||{})[r.clave];
       const hasManual = isFinite(manual) && manual>0;
-      const auto = Math.abs(valBtnR(r));
-      const data = (excel>0) || hasManual;
-      const eff = hasManual ? manual : (excel>0 ? excel : auto);
-      return {r, excel, hasManual, auto, eff, data};
+      const hasManualO = isFinite(manualO) && manualO>0;
+      const auto = Math.abs(valBtnR(r));                /* pendiente 2025 (con TC) */
+      /* Hay dato (se emite este mes) si el Excel/manual tiene valor en CUALQUIER moneda. */
+      const data = (excelV>0)||(excelO>0)||hasManual||hasManualO;
+      /* Monto en la moneda de la vista: con dato → Excel/manual de ESA moneda (sin TC, el Excel
+         ya trae $ y US$); sin dato → pendiente 2025 convertido con el TC del 7°. */
+      const eff = data ? (hasManual ? manual : excelV) : auto;
+      return {r, excel:excelV, hasManual, auto, eff, data};
     }).filter(x=> seEmite ? x.data : !x.data).sort((a,b)=> b.eff - a.eff);
     const tot = items.reduce((a,x)=>a+x.eff,0);
     const dvA = (state._ejecDesvioAbs && state._ejecDesvioAbs[suf]) || 0;
