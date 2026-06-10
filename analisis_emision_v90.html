@@ -3460,10 +3460,25 @@ function ejecJustificacion(S, useUSD, dual, useUSDprimary){
     _pendByClave[pp.clave] = useUSD ? inf.usd : inf.ars;
   }
   let estimRaw = 0;
-  for(const k in estStore){
-    const e = estStore[k];
-    if(!(isFinite(e) && e>0)) continue;
-    const diff = e - (_pendByClave[k] || 0);
+  /* El valor EFECTIVO de cada póliza = lo cargado a mano (estStore) o, si no, lo del cuadro
+     del Excel (AF–AH). El Excel se aplica AUTOMÁTICAMENTE (sin tocar OK). Se agrega al desvío
+     SOLO la diferencia sobre el pendiente ya contado; las pólizas del Excel que no eran
+     pendientes (y no están emitidas ni terminadas) suman su valor completo. */
+  const _estimDone = new Set();
+  for(const pp of (polPend||[])){
+    if(_estimDone.has(pp.clave)) continue; _estimDone.add(pp.clave);
+    const manual = estStore[pp.clave];
+    const hasManual = isFinite(manual) && manual>0;
+    const excel = _excelEstimVal(pp, sufijo);
+    const eff = hasManual ? manual : excel;
+    if(!(eff>0)) continue;
+    const base = _pendByClave[pp.clave] || 0;
+    if(!(base>0.5)){
+      const est = estadoPolizaConsolidado(pp, dd.mesCorte);
+      if(est==='sin_desvio' || est==='emitido_con_desvio') continue;
+      if(pp.tipo2026==='Póliza terminada') continue;
+    }
+    const diff = eff - base;
     if(diff > 0) estimRaw += diff;
   }
   const _sumaBase = causas.reduce((a,c)=>a+c.val,0);
@@ -3630,21 +3645,26 @@ function ejecJustificacion(S, useUSD, dual, useUSDprimary){
         const terminada = (p.tipo2026==='Póliza terminada');
         if(!yaEmit && !terminada){ incluir = true; soloEstim = true; }
       }
-      /* Orden por EMISIÓN de mayor a menor: usa la estimación cargada (manual o autocompletada);
-         si no hay, el pendiente; si no, el valor del Excel. */
-      const sortVal = hasManual ? manual : (esPend ? Math.abs(pendV) : ex);
-      return {p, pendV, concepts:inf.concepts, esPend, soloEstim, incluir, sortVal};
+      /* Valor EFECTIVO (editable, pre-cargado): lo cargado a mano; si no, el del Excel (lo pisa
+         el automático); si no, el pendiente automático. */
+      const eff = hasManual ? manual : (ex>0 ? ex : (esPend ? pendV : 0));
+      /* SPLIT: "Se emite este mes" = hay dato en el Excel o cargado a mano; si no, "Pendiente
+         emisión en el año". */
+      const seEmite = (ex>0 || hasManual);
+      return {p, pendV, eff, ex, hasManual, concepts:inf.concepts, esPend, soloEstim, incluir, seEmite, sortVal: eff||pendV||ex};
     }).filter(x=>x.incluir).sort((a,b)=> b.sortVal - a.sortVal);
     const nPrima = lista.filter(x=>x.esPend && x.concepts.includes('Prima mínima')).length;
     const nAjuste = lista.filter(x=>x.esPend && x.concepts.includes('Ajuste')).length;
     const nMalus = lista.filter(x=>x.esPend && x.concepts.includes('Malus')).length;
     const nBono = lista.filter(x=>x.esPend && x.concepts.includes('Bono')).length;
-    const nAEmitir = lista.filter(x=>x.soloEstim).length;
     const pctTomado = dvAbs>0 ? Math.round(estimEff/dvAbs*100) : 0;
-    const rows = lista.map(({p,pendV,concepts,esPend,soloEstim})=>{
-      const e = estStore[p.clave]; const has = isFinite(e)&&e>0;
+    /* Fila con input PRE-CARGADO con el valor efectivo (editable). */
+    const fmtRow = (x)=>{
+      const {p, pendV, eff, concepts, esPend} = x;
+      const e = estStore[p.clave]; const hasM = isFinite(e)&&e>0;
+      const valShown = hasM ? e : eff;
+      const eDisp = (valShown>0) ? Number(valShown).toLocaleString('es-AR',{maximumFractionDigits:0}) : '';
       const tipos = (concepts&&concepts.length) ? concepts.map(c=>cLbl[c]||c).join(' · ') : '—';
-      const eDisp = has ? Number(e).toLocaleString('es-AR',{maximumFractionDigits:0}) : '';
       const infoLine = esPend
         ? `Pendiente: <strong style="color:var(--neg)">${fmtCompact(pendV,useUSD)}</strong> <span style="color:var(--neg);font-weight:700">(${tipos})</span>`
         : `<strong style="color:#b9760f">A emitir</strong> <span style="color:var(--ink-3)">· no pendiente por fecha, pero debe emitirse</span>`;
@@ -3655,13 +3675,28 @@ function ejecJustificacion(S, useUSD, dual, useUSDprimary){
           <span style="font-size:11px;color:var(--accent);font-weight:700;background:rgba(30,111,217,.10);padding:2px 7px;border-radius:4px;margin-left:6px">${p.rubro||'—'}</span>
           <div style="font-family:var(--font-mono);font-size:11.5px;color:var(--ink-3);margin-top:3px">${infoLine}</div>
         </div>
-        <input type="text" inputmode="decimal" value="${eDisp}" placeholder="estimación ${useUSD?'US':'$'}" onchange="setEjecEstim('${sufijo}','${p.clave}', this.value)" style="width:100%;padding:6px 8px;font-family:var(--font-mono);font-size:13px;border:1.5px solid ${has?'var(--pos)':'var(--line-2)'};border-radius:6px;text-align:right;color:var(--ink);background:var(--panel)" />
+        <span style="display:flex;align-items:center;gap:5px"><span style="font-size:13px;color:var(--ink-3)" title="Editable">✎</span><input type="text" inputmode="decimal" value="${eDisp}" placeholder="emisión ${useUSD?'US':'$'}" onchange="setEjecEstim('${sufijo}','${p.clave}', this.value)" style="width:100%;padding:6px 8px;font-family:var(--font-mono);font-size:13px;border:1.5px solid ${hasM?'var(--pos)':'var(--line-2)'};border-radius:6px;text-align:right;color:var(--ink);background:var(--panel)" /></span>
       </div>`;
-    }).join('');
+    };
+    /* DOS secciones: "Se emite este mes" (con dato del Excel/cargado) y "Pendiente emisión en el
+       año" (el resto). Cada una con su total y % del desvío. */
+    const grpSe = lista.filter(x=>x.seEmite);
+    const grpAnio = lista.filter(x=>!x.seEmite);
+    const totSe = grpSe.reduce((a,x)=>a+(x.eff||0),0);
+    const totAnio = grpAnio.reduce((a,x)=>a+(x.eff||0),0);
+    const pctSe = dvAbs>0?Math.round(totSe/dvAbs*100):0;
+    const pctAnio = dvAbs>0?Math.round(totAnio/dvAbs*100):0;
+    const sectionHead = (titulo, col, tot, pct, n)=>`<div style="display:flex;justify-content:space-between;align-items:center;gap:10px;padding:9px 12px;background:${col}1a;border-bottom:1px solid var(--line)">
+      <span style="font-size:12.5px;font-weight:800;color:${col};text-transform:uppercase;letter-spacing:.04em">${titulo} <span style="color:var(--ink-3);font-weight:600;text-transform:none">· ${n} pól.</span></span>
+      <span style="font-family:var(--font-mono);font-size:13.5px;font-weight:800;color:${col};white-space:nowrap">${fmtCompact(tot,useUSD)} <span style="color:var(--ink-3);font-weight:700">(${pct}% del desvío)</span></span>
+    </div>`;
+    const rows =
+      (grpSe.length ? sectionHead('Se emite este mes', '#2d9b6a', totSe, pctSe, grpSe.length) + grpSe.map(fmtRow).join('') : '') +
+      (grpAnio.length ? sectionHead('Pendiente emisión en el año', '#4ba3c7', totAnio, pctAnio, grpAnio.length) + grpAnio.map(fmtRow).join('') : '');
     const excedente = Math.max(0, estimRaw - _sinCubrirBase);
     estimPanel = `<div style="margin-top:14px;border:1.5px solid #c5cdd9;border-radius:8px;overflow:hidden">
       <div style="padding:10px 14px;background:rgba(197,205,217,.30);color:#5a6b85;display:flex;justify-content:space-between;align-items:center;gap:12px;flex-wrap:wrap">
-        <span style="font-size:11px;color:#7a879c;font-weight:600;line-height:1.3"><strong style="color:#5a6b85;font-size:11.5px">✎ Sin justificar</strong> · ${lista.length} pól. · Prima ${nPrima} · Ajuste ${nAjuste}${nBono>0?` · Bono ${nBono}`:''} · Malus ${nMalus}${nAEmitir>0?` · A emitir ${nAEmitir}`:''}</span>
+        <span style="font-size:11px;color:#7a879c;font-weight:600;line-height:1.3"><strong style="color:#5a6b85;font-size:11.5px">✎ Pendiente · emisión a tomar</strong> · ${lista.length} pól. · Prima ${nPrima} · Ajuste ${nAjuste}${nBono>0?` · Bono ${nBono}`:''} · Malus ${nMalus}</span>
         <span style="display:flex;align-items:center;gap:12px;white-space:nowrap;flex-wrap:wrap">
           <span style="display:flex;flex-direction:column;gap:3px">
             <button onclick="ejecEstimOkAll('${sufijo}')" title="Autocompleta TODAS con la proyección del Excel (bloque AF–AH). Respeta los valores cargados a mano." style="padding:7px 14px;font-size:12.5px;font-weight:800;border-radius:7px;cursor:pointer;border:1.5px solid var(--pos);background:var(--pos);color:#fff">OK ✓ autocompletar todas</button>
