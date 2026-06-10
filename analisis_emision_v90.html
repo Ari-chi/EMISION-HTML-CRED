@@ -5998,34 +5998,14 @@ window.toggleEjecCausa = function(id){
     /* En "Menor Emisión" se OCULTA la columna Prima Mínima (ya aparece abajo en
        "Magnitud por concepto"). */
     const showPrima = (id !== 'menor');
-    /* Pendientes / perdidas: el resumen muestra SOLO Prima Mínima ($ y US) + Rubros (lo demás
-       no aplica). Compacto, con algo de aire para que se lea sin ocupar tanto. */
+    /* Pendientes / perdidas: el resumen muestra SOLO Rubros (la prima ya está en el detalle de
+       abajo). Rubros en 3 columnas (≈3 filas) con el número pegado al nombre. */
     if(esPendPerdNoCorr){
-      /* Compacto: Prima Mínima con $ y US LADO A LADO, y Rubros corrido a la derecha. */
-      const primaMini = (sym, n, info, det, isUS)=>{
-        const c = sym==='US'?'#8b5cf6':'#e89b1e';
-        return `<div style="display:flex;flex-direction:column;gap:3px">
-          <div style="display:flex;align-items:center;gap:6px;padding-left:2px">
-            <span style="font-size:14px;font-weight:900;color:${c}">${sym}</span>
-            <span style="font-size:10px;font-weight:800;color:var(--ink-2);font-family:var(--font-mono)">${n||0} <span style="color:var(--ink-3);font-weight:600">pól.</span></span>
-          </div>
-          ${montoCell(info, isUS, det)}
-        </div>`;
-      };
-      return `<div style="margin-bottom:10px;overflow-x:auto">
-        <div style="display:flex;gap:20px;align-items:flex-start;min-width:560px">
-          <div style="flex:0 0 auto">
-            ${catHead('Prima Mínima','#c2410c','#fff','#c2410c')}
-            <div style="display:flex;gap:8px;margin-top:6px">
-              ${primaMini('$', nColARS, monARS, detMonARS, false)}
-              ${primaMini('US', nColUSD, monUSD, detMonUSD, true)}
-            </div>
-          </div>
-          <div style="flex:1 1 auto;min-width:260px">
-            ${catHead('Rubros','rgba(94,179,232,.16)','#2a6aa0','#5eb3e8')}
-            <div style="margin-top:6px">${rubrosCompact}</div>
-          </div>
-        </div>
+      return `<div style="margin-bottom:10px">
+        <div style="font-size:10.5px;color:var(--ink-3);text-transform:uppercase;letter-spacing:.04em;font-weight:700;margin-bottom:6px">Rubros (${rubArr.length})</div>
+        ${rubArr.length>0 ? `<div style="display:grid;grid-template-columns:repeat(3,auto);gap:5px 30px;justify-content:start">
+          ${rubArr.map(([k,n])=>`<div style="font-size:12px;white-space:nowrap"><span style="color:var(--accent-3);font-weight:700">${k}</span> <span style="font-family:var(--font-mono);color:var(--ink-2);font-weight:700;margin-left:6px">${n}</span></div>`).join('')}
+        </div>` : '<span style="font-size:12px;color:var(--ink-3);font-style:italic">— sin rubros —</span>'}
       </div>`;
     }
     const nCat = showPrima ? 5 : 4;
