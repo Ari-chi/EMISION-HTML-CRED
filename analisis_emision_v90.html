@@ -3278,12 +3278,10 @@ function desglosePendientePorConcepto(polFiltradas, mesCorte){
       if(mARS>0||mUSD>0) items=[{concepto:'Prima mínima', ars:mARS, usd:mUSD}];
     }
     if(items.length===0) continue;
-    /* El BONO pendiente se EXCLUYE por completo del Desvío de Emisión (pedido del usuario):
-       no suma al total ni figura como concepto. */
-    const itemsSinBono = items.filter(it=>it.concepto!=='Bono');
-    if(itemsSinBono.length===0) continue;
+    /* Ahora el BONO pendiente SÍ figura como un 4° concepto (pedido del usuario): mismo color
+       celeste, suma junto a los otros. */
     out.total.n++;
-    for(const it of itemsSinBono){
+    for(const it of items){
       const k = KEYS[it.concepto]; if(!k) continue;
       const cv = convertirPendienteTC(it.ars, it.usd, p.moneda);
       out[k].n++; out[k].totARS+=cv.ars; out[k].totUSD+=cv.usd;
@@ -3433,6 +3431,7 @@ function ejecJustificacion(S, useUSD, dual, useUSDprimary){
       mk('pend_prima',APP_CONFIG.textos.pend_prima, pv(dp&&dp.primaMin), dp?dp.primaMin.n:0, APP_CONFIG.colores.pendiente,'pendiente'),
       mk('pend_ajuste',APP_CONFIG.textos.pend_ajuste, pv(dp&&dp.ajuste), dp?dp.ajuste.n:0, APP_CONFIG.colores.pendiente,'pendiente'),
       mk('pend_malus',APP_CONFIG.textos.pend_malus, pv(dp&&dp.malus), dp?dp.malus.n:0, APP_CONFIG.colores.pendiente,'pendiente'),
+      mk('pend_bono',APP_CONFIG.textos.pend_bono || 'Bono pendiente', pv(dp&&dp.bono), dp?dp.bono.n:0, APP_CONFIG.colores.pendiente,'pendiente'),
       mk('perdidas',APP_CONFIG.textos.perdidas, mkVal(cnt.perdidas), cnt.perdidas.n, APP_CONFIG.colores.perdidas),
       mk('menor',APP_CONFIG.textos.menor || 'Menor Emisión', menorSigned, menorN, APP_CONFIG.colores.abm),
     ].filter(c=>c.val>1);
@@ -3494,14 +3493,6 @@ function ejecJustificacion(S, useUSD, dual, useUSDprimary){
   const _sumaBase = causas.reduce((a,c)=>a+c.val,0);
   const _sinCubrirBase = Math.max(0, dvAbs - _sumaBase);
   const estimEff = Math.min(estimRaw, _sinCubrirBase);
-  if(estimEff > 1){
-    causas.push({id:'emisionMes', lbl:'Emisión este mes', val:estimEff, vSigned:estimEff, n:0, col:'#2d9b6a', grupo:'pendiente'});
-  }
-  /* Si "Pendiente sin fecha" NO se contabiliza (default), quitamos las causas de pendiente
-     automático por concepto (la emisión este mes ya toma el valor completo). */
-  if(!_contab.anio){
-    causas = causas.filter(c=> !(c.grupo==='pendiente' && c.id!=='emisionMes'));
-  }
 
   /* Base para los porcentajes de la barra: el DESVÍO TOTAL (dvAbs), NO la suma de causas.
      Pedido del usuario: la barra representa el desvío total (ej. 4.9M = 100%) y las causas
@@ -4539,10 +4530,11 @@ window.toggleEjecEmi = function(id){
         </div>`;
       }
       const c = info.d===0?'var(--accent)':(info.d>0?(neg?'var(--neg)':'var(--pos)'):(neg?'var(--pos)':'var(--neg)'));
+      const rel = info.v25?info.d/Math.abs(info.v25):null;
       return `<div style="background:#fbfcfe;border:1px solid var(--line-2);border-radius:7px;padding:13px 16px;box-shadow:0 1px 4px rgba(10,31,58,.06)">
         ${nLbl(info)}
         ${arrowYears(fmt(info.v25), fmt(info.v26))}
-        <div style="font-family:var(--font-mono);font-size:15px;font-weight:800;color:${c};margin-top:9px;text-align:center">${info.d>=0?'+':''}${fmt(info.d)}</div>
+        <div style="font-family:var(--font-mono);font-size:15px;font-weight:800;color:${c};margin-top:9px;text-align:center">${info.d>=0?'+':''}${fmt(info.d)}${rel!=null?` <span style="font-size:12px">(${info.d>=0?'+':''}${FMT_PCT(rel)})</span>`:''}</div>
       </div>`;
     };
     /* Siniestralidad UNIFICADA: una sola card con dos renglones — UV arriba, H abajo
