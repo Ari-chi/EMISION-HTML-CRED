@@ -3265,6 +3265,15 @@ function desglosePendientePorConcepto(polFiltradas, mesCorte){
     malus:{n:0,totARS:0,totUSD:0},
     total:{n:0,totARS:0,totUSD:0},
   };
+  /* Toggles "Contabilizar" del drill de pendientes (pedido del usuario): cada póliza pendiente
+     cae en un grupo según tenga DATO de emisión cargado (Excel bloque AF–AH o editado a mano):
+       · CON dato  → "Se emite este mes" (grupo 'mes', por defecto SÍ contabiliza)
+       · SIN dato  → "Pendiente sin fecha" (grupo 'anio', por defecto NO contabiliza)
+     Si el grupo está en NO, sus pólizas NO suman al desvío (ni al gráfico ni a los conceptos).
+     Valor efectivo de cada póliza: lo cargado a mano > el dato del Excel > el pendiente 2025. */
+  state._ejecContab = state._ejecContab || {mes:true, anio:false};
+  state._ejecEstim = state._ejecEstim || {u:{}, a:{}};
+  const _contab = state._ejecContab;
   for(const p of polFiltradas){
     const est = estadoPolizaConsolidado(p, mesCorte);
     const pend = (est==='desvio_emision_pendiente' || est==='desvio_pendiente_mayor_2m');
@@ -3278,14 +3287,45 @@ function desglosePendientePorConcepto(polFiltradas, mesCorte){
       if(mARS>0||mUSD>0) items=[{concepto:'Prima mínima', ars:mARS, usd:mUSD}];
     }
     if(items.length===0) continue;
-    /* Ahora el BONO pendiente SÍ figura como un 4° concepto (pedido del usuario): mismo color
-       celeste, suma junto a los otros. */
-    out.total.n++;
+
+    /* Grupo de la póliza según el DATO de emisión, en su moneda propia. */
+    const suf = (p.moneda==='US') ? 'u' : 'a';
+    const manual = (state._ejecEstim[suf]||{})[p.clave];
+    const hasManual = isFinite(manual) && manual>0;
+    const excel = _excelEstimVal(p, suf);
+    const hasData = (excel>0) || hasManual;
+    const grupo = hasData ? 'mes' : 'anio';
+    if(!_contab[grupo]) continue;   /* grupo NO contabilizado → no aporta nada al desvío */
+
+    /* Conceptos pendientes (con TC) y su peso automático por concepto. */
+    const conc = [];
     for(const it of items){
       const k = KEYS[it.concepto]; if(!k) continue;
       const cv = convertirPendienteTC(it.ars, it.usd, p.moneda);
-      out[k].n++; out[k].totARS+=cv.ars; out[k].totUSD+=cv.usd;
-      out.total.totARS+=cv.ars; out.total.totUSD+=cv.usd;
+      conc.push({k, ars:cv.ars, usd:cv.usd});
+    }
+    if(!conc.length) continue;
+    out.total.n++;
+
+    /* Valor efectivo: si hay dato (Excel/manual) usamos ESE total y lo repartimos entre los
+       conceptos en proporción a su peso automático; si no, cada concepto suma su valor 2025. */
+    const eff = hasManual ? manual : (excel>0 ? excel : null);
+    if(eff!=null){
+      const sumA = conc.reduce((a,x)=>a+Math.abs(x.ars),0);
+      const sumU = conc.reduce((a,x)=>a+Math.abs(x.usd),0);
+      const effCv = convertirPendienteTC(p.moneda==='US'?0:eff, p.moneda==='US'?eff:0, p.moneda);
+      for(const x of conc){
+        const wA = sumA>0 ? Math.abs(x.ars)/sumA : (1/conc.length);
+        const wU = sumU>0 ? Math.abs(x.usd)/sumU : (1/conc.length);
+        const vA = effCv.ars*wA, vU = effCv.usd*wU;
+        out[x.k].n++; out[x.k].totARS+=vA; out[x.k].totUSD+=vU;
+        out.total.totARS+=vA; out.total.totUSD+=vU;
+      }
+    } else {
+      for(const x of conc){
+        out[x.k].n++; out[x.k].totARS+=x.ars; out[x.k].totUSD+=x.usd;
+        out.total.totARS+=x.ars; out.total.totUSD+=x.usd;
+      }
     }
   }
   return out;
@@ -3615,14 +3655,16 @@ function ejecJustificacion(S, useUSD, dual, useUSDprimary){
         : (clickable && (causa.grupo==='pendiente'||id==='pendiente'||id==='perdidas') ? '−'
           : (totSigned>=0?'+':'−')));
     const nPolStr = causa && causa.n>0 ? ` <span style="color:var(--ink-3);font-weight:500;font-size:12.5px">· ${causa.n} pól.</span>` : '';
-    const esEstim = (id==='estimacion');
-    const esSinJust = (p.lbl==='Sin justificar');
-    const opensEstim = esEstim || esSinJust;
-    const isClk = opensEstim || clickable;
-    const click = opensEstim ? `onclick="toggleEjecEstim('${sufijo}')"` : (clickable ? `onclick="toggleEjecCausa('${id}')"` : '');
-    const carId = (clickable && !esEstim) ? `id="ejecCausaCar_${id}"` : '';
+    /* Los 4 conceptos PENDIENTES son editables: el ▸ se reemplaza por ✎ y al clickear se
+       abre el drill editable. "Sin justificar" ya NO es editable (no lleva ✎). */
+    const esPendConcepto = !!(causa && causa.grupo==='pendiente');
+    const isClk = clickable;
+    const click = clickable ? `onclick="toggleEjecCausa('${id}')"` : '';
+    const carId = clickable ? `id="ejecCausaCar_${id}"` : '';
+    const icon = esPendConcepto ? '✎' : (clickable ? '▸' : '');
+    const iconColor = esPendConcepto ? '#1e88c7' : 'var(--accent)';
     return `<div ${click} style="display:grid;grid-template-columns:14px 14px 1fr auto auto;column-gap:10px;align-items:center;padding:8px 8px;border-radius:5px;${isClk?'cursor:pointer;':''}font-size:14.5px;line-height:1.3;border:1px solid transparent" ${isClk?`onmouseover="this.style.background='var(--bg-2)';this.style.borderColor='var(--line)'" onmouseout="this.style.background='';this.style.borderColor='transparent'"`:''}>
-      <span ${carId} style="font-size:11px;color:${opensEstim?'#5a6b85':'var(--accent)'}">${opensEstim?'✎':(clickable?'▸':'')}</span>
+      <span ${carId} style="font-size:11px;color:${iconColor}">${icon}</span>
       <span style="width:13px;height:13px;border-radius:50%;background:${p.col};border:1px solid rgba(0,0,0,.08)"></span>
       <span style="color:var(--accent-3);font-weight:700">${p.lbl}${nPolStr}</span>
       <span style="font-family:var(--font-mono);font-weight:800;color:var(--accent-3);min-width:38px;text-align:right">${Math.round(p.pctOf)}%</span>
@@ -3821,13 +3863,21 @@ window.setEjecEstim = function(suf, clave, raw){
   const limpio = String(raw==null?'':raw).replace(/\./g,'').replace(',','.').replace(/[^0-9.\-]/g,'');
   const v = parseFloat(limpio);
   if(isFinite(v) && v>0) st[clave] = v; else delete st[clave];
-  /* Si hay un drill de causa abierto (donde se edita ahora), re-renderizarlo SOLO a él para
-     no cerrarlo; si no, re-render normal. */
-  const panel = document.getElementById('ejecCausaDetalle');
-  const openId = panel && panel.dataset.open;
-  if(openId && typeof toggleEjecCausa==='function'){ panel.dataset.open=''; toggleEjecCausa(openId); }
-  else if(typeof drawEjecutivo==='function') drawEjecutivo();
+  /* Editar un pendiente debe recalcular el desvío, los conceptos y el GRÁFICO (no solo el
+     drill): redibujamos el ejecutivo completo y re-abrimos el mismo drill. */
+  _ejecRerenderConDrill();
 };
+/* Redibuja todo el ejecutivo (donut + leyenda + totales) y vuelve a abrir el drill que
+   estuviera abierto, sin perder el contexto del usuario. */
+function _ejecRerenderConDrill(){
+  const panel = document.getElementById('ejecCausaDetalle');
+  const openId = panel ? panel.dataset.open : '';
+  if(typeof drawEjecutivo==='function') drawEjecutivo();
+  if(openId && typeof toggleEjecCausa==='function'){
+    const p2 = document.getElementById('ejecCausaDetalle');
+    if(p2){ p2.dataset.open=''; toggleEjecCausa(openId); }
+  }
+}
 /* OK GENERAL: autocompleta TODAS las pendientes con la proyección del Excel (bloque AF–AH),
    buscando por número de póliza o nombre de asegurado. Respeta las estimaciones ya cargadas
    a mano (solo completa las vacías). Solo coloca valor si el Excel tiene algo para esa póliza. */
@@ -3863,10 +3913,9 @@ window.ejecEstimClearAll = function(suf){
 window.ejecToggleContab = function(which){
   state._ejecContab = state._ejecContab || {mes:true, anio:false};
   state._ejecContab[which] = !state._ejecContab[which];
-  /* Re-renderizar SOLO el drill abierto (no toda la hoja) para no cerrarlo. */
-  const panel = document.getElementById('ejecCausaDetalle');
-  const openId = panel && panel.dataset.open;
-  if(openId && typeof toggleEjecCausa==='function'){ panel.dataset.open=''; toggleEjecCausa(openId); }
+  /* Contabilizar SÍ/NO debe sumar/restar ese grupo en el desvío, los conceptos y el GRÁFICO:
+     redibujamos el ejecutivo completo y re-abrimos el drill. */
+  _ejecRerenderConDrill();
 };
 window.ejecEstimOk = function(suf, clave, pendVal){
   const st = _ejecEstimStore(suf);
@@ -5437,7 +5486,9 @@ window.toggleEjecCausa = function(id){
     const on = !!state._ejecContab[which];
     const colC = seEmite ? '#2d9b6a' : '#4ba3c7';
     const titulo = seEmite ? 'Se emite este mes' : 'Pendiente sin fecha';
-    const all = [...collect(false), ...collect(true)];
+    /* Mostramos TODAS las pólizas pendientes (no un solo concepto): el valor editable es por
+       póliza y el total de cada columna coincide con lo que aporta ese grupo al gráfico. */
+    const all = [...collect(false,'pendiente'), ...collect(true,'pendiente')];
     const items = all.map(r=>{
       const excel = _excelEstimVal(r, suf);
       const manual = store[r.clave];
