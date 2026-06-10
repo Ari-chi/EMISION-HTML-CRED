@@ -3462,33 +3462,45 @@ function ejecJustificacion(S, useUSD, dual, useUSDprimary){
     const inf = pendPolizaInfo(pp, dd.mesCorte);
     _pendByClave[pp.clave] = useUSD ? inf.usd : inf.ars;
   }
+  /* Toggles "Contabilizar" (pedido del usuario): "Emisión este mes" (pólizas con dato en el
+     Excel/cargado a mano) por defecto SÍ; "Pendiente sin fecha" (sin dato) por defecto NO.
+     Si "pendiente sin fecha" NO cuenta (default), su pendiente automático se EXCLUYE del
+     desvío (se quita la causa) y la "emisión este mes" toma el valor completo del Excel. */
+  state._ejecContab = state._ejecContab || {mes:true, anio:false};
+  const _contab = state._ejecContab;
   let estimRaw = 0;
-  /* El valor EFECTIVO de cada póliza = lo cargado a mano (estStore) o, si no, lo del cuadro
-     del Excel (AF–AH). El Excel se aplica AUTOMÁTICAMENTE (sin tocar OK). Se agrega al desvío
-     SOLO la diferencia sobre el pendiente ya contado; las pólizas del Excel que no eran
-     pendientes (y no están emitidas ni terminadas) suman su valor completo. */
   const _estimDone = new Set();
-  for(const pp of (polPend||[])){
-    if(_estimDone.has(pp.clave)) continue; _estimDone.add(pp.clave);
-    const manual = estStore[pp.clave];
-    const hasManual = isFinite(manual) && manual>0;
-    const excel = _excelEstimVal(pp, sufijo);
-    const eff = hasManual ? manual : excel;
-    if(!(eff>0)) continue;
-    const base = _pendByClave[pp.clave] || 0;
-    if(!(base>0.5)){
-      const est = estadoPolizaConsolidado(pp, dd.mesCorte);
-      if(est==='sin_desvio' || est==='emitido_con_desvio') continue;
-      if(pp.tipo2026==='Póliza terminada') continue;
+  if(_contab.mes){
+    for(const pp of (polPend||[])){
+      if(_estimDone.has(pp.clave)) continue; _estimDone.add(pp.clave);
+      const manual = estStore[pp.clave];
+      const hasManual = isFinite(manual) && manual>0;
+      const excel = _excelEstimVal(pp, sufijo);
+      const eff = hasManual ? manual : excel;   /* dato del Excel/cargado = emisión este mes */
+      if(!(eff>0)) continue;
+      const base0 = _pendByClave[pp.clave] || 0;
+      if(!(base0>0.5)){
+        const est = estadoPolizaConsolidado(pp, dd.mesCorte);
+        if(est==='sin_desvio' || est==='emitido_con_desvio') continue;
+        if(pp.tipo2026==='Póliza terminada') continue;
+      }
+      /* Si el pendiente sin fecha cuenta (toggle año), restamos su base para no duplicar;
+         si NO cuenta (default), tomamos el valor completo. */
+      const base = _contab.anio ? base0 : 0;
+      const diff = eff - base;
+      if(diff > 0) estimRaw += diff;
     }
-    const diff = eff - base;
-    if(diff > 0) estimRaw += diff;
   }
   const _sumaBase = causas.reduce((a,c)=>a+c.val,0);
   const _sinCubrirBase = Math.max(0, dvAbs - _sumaBase);
   const estimEff = Math.min(estimRaw, _sinCubrirBase);
   if(estimEff > 1){
-    causas.push({id:'estimacion', lbl:'Estimación de Emisión', val:estimEff, vSigned:estimEff, n:0, col:APP_CONFIG.colores.pendiente, grupo:'pendiente'});
+    causas.push({id:'emisionMes', lbl:'Emisión este mes', val:estimEff, vSigned:estimEff, n:0, col:'#2d9b6a', grupo:'pendiente'});
+  }
+  /* Si "Pendiente sin fecha" NO se contabiliza (default), quitamos las causas de pendiente
+     automático por concepto (la emisión este mes ya toma el valor completo). */
+  if(!_contab.anio){
+    causas = causas.filter(c=> !(c.grupo==='pendiente' && c.id!=='emisionMes'));
   }
 
   /* Base para los porcentajes de la barra: el DESVÍO TOTAL (dvAbs), NO la suma de causas.
@@ -3514,7 +3526,9 @@ function ejecJustificacion(S, useUSD, dual, useUSDprimary){
   const causasPend = causas.filter(c=>c.grupo==='pendiente');
   const causasOtras = causas.filter(c=>c.grupo!=='pendiente');
   const pv2 = (o)=> o ? (useUSD ? o.totUSD : o.totARS) : 0;
-  const totalPend = pendDesglose ? pv2(pendDesglose.total) : causasPend.reduce((a,c)=>a+c.val,0);
+  /* Total de la llave = suma de las causas de pendiente que REALMENTE están en el donut
+     (respeta los toggles Contabilizar), para que no quede desfasado. */
+  const totalPend = causasPend.reduce((a,c)=>a+c.val,0);
   const pctPendNum = pctDe(totalPend);
   /* Ancho total (en %) que ocupan los segmentos de pendiente (van primeros en la barra). */
   const anchoPend = causasPend.reduce((a,c)=>a+pctDe(c.val)*escala, 0);
@@ -3671,14 +3685,15 @@ function ejecJustificacion(S, useUSD, dual, useUSDprimary){
       const infoLine = esPend
         ? `Pendiente: <strong style="color:var(--neg)">${fmtCompact(pendV,useUSD)}</strong> <span style="color:var(--neg);font-weight:700">(${tipos})</span>`
         : `<strong style="color:#b9760f">A emitir</strong> <span style="color:var(--ink-3)">· no pendiente por fecha, pero debe emitirse</span>`;
-      return `<div style="display:grid;grid-template-columns:1fr 170px;gap:10px;align-items:center;padding:8px 12px;border-bottom:1px solid var(--line)">
-        <div>
-          <span style="font-size:14px;font-weight:800;color:var(--accent-3);background:var(--bg-2);padding:2px 8px;border-radius:5px">${fmtPoliza(p.poliza)}</span>
-          <span style="color:var(--ink-1);font-size:13px;font-weight:600;margin-left:6px">${(p.asegurado||'').substring(0,26)}</span>
-          <span style="font-size:11px;color:var(--accent);font-weight:700;background:rgba(30,111,217,.10);padding:2px 7px;border-radius:4px;margin-left:6px">${p.rubro||'—'}</span>
-          <div style="font-family:var(--font-mono);font-size:11.5px;color:var(--ink-3);margin-top:3px">${infoLine}</div>
+      const monCol = p.moneda==='US'?'var(--pos)':'var(--accent)';
+      return `<div style="display:grid;grid-template-columns:1fr 124px;gap:8px;align-items:center;padding:7px 10px;border-bottom:1px solid var(--line)">
+        <div style="min-width:0">
+          <span style="font-size:13px;font-weight:800;color:var(--accent-3);background:var(--bg-2);padding:2px 7px;border-radius:5px">${fmtPoliza(p.poliza)}</span>
+          <span style="font-size:10.5px;font-weight:800;color:${monCol};margin-left:5px" title="Moneda original">${p.moneda||'—'}</span>
+          <span style="color:var(--ink-1);font-size:12.5px;font-weight:600;margin-left:5px">${(p.asegurado||'').substring(0,22)}</span>
+          <div style="font-family:var(--font-mono);font-size:11px;color:var(--ink-3);margin-top:2px">${infoLine}</div>
         </div>
-        <span style="display:flex;align-items:center;gap:5px"><span style="font-size:13px;color:var(--ink-3)" title="Editable">✎</span><input type="text" inputmode="decimal" value="${eDisp}" placeholder="emisión ${useUSD?'US':'$'}" onchange="setEjecEstim('${sufijo}','${p.clave}', this.value)" style="width:100%;padding:6px 8px;font-family:var(--font-mono);font-size:13px;border:1.5px solid ${hasM?'var(--pos)':'var(--line-2)'};border-radius:6px;text-align:right;color:var(--ink);background:var(--panel)" /></span>
+        <span style="display:flex;align-items:center;gap:4px"><span style="font-size:12px;color:var(--ink-3)" title="Editable">✎</span><input type="text" inputmode="decimal" value="${eDisp}" placeholder="${useUSD?'US':'$'}" onchange="setEjecEstim('${sufijo}','${p.clave}', this.value)" style="width:100%;padding:5px 7px;font-family:var(--font-mono);font-size:12.5px;border:1.5px solid ${hasM?'var(--pos)':'var(--line-2)'};border-radius:6px;text-align:right;color:var(--ink);background:var(--panel)" /></span>
       </div>`;
     };
     /* DOS secciones: "Se emite este mes" (con dato del Excel/cargado) y "Pendiente emisión en el
@@ -3689,13 +3704,24 @@ function ejecJustificacion(S, useUSD, dual, useUSDprimary){
     const totAnio = grpAnio.reduce((a,x)=>a+(x.eff||0),0);
     const pctSe = dvAbs>0?Math.round(totSe/dvAbs*100):0;
     const pctAnio = dvAbs>0?Math.round(totAnio/dvAbs*100):0;
-    const sectionHead = (titulo, col, tot, pct, n)=>`<div style="display:flex;justify-content:space-between;align-items:center;gap:10px;padding:9px 12px;background:${col}1a;border-bottom:1px solid var(--line)">
-      <span style="font-size:12.5px;font-weight:800;color:${col};text-transform:uppercase;letter-spacing:.04em">${titulo} <span style="color:var(--ink-3);font-weight:600;text-transform:none">· ${n} pól.</span></span>
-      <span style="font-family:var(--font-mono);font-size:13.5px;font-weight:800;color:${col};white-space:nowrap">${fmtCompact(tot,useUSD)} <span style="color:var(--ink-3);font-weight:700">(${pct}% del desvío)</span></span>
+    /* Encabezado de columna con su total, % y el toggle "Contabilizar (SÍ/NO)". */
+    const colHead = (titulo, col, tot, pct, n, which, on)=>`<div style="background:${col}1a;border-bottom:1px solid var(--line);padding:8px 10px">
+      <div style="display:flex;justify-content:space-between;align-items:center;gap:8px;margin-bottom:4px">
+        <span style="font-size:12px;font-weight:800;color:${col};text-transform:uppercase;letter-spacing:.03em">${titulo} <span style="color:var(--ink-3);font-weight:600;text-transform:none">· ${n} pól.</span></span>
+        <button onclick="ejecToggleContab('${which}')" title="Contabilizar este grupo en el desvío" style="font-size:9.5px;font-weight:800;border-radius:5px;padding:3px 8px;cursor:pointer;white-space:nowrap;border:1.5px solid ${on?'var(--pos)':'var(--line-2)'};background:${on?'var(--pos)':'var(--panel)'};color:${on?'#fff':'var(--ink-2)'}">Contabilizar: ${on?'SÍ':'NO'}</button>
+      </div>
+      <div style="font-family:var(--font-mono);font-size:13px;font-weight:800;color:${col}">${fmtCompact(tot,useUSD)} <span style="color:var(--ink-3);font-weight:700">(${pct}% del desvío)</span></div>
     </div>`;
-    const rows =
-      (grpSe.length ? sectionHead('Se emite este mes', '#2d9b6a', totSe, pctSe, grpSe.length) + grpSe.map(fmtRow).join('') : '') +
-      (grpAnio.length ? sectionHead('Pendiente emisión en el año', '#4ba3c7', totAnio, pctAnio, grpAnio.length) + grpAnio.map(fmtRow).join('') : '');
+    const colHTML = (titulo,col,tot,pct,items,which,on)=>`<div style="border:1px solid var(--line-2);border-radius:8px;overflow:hidden;${on?'':'opacity:.55'}">
+      ${colHead(titulo,col,tot,pct,items.length,which,on)}
+      ${items.length? items.map(fmtRow).join('') : '<div style="padding:10px;font-size:12px;color:var(--ink-3);font-style:italic">— sin pólizas —</div>'}
+    </div>`;
+    /* DOS COLUMNAS: izquierda "Se emite este mes" (con dato del Excel/cargado), derecha
+       "Pendiente sin fecha" (el resto). Cada una con su total, % y toggle Contabilizar. */
+    const rows = `<div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;padding:12px">
+      ${colHTML('Se emite este mes','#2d9b6a',totSe,pctSe,grpSe,'mes',_contab.mes)}
+      ${colHTML('Pendiente sin fecha','#4ba3c7',totAnio,pctAnio,grpAnio,'anio',_contab.anio)}
+    </div>`;
     const excedente = Math.max(0, estimRaw - _sinCubrirBase);
     estimPanel = `<div style="margin-top:14px;border:1.5px solid #c5cdd9;border-radius:8px;overflow:hidden">
       <div style="padding:10px 14px;background:rgba(197,205,217,.30);color:#5a6b85;display:flex;justify-content:space-between;align-items:center;gap:12px;flex-wrap:wrap">
@@ -3723,7 +3749,7 @@ function ejecJustificacion(S, useUSD, dual, useUSDprimary){
 
   return `<div style="margin-top:${dual?16:8}px">
     ${dual?`<div style="font-size:11px;color:var(--ink-3);text-transform:uppercase;letter-spacing:.05em;font-weight:700;margin-bottom:10px">${mLbl}</div>`:''}
-    <div style="font-size:15px;color:var(--ink-2);margin-bottom:18px;font-weight:600">El desvío de <span style="font-size:22px;color:var(--neg);font-weight:700;font-family:var(--font-mono)">${FMTc(dvAbs)}</span> se compone así:</div>
+    <div style="font-size:15px;color:var(--ink-2);margin-bottom:18px;font-weight:600">El desvío de <span style="font-size:22px;color:var(--neg);font-weight:700;font-family:var(--font-mono)">−${FMTc(dvAbs)}</span> se compone así:</div>
 
     ${causas.length>0 ? `
     <div style="display:grid;grid-template-columns:minmax(280px,360px) 1fr;gap:28px;align-items:center;margin-bottom:14px">
@@ -3832,6 +3858,13 @@ window.ejecEstimOkAll = function(suf){
 window.ejecEstimClearAll = function(suf){
   state._ejecEstim = state._ejecEstim || {};
   state._ejecEstim[suf] = {};
+  if(typeof drawEjecutivo==='function') drawEjecutivo();
+};
+/* Toggle "Contabilizar" de cada grupo del pendiente: 'mes' (Emisión este mes) o 'anio'
+   (Pendiente sin fecha). Controla si ese grupo justifica el desvío. */
+window.ejecToggleContab = function(which){
+  state._ejecContab = state._ejecContab || {mes:true, anio:false};
+  state._ejecContab[which] = !state._ejecContab[which];
   if(typeof drawEjecutivo==='function') drawEjecutivo();
 };
 window.ejecEstimOk = function(suf, clave, pendVal){
