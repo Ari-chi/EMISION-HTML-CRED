@@ -3120,7 +3120,6 @@ function drawEjecutivo(){
     <!-- DESVÍO (debajo de Presupuesto, pedido del usuario) -->
     <div class="card">
       <div class="ejec-block-title">${primary.desvio>0?'Desvío':'Desvío (a favor)'}</div>
-      <div class="card-sub" style="margin-bottom:8px">${primary.desvio>0?'Cómo se descompone el desvío. Click en una causa para ver el desglose de pólizas.':'El desvío es a favor: se superó el presupuesto. Click en una causa para ver qué sumó de más.'}</div>
       ${setU?ejecJustificacion(setU,true,dual,primary.useUSD):''}
       ${setA?ejecJustificacion(setA,false,dual,primary.useUSD):''}
       <div id="ejecCausaDetalle" style="display:none;margin-top:12px"></div>
@@ -3819,9 +3818,9 @@ function ejecJustificacion(S, useUSD, dual, useUSDprimary){
     </div>`;
   }
 
-  return `<div style="margin-top:${dual?16:8}px">
-    ${dual?`<div style="font-size:11px;color:var(--ink-3);text-transform:uppercase;letter-spacing:.05em;font-weight:700;margin-bottom:10px">${mLbl}</div>`:''}
-    <div style="font-size:14px;color:var(--ink-2);margin-bottom:10px;font-weight:600">El desvío de <span style="font-size:21px;color:var(--neg);font-weight:700;font-family:var(--font-mono)">−${FMTc(dvAbs)}</span> se compone así:</div>
+  return `<div style="margin-top:${dual?8:2}px">
+    ${dual?`<div style="font-size:11px;color:var(--ink-3);text-transform:uppercase;letter-spacing:.05em;font-weight:700;margin-bottom:6px">${mLbl}</div>`:''}
+    <div style="font-size:14px;color:var(--ink-2);margin-bottom:6px;font-weight:600">El desvío de <span style="font-size:21px;color:var(--neg);font-weight:700;font-family:var(--font-mono)">−${FMTc(dvAbs)}</span> se compone así:</div>
 
     ${causas.length>0 ? `
     <div style="display:grid;grid-template-columns:minmax(330px,400px) 1fr;gap:48px;align-items:center;margin-bottom:8px">
