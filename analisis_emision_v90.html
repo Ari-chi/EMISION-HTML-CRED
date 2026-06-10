@@ -3684,7 +3684,10 @@ function ejecJustificacion(S, useUSD, dual, useUSDprimary){
       ? ((causa.grupo==='pendiente'||id==='pendiente'||id==='perdidas') ? 'var(--neg)'
           : (totSigned>0?'var(--pos)':'var(--neg)'))
       : 'var(--ink-3)';
-    const sgnLeg = (p.lbl==='Sin justificar' ? '−'
+    /* El BONO es el único concepto INVERSO (nota de crédito): se pinta en rojo pero SIN el "−"
+       (sacarlo sube la emisión pendiente, ponerlo la baja). El resto de pendientes van con "−". */
+    const sgnLeg = id==='pend_bono' ? ''
+      : (p.lbl==='Sin justificar' ? '−'
         : (clickable && (causa.grupo==='pendiente'||id==='pendiente'||id==='perdidas') ? '−'
           : (totSigned>=0?'+':'−')));
     const nPolStr = causa && causa.n>0 ? ` <span style="color:var(--ink-3);font-weight:500;font-size:12.5px">· ${causa.n} pól.</span>` : '';
