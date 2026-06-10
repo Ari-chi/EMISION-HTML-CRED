@@ -856,6 +856,31 @@ function _excelEstimTotal(suf){
   }
   return tot;
 }
+/* Estado del toggle "Contabilizar" POR CONCEPTO y grupo (clave: `${concepto}_${mes|anio}`).
+   Default: "se emite este mes" (mes) = SÍ; "pendiente sin fecha" (anio) = NO. Así apagar o
+   encender UN concepto NO afecta a los demás. */
+function _ejecContabOn(ck, which){
+  state._ejecContab = state._ejecContab || {};
+  const v = state._ejecContab[ck+'_'+which];
+  return (v===undefined) ? (which==='mes') : !!v;
+}
+/* "Emisión pendiente (se emite este mes)" del Excel CONTABILIZADA: suma, por concepto, solo los
+   que tienen su toggle 'mes' en SÍ (el bono resta). Así apagar un concepto lo descuenta solo a él
+   también en "Comparación de desvíos". */
+function _excelEstimContab(suf){
+  if(!state._ejecProyEmis) return 0;
+  const seen = new Set(); let tot = 0;
+  for(const k in state._ejecProyEmis){
+    const o = state._ejecProyEmis[k]; if(!o || seen.has(o)) continue; seen.add(o);
+    for(const ck of ['primaMin','ajuste','malus','bono']){
+      if(!_ejecContabOn(ck, 'mes')) continue;
+      const c = o.c && o.c[ck]; if(!c) continue;
+      const v = (suf==='u') ? c.usd : c.ars; if(!isFinite(v)) continue;
+      tot += (ck==='bono') ? -Math.abs(v) : v;
+    }
+  }
+  return tot;
+}
 function parseProyEmis(rows){
   state._ejecProyEmis = {};
   const numOf = (v)=>{ if(v==null||v==='') return NaN; if(typeof v==='number') return v; return parseFloat(String(v).replace(/[^0-9.\-]/g,'')); };
@@ -3292,9 +3317,8 @@ function desglosePendientePorConcepto(polFiltradas, mesCorte){
        · SIN dato  → "Pendiente sin fecha" (grupo 'anio', por defecto NO contabiliza)
      Si el grupo está en NO, sus pólizas NO suman al desvío (ni al gráfico ni a los conceptos).
      Valor efectivo de cada póliza: lo cargado a mano > el dato del Excel > el pendiente 2025. */
-  state._ejecContab = state._ejecContab || {mes:true, anio:false};
+  state._ejecContab = state._ejecContab || {};
   state._ejecEstim = state._ejecEstim || {u:{}, a:{}};
-  const _contab = state._ejecContab;
   for(const p of polFiltradas){
     const est = estadoPolizaConsolidado(p, mesCorte);
     const pend = (est==='desvio_emision_pendiente' || est==='desvio_pendiente_mayor_2m');
@@ -3329,7 +3353,7 @@ function desglosePendientePorConcepto(polFiltradas, mesCorte){
       else continue;   /* ni dato ni pendiente → nada */
       /* El BONO es nota de crédito: SIEMPRE resta emisión (negativo). */
       if(k==='bono'){ vA = -Math.abs(vA); vU = -Math.abs(vU); }
-      if(!_contab[grupo]) continue;   /* grupo NO contabilizado → este concepto no suma */
+      if(!_ejecContabOn(k, grupo)) continue;   /* este concepto+grupo NO contabilizado → no suma */
       if(Math.abs(vA)<0.5 && Math.abs(vU)<0.5) continue;
       out[k].n++; out[k].totARS+=vA; out[k].totUSD+=vU;
       out.total.totARS+=vA; out.total.totUSD+=vU;
@@ -3519,8 +3543,8 @@ function ejecJustificacion(S, useUSD, dual, useUSDprimary){
      Excel/cargado a mano) por defecto SÍ; "Pendiente sin fecha" (sin dato) por defecto NO.
      Si "pendiente sin fecha" NO cuenta (default), su pendiente automático se EXCLUYE del
      desvío (se quita la causa) y la "emisión este mes" toma el valor completo del Excel. */
-  state._ejecContab = state._ejecContab || {mes:true, anio:false};
-  const _contab = state._ejecContab;
+  state._ejecContab = state._ejecContab || {};
+  const _contab = {mes:true, anio:false};
   let estimRaw = 0;
   const _estimDone = new Set();
   if(_contab.mes){
@@ -3809,7 +3833,7 @@ function ejecJustificacion(S, useUSD, dual, useUSDprimary){
       const sufx = useUSD?'u':'a';
       const presup = S.presup26 || 0;
       const emisReal = S.emis26 || 0;
-      const pend = _excelEstimTotal(sufx);          /* prima+ajuste+malus del Excel, filas 19–190 */
+      const pend = _excelEstimContab(sufx);         /* Excel filas 19–190, por concepto contabilizado */
       const emisProy = emisReal + pend;
       const desvReal = emisReal - presup;           /* negativo si no se alcanzó el presupuesto */
       const desvProy = emisProy - presup;
@@ -3964,9 +3988,10 @@ window.ejecEstimClearAll = function(suf){
 };
 /* Toggle "Contabilizar" de cada grupo del pendiente: 'mes' (Emisión este mes) o 'anio'
    (Pendiente sin fecha). Controla si ese grupo justifica el desvío. */
-window.ejecToggleContab = function(which){
-  state._ejecContab = state._ejecContab || {mes:true, anio:false};
-  state._ejecContab[which] = !state._ejecContab[which];
+window.ejecToggleContab = function(ck, which){
+  state._ejecContab = state._ejecContab || {};
+  const key = ck+'_'+which;
+  state._ejecContab[key] = !_ejecContabOn(ck, which);
   /* Contabilizar SÍ/NO debe sumar/restar ese grupo en el desvío, los conceptos y el GRÁFICO:
      redibujamos el ejecutivo completo y re-abrimos el drill. */
   _ejecRerenderConDrill();
@@ -5528,14 +5553,15 @@ window.toggleEjecCausa = function(id){
     state._ejecEstim = state._ejecEstim || {};
     if(!state._ejecEstim[suf]) state._ejecEstim[suf] = {};
     const store = state._ejecEstim[suf];
-    state._ejecContab = state._ejecContab || {mes:true, anio:false};
+    state._ejecContab = state._ejecContab || {};
     const which = seEmite ? 'mes' : 'anio';
-    const on = !!state._ejecContab[which];
     const colC = seEmite ? '#2d9b6a' : '#4ba3c7';
     const titulo = seEmite ? 'Se emite este mes' : 'Pendiente sin fecha';
     /* CONCEPTO de este drill: cada lápiz abre SOLO su concepto (prima/ajuste/malus/bono), así
        no se mezclan (la prima de una póliza no aparece en el malus). */
     const CK = {pend_prima:'primaMin', pend_ajuste:'ajuste', pend_malus:'malus', pend_bono:'bono'}[id] || null;
+    /* El toggle Contabilizar es POR CONCEPTO: apagar este concepto NO afecta a los demás. */
+    const on = _ejecContabOn(CK, which);
     const otherSuf = btnUSD?'a':'u';
     const N2K = {'Prima mínima':'primaMin','Prima Mínima':'primaMin','Ajuste':'ajuste','Malus':'malus','Bono':'bono'};
     const mkey = (p)=> CK ? (p.clave+'|'+CK) : p.clave;
@@ -5589,7 +5615,7 @@ window.toggleEjecCausa = function(id){
       <div style="background:${colC}1a;border-bottom:1px solid var(--line);padding:5px 7px">
         <div style="display:flex;justify-content:space-between;align-items:center;gap:8px;margin-bottom:3px">
           <span style="font-size:12px;font-weight:800;color:${colC};text-transform:uppercase;letter-spacing:.03em">${titulo} <span style="color:var(--ink-3);font-weight:600;text-transform:none">· ${items.length} pól.</span></span>
-          <button onclick="ejecToggleContab('${which}')" title="Contabilizar este grupo en el desvío" style="font-size:9.5px;font-weight:800;border-radius:5px;padding:3px 8px;cursor:pointer;white-space:nowrap;border:1.5px solid ${on?'var(--pos)':'var(--line-2)'};background:${on?'var(--pos)':'var(--panel)'};color:${on?'#fff':'var(--ink-2)'}">Contabilizar: ${on?'SÍ':'NO'}</button>
+          <button onclick="ejecToggleContab('${CK}','${which}')" title="Contabilizar este concepto en el desvío" style="font-size:9.5px;font-weight:800;border-radius:5px;padding:3px 8px;cursor:pointer;white-space:nowrap;border:1.5px solid ${on?'var(--pos)':'var(--line-2)'};background:${on?'var(--pos)':'var(--panel)'};color:${on?'#fff':'var(--ink-2)'}">Contabilizar: ${on?'SÍ':'NO'}</button>
         </div>
         <div style="font-family:var(--font-mono);font-size:13px;font-weight:800;color:${colC}">${fmtCompact(tot,btnUSD)} <span style="color:var(--ink-3);font-weight:700">(${pct}% del desvío)</span></div>
       </div>
