@@ -4676,13 +4676,14 @@ window.toggleEjecEmi = function(id){
     /* Siniestralidad UNIFICADA: una sola card con dos renglones — UV arriba, H abajo
        (cada uno: 2025 → 2026 + variación). Sube de siniestralidad = negativo (rojo). */
     const cellSinUnif = (uvInfo, hInfo, fmt)=>{
+      /* Sin % de variación: solo 2025 → 2026. El 2026 se pinta según el cambio: sube → rojo,
+         baja → verde, igual → neutro. */
       const linea = (lbl, info)=>{
         if(!info || ((info.n25||0)===0 && (info.n26||0)===0)) return `<div style="display:flex;align-items:baseline;gap:6px;font-size:12.5px"><strong style="color:var(--ink-2);min-width:24px">${lbl}:</strong> <span style="color:var(--ink-3);font-style:italic;font-size:11.5px">— sin datos —</span></div>`;
-        const c = info.d===0?'var(--accent)':(info.d>0?'var(--neg)':'var(--pos)');
+        const c26 = info.d>0?'var(--neg)':(info.d<0?'var(--pos)':'var(--accent-3)');
         return `<div style="display:flex;align-items:baseline;gap:7px;flex-wrap:wrap;font-family:var(--font-mono)">
           <strong style="color:var(--accent-3);min-width:24px;font-family:Calibri">${lbl}:</strong>
-          <span style="font-size:13px;color:var(--ink-2)">${fmt(info.v25)} <span style="color:var(--ink-3)">→</span> <strong style="color:var(--accent-3);font-size:14.5px">${fmt(info.v26)}</strong></span>
-          <span style="color:${c};font-weight:800;font-size:13.5px">${info.d>=0?'+':''}${fmt(info.d)}</span>
+          <span style="font-size:13px;color:var(--ink-2)">${fmt(info.v25)} <span style="color:var(--ink-3)">→</span> <strong style="color:${c26};font-size:14.5px">${fmt(info.v26)}</strong></span>
         </div>`;
       };
       const _ni = uvInfo || hInfo || {};
@@ -4765,6 +4766,8 @@ window.toggleEjecEmi = function(id){
     const ordDesc = (a,b)=> valBtn(b,'26')-valBtn(a,'26');
     const bloque = (a2, titulo, color, bg)=>{
       if(a2.length===0) return '';
+      /* Sin título → solo las pólizas (no repetimos el header que ya está arriba en la columna). */
+      if(!titulo) return `<div style="margin-bottom:14px">${a2.map(p=>fila(p)).join('')}</div>`;
       const t2 = a2.reduce((s,p)=>s+valBtn(p,'26'),0);
       return `<div style="margin-bottom:14px">
         <div style="font-size:15px;font-weight:800;color:${color};margin-bottom:6px;padding:6px 10px;background:${bg};border-radius:6px;display:flex;justify-content:space-between;align-items:center">
@@ -4787,7 +4790,7 @@ window.toggleEjecEmi = function(id){
     }
     /* Lista única de pólizas ordenadas por emisión (se quitó el split por umbral +30/10%). */
     const sorted = [...arr].sort(ordDesc);
-    return `<div>${cabecera}${bloque(sorted, 'Pólizas', headColor, headBg)}</div>`;
+    return `<div>${cabecera}${bloque(sorted, '', headColor, headBg)}</div>`;
   };
 
   /* Layout: resumen arriba + dos columnas (moneda original $ izq, US der). */
@@ -5940,10 +5943,12 @@ window.toggleEjecCausa = function(id){
     };
     /* Siniestralidad unificada (UV arriba / H abajo), igual que Emisión 2026. */
     const cellSinUnifR = (uvInfo, hInfo)=>{
-      /* Sin el % de variación (pedido del usuario): solo 2025 → 2026, centrado. */
+      /* Sin % de variación: solo 2025 → 2026. El 2026 se pinta según el cambio respecto a 2025:
+         si la siniestralidad SUBE (peor) → rojo; si BAJA (mejor) → verde; igual → neutro. */
       const linea=(lbl,info)=>{
         if(!info || info.n===0) return `<div style="display:flex;align-items:baseline;gap:6px;justify-content:center;font-size:12.5px"><strong style="color:var(--ink-2)">${lbl}:</strong> <span style="color:var(--ink-3);font-style:italic;font-size:11.5px">— sin datos —</span></div>`;
-        return `<div style="display:flex;align-items:baseline;gap:7px;justify-content:center;font-family:var(--font-mono)"><strong style="color:var(--accent-3);font-family:Calibri">${lbl}:</strong><span style="font-size:13px;color:var(--ink-2)">${fmtS(info.v25)} <span style="color:var(--ink-3)">→</span> <strong style="color:var(--accent-3);font-size:14.5px">${fmtS(info.v26)}</strong></span></div>`;
+        const c26 = info.d>0?'var(--neg)':(info.d<0?'var(--pos)':'var(--accent-3)');
+        return `<div style="display:flex;align-items:baseline;gap:7px;justify-content:center;font-family:var(--font-mono)"><strong style="color:var(--accent-3);font-family:Calibri">${lbl}:</strong><span style="font-size:13px;color:var(--ink-2)">${fmtS(info.v25)} <span style="color:var(--ink-3)">→</span> <strong style="color:${c26};font-size:14.5px">${fmtS(info.v26)}</strong></span></div>`;
       };
       return `<div style="${_cardCss};display:flex;flex-direction:column;gap:8px;justify-content:center">${linea('UV',uvInfo)}<div style="border-top:1px dashed var(--line)"></div>${linea('H',hInfo)}</div>`;
     };
@@ -6005,7 +6010,7 @@ window.toggleEjecCausa = function(id){
     /* Pendientes / perdidas: el resumen muestra SOLO Rubros (la prima ya está en el detalle de
        abajo). Rubros en 3 columnas (≈3 filas) con el número pegado al nombre. */
     if(esPendPerdNoCorr){
-      return `<div style="margin-bottom:10px">
+      return `<div style="margin-bottom:10px;border:1px solid var(--line-2);border-radius:8px;padding:9px 14px;background:#fbfcfe;box-shadow:0 1px 4px rgba(10,31,58,.06)">
         <div style="font-size:10.5px;color:var(--ink-3);text-transform:uppercase;letter-spacing:.04em;font-weight:700;margin-bottom:6px">Rubros (${rubArr.length})</div>
         ${rubArr.length>0 ? `<div style="display:grid;grid-template-columns:repeat(3,auto);gap:5px 30px;justify-content:start">
           ${rubArr.map(([k,n])=>`<div style="font-size:12px;white-space:nowrap"><span style="color:var(--accent-3);font-weight:700">${k}</span> <span style="font-family:var(--font-mono);color:var(--ink-2);font-weight:700;margin-left:6px">${n}</span></div>`).join('')}
@@ -7045,13 +7050,13 @@ function renderRubroCard(it, idx, useUSD, mesCorte, opts){
   const _cur = _stat ? '' : ';cursor:pointer';
   const cMon=(v25,v26,isUS,cid)=>{const dd=v26-v25,c=dd>=0?'var(--pos)':'var(--neg)',pct=v25?dd/Math.abs(v25):null;return `<div ${_clk(cid)} style="${_card}${_cur}">${_ay(fmtCompact(v25,isUS),fmtCompact(v26,isUS))}<div style="font-family:var(--font-mono);font-size:13px;font-weight:800;color:${c};margin-top:2px;text-align:center">${dd>=0?'+':''}${fmtCompact(dd,isUS)}${pct!=null?' ('+(dd>=0?'+':'')+FMT_PCT(pct)+')':''}</div></div>`;};
   const cPct=(v25,v26,neg,fmt,cid)=>{const dd=v26-v25,c=dd===0?'var(--accent)':(dd>0?(neg?'var(--neg)':'var(--pos)'):(neg?'var(--pos)':'var(--neg)'));const rel=v25?dd/Math.abs(v25):null;return `<div ${_clk(cid)} style="${_card}${_cur}">${_ay(fmt(v25),fmt(v26))}<div style="font-family:var(--font-mono);font-size:13px;font-weight:800;color:${c};margin-top:2px;text-align:center">${dd>=0?'+':''}${fmt(dd)}${rel!=null?` <span style="font-size:12px">(${dd>=0?'+':''}${FMT_PCT(rel)})</span>`:''}</div></div>`;};
-  const cSin=(uv25,uv26,h25,h26)=>{const linea=(lbl,a,b,cid)=>{const dd=b-a,c=dd===0?'var(--accent)':(dd>0?'var(--neg)':'var(--pos)');return `<div ${_clk(cid)} style="display:flex;align-items:baseline;gap:7px;flex-wrap:wrap;font-family:var(--font-mono);cursor:pointer"><strong style="color:var(--accent-3);min-width:24px;font-family:Calibri">${lbl}:</strong><span style="font-size:13px;color:var(--ink-2)">${FMT_PCT_SIN(a)} <span style="color:var(--ink-3)">→</span> <strong style="color:var(--accent-3);font-size:14.5px">${FMT_PCT_SIN(b)}</strong></span><span style="color:${c};font-weight:800;font-size:13.5px">${dd>=0?'+':''}${FMT_PCT_SIN(dd)}</span></div>`;};return `<div style="${_card};display:flex;flex-direction:column;gap:8px;justify-content:center">${linea('UV',uv25,uv26,'uv')}<div style="border-top:1px dashed var(--line)"></div>${linea('H',h25,h26,'sinh')}</div>`;};
+  const cSin=(uv25,uv26,h25,h26)=>{const linea=(lbl,a,b,cid)=>{const dd=b-a,c26=dd>0?'var(--neg)':(dd<0?'var(--pos)':'var(--accent-3)');return `<div ${_clk(cid)} style="display:flex;align-items:baseline;gap:7px;flex-wrap:wrap;font-family:var(--font-mono);cursor:pointer"><strong style="color:var(--accent-3);min-width:24px;font-family:Calibri">${lbl}:</strong><span style="font-size:13px;color:var(--ink-2)">${FMT_PCT_SIN(a)} <span style="color:var(--ink-3)">→</span> <strong style="color:${c26};font-size:14.5px">${FMT_PCT_SIN(b)}</strong></span></div>`;};return `<div style="${_card};display:flex;flex-direction:column;gap:8px;justify-content:center">${linea('UV',uv25,uv26,'uv')}<div style="border-top:1px dashed var(--line)"></div>${linea('H',h25,h26,'sinh')}</div>`;};
   const cPend=(v,isUS)=>`<div ${_clk('pend')} style="${_card}${_cur};display:flex;flex-direction:column;justify-content:center"><div style="font-family:var(--font-mono);font-size:16px;font-weight:800;color:${v>0?'var(--neg)':'var(--ink-3)'};text-align:center">${v>0?'−':''}${fmtCompact(v,isUS)}</div></div>`;
-  const foto4Grid = `<div style="overflow-x:auto;margin-top:14px"><div style="display:grid;grid-template-columns:auto repeat(5,minmax(94px,1fr));gap:5px;align-items:stretch;min-width:560px">
+  const foto4Grid = `<div style="overflow-x:auto;margin-top:14px"><div style="display:grid;grid-template-columns:auto repeat(4,minmax(94px,1fr));gap:5px;align-items:stretch;min-width:480px">
     <div></div>
-    ${cH('Emisión','#2d9b6a','#fff','#2d9b6a')}${cH('Proyección','rgba(30,111,217,.10)','#1e6fd9','#1e6fd9')}${cH('Tasa promedio','rgba(139,92,246,.12)','#7c4ddb','#8b5cf6')}${cH('Siniestralidad','rgba(232,155,30,.14)','#b9760f','#e89b1e')}${cH('Pendientes','rgba(123,77,255,.12)','#5a3db8','#7c4dff')}
-    ${rC('$',gA.n25,gA.n26)}${cMon(gA.e25,gA.e26,false,'emi')}${cMon(gA.p25,gA.p26,false,'proy')}${cPct(gA.t25,gA.t26,false,FMT_PCT_TASA,'tasa')}${cSin(gA.uv25,gA.uv26,gA.h25,gA.h26)}${cPend(gA.pend,false)}
-    ${rC('US',gU.n25,gU.n26)}${cMon(gU.e25,gU.e26,true,'emi')}${cMon(gU.p25,gU.p26,true,'proy')}${cPct(gU.t25,gU.t26,false,FMT_PCT_TASA,'tasa')}${cSin(gU.uv25,gU.uv26,gU.h25,gU.h26)}${cPend(gU.pend,true)}
+    ${cH('Emisión','#2d9b6a','#fff','#2d9b6a')}${cH('Proyección','rgba(30,111,217,.10)','#1e6fd9','#1e6fd9')}${cH('Tasa promedio','rgba(139,92,246,.12)','#7c4ddb','#8b5cf6')}${cH('Siniestralidad','rgba(232,155,30,.14)','#b9760f','#e89b1e')}
+    ${rC('$',gA.n25,gA.n26)}${cMon(gA.e25,gA.e26,false,'emi')}${cMon(gA.p25,gA.p26,false,'proy')}${cPct(gA.t25,gA.t26,false,FMT_PCT_TASA,'tasa')}${cSin(gA.uv25,gA.uv26,gA.h25,gA.h26)}
+    ${rC('US',gU.n25,gU.n26)}${cMon(gU.e25,gU.e26,true,'emi')}${cMon(gU.p25,gU.p26,true,'proy')}${cPct(gU.t25,gU.t26,false,FMT_PCT_TASA,'tasa')}${cSin(gU.uv25,gU.uv26,gU.h25,gU.h26)}
   </div></div>`;
   return `<div style="border:1px solid var(--line-2);border-radius:10px;padding:16px 18px;background:var(--panel);box-shadow:0 1px 3px rgba(10,31,58,.04)">
     <!-- Header -->
