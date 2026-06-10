@@ -3095,18 +3095,13 @@ function drawEjecutivo(){
       <div id="ejecCausaDetalle" style="display:none;margin-top:12px"></div>
     </div>
 
-    <!-- EMISIÓN 2026 -->
-    <div class="card">
-      <div class="ejec-block-title">Emisión 2026</div>
-      ${setU?ejecEmitido(setU,true,dual):''}
-      ${setA?ejecEmitido(setA,false,dual):''}
-    </div>
-
-    <!-- COMPARACIÓN 2025 vs 2026 -->
+    <!-- COMPARACIÓN 2025 vs 2026 + EMISIÓN 2026 (unificados, debajo del Desvío) -->
     <div class="card">
       <div class="ejec-block-title">Comparación de emisión 2025 vs 2026</div>
       ${setU?ejecComparacion(setU,true,dual):''}
       ${setA?ejecComparacion(setA,false,dual):''}
+      ${setU?ejecEmitido(setU,true,dual):''}
+      ${setA?ejecEmitido(setA,false,dual):''}
     </div>
 
     <!-- BLOQUE 5 -->
@@ -4110,13 +4105,6 @@ function ejecEmitido(S, useUSD, dual){
 
   return `<div style="margin-top:${dual?14:8}px">
     ${dual?`<div style="font-size:11px;color:var(--ink-3);text-transform:uppercase;letter-spacing:.05em;font-weight:700;margin-bottom:8px">${mLbl}</div>`:''}
-    <div style="display:inline-block;background:rgba(45,155,106,.10);border-radius:10px;padding:9px 22px 9px 15px;margin-bottom:12px;border-left:4px solid var(--pos)">
-      <div style="font-size:11px;color:var(--pos);text-transform:uppercase;letter-spacing:.05em;font-weight:700">Emisión total ${show25?'2025 vs 2026':'2026'}</div>
-      <div style="display:flex;align-items:baseline;gap:12px;flex-wrap:wrap">
-        ${show25?`<span style="font-size:25px;font-weight:700;color:var(--ink-3);font-family:var(--font-mono);line-height:1.1">${FMTc(tot25)}</span><span style="color:var(--ink-3);font-size:19px">→</span>`:''}
-        <span style="font-size:25px;font-weight:700;color:var(--pos);font-family:var(--font-mono);line-height:1.1">${FMTc(sumItems)}</span>
-      </div>
-    </div>
     ${items.length>0 ? `
     <div style="display:grid;grid-template-columns:auto 1fr;gap:4px;align-items:center;margin-bottom:10px">
       ${chartsBlock}
@@ -6709,9 +6697,9 @@ function drawEjecRubroMini(polArr, f, useUSD){
       <div style="font-weight:800;color:var(--accent-3);white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${r.rubro}</div>
       <div style="font-family:var(--font-mono);white-space:nowrap">${ind(dProy, FMTc, false)}${dPp!=null?` <span style="font-size:10px;color:var(--ink-3)">(${dProy>=0?'+':''}${FMT_PCT(dPp)})</span>`:''}</div>
       <div style="font-family:var(--font-mono);white-space:nowrap">${ind(dTasa, FMT_PCT_TASA, false)}${dTp!=null?` <span style="font-size:10px;color:var(--ink-3)">(${dTasa>=0?'+':''}${FMT_PCT(dTp)})</span>`:''}</div>
-      <div style="display:grid;grid-template-columns:18px 1fr;gap:4px 8px;align-items:baseline;font-family:var(--font-mono);font-size:11px">
-        <span style="font-weight:800;color:var(--ink-3)">UV</span><div style="white-space:nowrap">${sinTrans(r.uv25,r.uv26)}</div>
-        <span style="font-weight:800;color:var(--ink-3)">H</span><div style="white-space:nowrap">${sinTrans(r.h25,r.h26)}</div>
+      <div style="display:flex;gap:26px;align-items:baseline;font-family:var(--font-mono);font-size:11px;white-space:nowrap">
+        <span><span style="font-weight:800;color:var(--ink-3);margin-right:6px">UV</span>${sinTrans(r.uv25,r.uv26)}</span>
+        <span><span style="font-weight:800;color:var(--ink-3);margin-right:6px">H</span>${sinTrans(r.h25,r.h26)}</span>
       </div>
     </div>`;
   }).join('');
