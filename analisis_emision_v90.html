@@ -5494,6 +5494,9 @@ window.toggleEjecCausa = function(id){
     const totSgn = tieneSigno ? (tot<0?'−':'+') : '−';
     const totColor = tieneSigno ? (tot<0?'var(--neg)':'var(--pos)') : (destaca?'var(--neg)':'var(--accent-3)');
     const nPolR = arr.reduce((s,r)=>s+(r._nGrupo||1),0);
+    /* Si NO hay título (caso de una sola sub-tabla), NO repetimos el encabezado con n pól · total
+       porque ya está arriba en el header de la columna (evita duplicar la info). */
+    if(!titulo) return `<div style="margin-bottom:14px"><div>${filas}</div></div>`;
     return `<div style="margin-bottom:14px">
       <div style="font-size:15px;font-weight:800;color:${totColor};margin-bottom:6px;padding:6px 10px;background:${destaca?'rgba(217,71,71,.08)':'rgba(30,111,217,.06)'};border-radius:6px;display:flex;justify-content:space-between;align-items:center">
         <span>${titulo}</span>
@@ -5796,7 +5799,7 @@ window.toggleEjecCausa = function(id){
     const nPolReales = arrG.reduce((s,r)=>s+(r._nGrupo||1),0);
     return `<div>
       <div style="display:flex;align-items:center;gap:10px;margin-bottom:12px;padding:10px 14px;background:${moneda==='US'?'rgba(139,92,246,.12)':'rgba(232,155,30,.14)'};border:1.5px solid ${moneda==='US'?'#8b5cf6':'#e89b1e'};border-radius:8px">${monedaChipHTML(moneda==='US')}<span style="margin-left:auto;font-family:var(--font-mono);font-size:18px;font-weight:800;color:${totColor}">${nPolReales} pól. · ${totSgn}${fmtCompact(Math.abs(tot),btnUSD)}</span></div>
-      ${subTabla(arrG, tituloMap[sub], null, sub, true)}
+      ${subTabla(arrG, '', null, sub, true)}
     </div>`;
   }
 
@@ -5937,10 +5940,10 @@ window.toggleEjecCausa = function(id){
     };
     /* Siniestralidad unificada (UV arriba / H abajo), igual que Emisión 2026. */
     const cellSinUnifR = (uvInfo, hInfo)=>{
+      /* Sin el % de variación (pedido del usuario): solo 2025 → 2026, centrado. */
       const linea=(lbl,info)=>{
-        if(!info || info.n===0) return `<div style="display:flex;align-items:baseline;gap:6px;font-size:12.5px"><strong style="color:var(--ink-2);min-width:24px">${lbl}:</strong> <span style="color:var(--ink-3);font-style:italic;font-size:11.5px">— sin datos —</span></div>`;
-        const c = info.d===0?'var(--accent)':(info.d>0?'var(--neg)':'var(--pos)');
-        return `<div style="display:flex;align-items:baseline;gap:7px;flex-wrap:wrap;font-family:var(--font-mono)"><strong style="color:var(--accent-3);min-width:24px;font-family:Calibri">${lbl}:</strong><span style="font-size:13px;color:var(--ink-2)">${fmtS(info.v25)} <span style="color:var(--ink-3)">→</span> <strong style="color:var(--accent-3);font-size:14.5px">${fmtS(info.v26)}</strong></span><span style="color:${c};font-weight:800;font-size:13.5px">${info.d>=0?'+':''}${fmtS(info.d)}</span></div>`;
+        if(!info || info.n===0) return `<div style="display:flex;align-items:baseline;gap:6px;justify-content:center;font-size:12.5px"><strong style="color:var(--ink-2)">${lbl}:</strong> <span style="color:var(--ink-3);font-style:italic;font-size:11.5px">— sin datos —</span></div>`;
+        return `<div style="display:flex;align-items:baseline;gap:7px;justify-content:center;font-family:var(--font-mono)"><strong style="color:var(--accent-3);font-family:Calibri">${lbl}:</strong><span style="font-size:13px;color:var(--ink-2)">${fmtS(info.v25)} <span style="color:var(--ink-3)">→</span> <strong style="color:var(--accent-3);font-size:14.5px">${fmtS(info.v26)}</strong></span></div>`;
       };
       return `<div style="${_cardCss};display:flex;flex-direction:column;gap:8px;justify-content:center">${linea('UV',uvInfo)}<div style="border-top:1px dashed var(--line)"></div>${linea('H',hInfo)}</div>`;
     };
@@ -6018,7 +6021,7 @@ window.toggleEjecCausa = function(id){
     }
     const nCat = showPrima ? 5 : 4;
     return `<div style="margin-bottom:14px;overflow-x:auto">
-      <div style="display:grid;grid-template-columns:auto repeat(${nCat},minmax(94px,1fr));gap:5px;align-items:stretch;min-width:${showPrima?560:460}px">
+      <div style="display:grid;grid-template-columns:auto repeat(${nCat},minmax(92px,170px));gap:6px;align-items:stretch;justify-content:center;min-width:${showPrima?560:460}px">
         <div></div>
         ${showPrima ? catHead('Prima Mínima','#c2410c','#fff','#c2410c') : ''}
         ${catHead('Proyección','rgba(30,111,217,.10)','#1e6fd9','#1e6fd9')}
