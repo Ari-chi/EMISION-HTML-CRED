@@ -3391,6 +3391,9 @@ function ejecJustificacion(S, useUSD, dual, useUSDprimary){
   const FMT = useUSD?FMT_USD_FULL:FMT_ARS_FULL;
   const mLbl=useUSD?'USD':'ARS$';
   const desvio=S.desvio, dvAbs=Math.abs(desvio);
+  /* Guardar el desvío total por moneda para que el drill calcule el % de cada columna. */
+  state._ejecDesvioAbs = state._ejecDesvioAbs || {};
+  state._ejecDesvioAbs[useUSD?'u':'a'] = dvAbs;
   if(desvio<=1){
     return `<div style="margin-top:${dual?12:6}px">${dual?`<div style="font-size:11px;color:var(--ink-3);text-transform:uppercase;letter-spacing:.05em;font-weight:700;margin-bottom:6px">${mLbl}</div>`:''}<div style="font-size:13px;color:var(--pos);padding:12px 14px;background:rgba(45,155,106,.08);border-radius:8px;border-left:3px solid var(--pos)"><strong>Se cumplió o superó el presupuesto</strong> (${mLbl}). No hay desvío negativo para descomponer.</div></div>`;
   }
@@ -3747,7 +3750,6 @@ function ejecJustificacion(S, useUSD, dual, useUSDprimary){
       <div style="width:100%;max-width:340px;justify-self:center"><canvas id="${pieIdDes}" style="max-height:320px"></canvas></div>
       <div>${leyendaDes}</div>
     </div>` : ''}
-    ${estimPanel}
   </div>`;
 }
 
@@ -3819,7 +3821,12 @@ window.setEjecEstim = function(suf, clave, raw){
   const limpio = String(raw==null?'':raw).replace(/\./g,'').replace(',','.').replace(/[^0-9.\-]/g,'');
   const v = parseFloat(limpio);
   if(isFinite(v) && v>0) st[clave] = v; else delete st[clave];
-  if(typeof drawEjecutivo==='function') drawEjecutivo();
+  /* Si hay un drill de causa abierto (donde se edita ahora), re-renderizarlo SOLO a él para
+     no cerrarlo; si no, re-render normal. */
+  const panel = document.getElementById('ejecCausaDetalle');
+  const openId = panel && panel.dataset.open;
+  if(openId && typeof toggleEjecCausa==='function'){ panel.dataset.open=''; toggleEjecCausa(openId); }
+  else if(typeof drawEjecutivo==='function') drawEjecutivo();
 };
 /* OK GENERAL: autocompleta TODAS las pendientes con la proyección del Excel (bloque AF–AH),
    buscando por número de póliza o nombre de asegurado. Respeta las estimaciones ya cargadas
@@ -3856,7 +3863,10 @@ window.ejecEstimClearAll = function(suf){
 window.ejecToggleContab = function(which){
   state._ejecContab = state._ejecContab || {mes:true, anio:false};
   state._ejecContab[which] = !state._ejecContab[which];
-  if(typeof drawEjecutivo==='function') drawEjecutivo();
+  /* Re-renderizar SOLO el drill abierto (no toda la hoja) para no cerrarlo. */
+  const panel = document.getElementById('ejecCausaDetalle');
+  const openId = panel && panel.dataset.open;
+  if(openId && typeof toggleEjecCausa==='function'){ panel.dataset.open=''; toggleEjecCausa(openId); }
 };
 window.ejecEstimOk = function(suf, clave, pendVal){
   const st = _ejecEstimStore(suf);
@@ -5083,8 +5093,7 @@ window.toggleEjecCausa = function(id){
           const mUSD = f25.breakdownUSD.primaMin;
           if(mARS>0||mUSD>0) items=[{concepto:'Prima mínima', ars:mARS, usd:mUSD}];
         }
-        /* El BONO pendiente se excluye por completo del Desvío de Emisión. */
-        items = items.filter(it=>it.concepto!=='Bono');
+        /* El BONO pendiente ahora SÍ se contempla como un concepto más (pedido del usuario). */
         /* Si es un sub-concepto, quedarse solo con ese concepto. */
         if(PEND_CONCEPTO[effId]) items = items.filter(it=>it.concepto===PEND_CONCEPTO[effId]);
         if(items.length>0){
@@ -5410,6 +5419,54 @@ window.toggleEjecCausa = function(id){
     return `<div>
       <div style="display:flex;align-items:center;gap:10px;margin-bottom:12px;padding:10px 14px;background:${moneda==='US'?'rgba(139,92,246,.12)':'rgba(232,155,30,.14)'};border:1.5px solid ${moneda==='US'?'#8b5cf6':'#e89b1e'};border-radius:8px">${monedaChipHTML(moneda==='US')}<span style="margin-left:auto;font-family:var(--font-mono);font-size:18px;font-weight:800;color:${totColor}">${nPolRealesCol} pól. · ${totSign}${fmtCompact(Math.abs(totDisp),btnUSD)}</span></div>
       ${inner}
+    </div>`;
+  }
+
+  /* COLUMNA del drill de PENDIENTE dividida por DATO DEL EXCEL (pedido del usuario):
+     seEmite=true → "Se emite este mes" (pólizas con dato en el Excel/cargado a mano);
+     seEmite=false → "Pendiente sin fecha" (el resto). Cada póliza: input EDITABLE pre-cargado
+     (Excel/manual; si no, el pendiente 2025), chip de moneda original, ordenado de mayor a
+     menor. Toggle "Contabilizar (SÍ/NO)" por columna (mes=SÍ, año=NO por defecto). */
+  function colPendData(seEmite){
+    const suf = btnUSD?'u':'a';
+    state._ejecEstim = state._ejecEstim || {};
+    if(!state._ejecEstim[suf]) state._ejecEstim[suf] = {};
+    const store = state._ejecEstim[suf];
+    state._ejecContab = state._ejecContab || {mes:true, anio:false};
+    const which = seEmite ? 'mes' : 'anio';
+    const on = !!state._ejecContab[which];
+    const colC = seEmite ? '#2d9b6a' : '#4ba3c7';
+    const titulo = seEmite ? 'Se emite este mes' : 'Pendiente sin fecha';
+    const all = [...collect(false), ...collect(true)];
+    const items = all.map(r=>{
+      const excel = _excelEstimVal(r, suf);
+      const manual = store[r.clave];
+      const hasManual = isFinite(manual) && manual>0;
+      const auto = Math.abs(valBtnR(r));
+      const data = (excel>0) || hasManual;
+      const eff = hasManual ? manual : (excel>0 ? excel : auto);
+      return {r, excel, hasManual, auto, eff, data};
+    }).filter(x=> seEmite ? x.data : !x.data).sort((a,b)=> b.eff - a.eff);
+    const tot = items.reduce((a,x)=>a+x.eff,0);
+    const dvA = (state._ejecDesvioAbs && state._ejecDesvioAbs[suf]) || 0;
+    const pct = dvA>0 ? Math.round(tot/dvA*100) : 0;
+    const rowH = (x)=>{
+      const r=x.r; const monC = r.moneda==='US'?'var(--pos)':'var(--accent)';
+      const eDisp = x.eff>0 ? Number(x.eff).toLocaleString('es-AR',{maximumFractionDigits:0}) : '';
+      return `<div style="display:grid;grid-template-columns:1fr 120px;gap:8px;align-items:center;padding:7px 10px;border-bottom:1px solid var(--line)">
+        <div style="min-width:0"><span style="font-size:13px;font-weight:800;color:var(--accent-3);background:var(--bg-2);padding:2px 7px;border-radius:5px">${fmtPoliza(r.poliza)}</span> <span style="font-size:10.5px;font-weight:800;color:${monC}" title="Moneda original">${r.moneda}</span> <span style="font-size:12.5px;color:var(--ink-1);font-weight:600">${(r.asegurado||'').substring(0,22)}</span></div>
+        <span style="display:flex;align-items:center;gap:4px"><span style="font-size:12px;color:var(--ink-3)" title="Editable">✎</span><input type="text" inputmode="decimal" value="${eDisp}" onchange="setEjecEstim('${suf}','${r.clave}', this.value)" style="width:100%;padding:5px 7px;font-family:var(--font-mono);font-size:12.5px;border:1.5px solid ${x.hasManual?'var(--pos)':'var(--line-2)'};border-radius:6px;text-align:right;background:var(--panel);color:var(--ink)" /></span>
+      </div>`;
+    };
+    return `<div style="border:1px solid var(--line-2);border-radius:8px;overflow:hidden;${on?'':'opacity:.6'}">
+      <div style="background:${colC}1a;border-bottom:1px solid var(--line);padding:8px 10px">
+        <div style="display:flex;justify-content:space-between;align-items:center;gap:8px;margin-bottom:3px">
+          <span style="font-size:12px;font-weight:800;color:${colC};text-transform:uppercase;letter-spacing:.03em">${titulo} <span style="color:var(--ink-3);font-weight:600;text-transform:none">· ${items.length} pól.</span></span>
+          <button onclick="ejecToggleContab('${which}')" title="Contabilizar este grupo en el desvío" style="font-size:9.5px;font-weight:800;border-radius:5px;padding:3px 8px;cursor:pointer;white-space:nowrap;border:1.5px solid ${on?'var(--pos)':'var(--line-2)'};background:${on?'var(--pos)':'var(--panel)'};color:${on?'#fff':'var(--ink-2)'}">Contabilizar: ${on?'SÍ':'NO'}</button>
+        </div>
+        <div style="font-family:var(--font-mono);font-size:13px;font-weight:800;color:${colC}">${fmtCompact(tot,btnUSD)} <span style="color:var(--ink-3);font-weight:700">(${pct}% del desvío)</span></div>
+      </div>
+      ${items.length? items.map(rowH).join('') : '<div style="padding:10px;font-size:12px;color:var(--ink-3);font-style:italic">— sin pólizas —</div>'}
     </div>`;
   }
 
@@ -5922,6 +5979,9 @@ window.toggleEjecCausa = function(id){
       <div id="ejecAbmCols" style="display:grid;grid-template-columns:1fr 1fr;gap:16px">${colAbm(false,'ajuste')}${colAbm(true,'ajuste')}</div>`;
   } else if(id==='sinjust'){
     contenido = `<div style="display:grid;grid-template-columns:1fr 1fr;gap:16px">${colNoCrecen(false)}${colNoCrecen(true)}</div>`;
+  } else if(esPend){
+    /* Drill de pendiente: dos columnas por DATO DEL EXCEL (no por moneda), editable. */
+    contenido = `<div style="display:grid;grid-template-columns:1fr 1fr;gap:16px">${colPendData(true)}${colPendData(false)}</div>`;
   } else {
     contenido = `<div style="display:grid;grid-template-columns:1fr 1fr;gap:16px">${col(false)}${col(true)}</div>`;
   }
