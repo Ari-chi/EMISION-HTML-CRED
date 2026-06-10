@@ -841,6 +841,15 @@ function _excelEstimConcepto(p, ck, suf){
   for(const k of tk){ if(k && state._ejecProyEmis[k]){ const o = state._ejecProyEmis[k]; const c = o.c && o.c[ck]; if(!c) return 0; const v = (suf==='u') ? c.usd : c.ars; return isFinite(v) ? v : 0; } }
   return 0;
 }
+/* Total de la "Emisión estimada" del Excel (bloque AF–AH): suma prima+ajuste+malus de TODAS
+   las pólizas proyectadas (deduplicando, porque cada póliza se indexa por varias claves). Es
+   el número "Emisión estimada Junio" del Excel. Dinámico: cambia con el Excel cargado. */
+function _excelEstimTotal(suf){
+  if(!state._ejecProyEmis) return 0;
+  const seen = new Set(); let tot = 0;
+  for(const k in state._ejecProyEmis){ const o = state._ejecProyEmis[k]; if(!o || seen.has(o)) continue; seen.add(o); const v = (suf==='u') ? o.usd : o.ars; if(isFinite(v)) tot += v; }
+  return tot;
+}
 function parseProyEmis(rows){
   state._ejecProyEmis = {};
   const numOf = (v)=>{ if(v==null||v==='') return NaN; if(typeof v==='number') return v; return parseFloat(String(v).replace(/[^0-9.\-]/g,'')); };
@@ -3790,27 +3799,29 @@ function ejecJustificacion(S, useUSD, dual, useUSDprimary){
       <div>${leyendaDes}</div>
     </div>` : ''}
     ${(()=>{
-      /* COMPARACIÓN DE DESVÍOS: desvío real (hoy) vs cómo quedaría si se emite lo PENDIENTE
-         contabilizado (se emite este mes). Emitir lo pendiente sube la emisión y achica el
-         desvío: el proyectado es menos negativo y, si lo pendiente supera el desvío, positivo. */
-      const pendContab = pendDesglose ? (useUSD?pendDesglose.total.totUSD:pendDesglose.total.totARS) : 0;
-      const real = -dvAbs;                       /* desvío real (negativo) */
-      const proy = real + pendContab;            /* desvío proyectado con la emisión pendiente */
-      const card = (titulo, val, sub, forceColor)=>{
-        const c = forceColor || (val>=0 ? 'var(--pos)' : 'var(--neg)');
-        const sg = val>0?'+':(val<0?'−':'');
-        return `<div style="background:var(--bg-2);border-radius:8px;padding:10px 12px;border-left:4px solid ${c}">
-          <div style="font-size:11px;color:var(--ink-3);text-transform:uppercase;letter-spacing:.03em;font-weight:700;margin-bottom:4px;line-height:1.25">${titulo}</div>
-          <div style="font-family:var(--font-mono);font-size:18px;font-weight:800;color:${c}">${sg}${FMTc(Math.abs(val))}</div>
-          ${sub?`<div style="font-size:10.5px;color:var(--ink-3);margin-top:3px;line-height:1.3">${sub}</div>`:''}
+      /* COMPARACIÓN DE DESVÍOS: Presupuesto → Desvío real (variación negativa hoy) →
+         Emisión pendiente (la "Emisión estimada" del Excel, lo que se emite este mes) →
+         Desvío con emisión pendiente (cómo queda al sumarla: menos negativo o positivo). */
+      const sufx = useUSD?'u':'a';
+      const presup = S.presup26 || 0;
+      const real = -dvAbs;                         /* desvío real (variación negativa) */
+      const pend = _excelEstimTotal(sufx);         /* Emisión estimada del Excel (prima+ajuste+malus) */
+      const proy = real + pend;                    /* desvío con la emisión pendiente */
+      const card = (titulo, val, sub, color, signed, big)=>{
+        const sg = !signed ? '' : (val>0?'+':(val<0?'−':''));
+        return `<div style="background:var(--bg-2);border-radius:8px;padding:10px 12px;border-left:4px solid ${color}">
+          <div style="font-size:10.5px;color:var(--ink-3);text-transform:uppercase;letter-spacing:.03em;font-weight:700;margin-bottom:4px;line-height:1.25;min-height:26px">${titulo}</div>
+          <div style="font-family:var(--font-mono);font-size:${big?20:16}px;font-weight:800;color:${color}">${sg}${FMTc(Math.abs(val))}</div>
+          ${sub?`<div style="font-size:10px;color:var(--ink-3);margin-top:3px;line-height:1.3">${sub}</div>`:''}
         </div>`;
       };
       return `<div style="margin-top:18px;border-top:1px solid var(--line);padding-top:14px">
         <div style="font-size:13px;font-weight:800;color:var(--accent-3);text-transform:uppercase;letter-spacing:.04em;margin-bottom:10px">Comparación de desvíos</div>
-        <div style="display:grid;grid-template-columns:repeat(3,1fr);gap:10px">
-          ${card('Desvío real', real, 'Hoy, sin emitir lo pendiente', 'var(--neg)')}
-          ${card('Emisión pendiente (se emite este mes)', pendContab, 'Lo contabilizado que falta emitir', 'var(--pos)')}
-          ${card('Desvío con emisión pendiente', proy, proy>=0?'Quedaría a favor (positivo)':'Desvío acumulado, ya menor', proy>=0?'var(--pos)':'var(--neg)')}
+        <div style="display:grid;grid-template-columns:repeat(4,1fr);gap:10px">
+          ${card('Presupuesto 2026', presup, 'Objetivo del período', 'var(--accent)', false, true)}
+          ${card('Desvío real', real, 'Hoy, sin emitir lo pendiente', 'var(--neg)', true, true)}
+          ${card('Emisión pendiente (se emite este mes)', pend, 'Emisión estimada del Excel', 'var(--pos)', true, false)}
+          ${card('Desvío con emisión pendiente', proy, proy>=0?'Quedaría a favor (positivo)':'Desvío acumulado, ya menor', proy>=0?'var(--pos)':'var(--neg)', true, true)}
         </div>
       </div>`;
     })()}
