@@ -832,6 +832,15 @@ function _excelEstimVal(p, suf){
   for(const k of tk){ if(k && state._ejecProyEmis[k]){ const o = state._ejecProyEmis[k]; const v = (suf==='u') ? o.usd : o.ars; return isFinite(v) ? v : 0; } }
   return 0;
 }
+/* Valor del Excel (bloque AF–AH) para UN concepto puntual (primaMin/ajuste/malus/bono) de la
+   póliza, en la moneda pedida. Así cada concepto del pendiente toma SOLO su propio dato y no se
+   mezcla con los demás (p. ej. la prima de Toyota no se reparte al malus). */
+function _excelEstimConcepto(p, ck, suf){
+  if(!p || !state._ejecProyEmis) return 0;
+  const tk = [_normProyKey(p.poliza), _digitsKey(p.poliza), _normProyKey(p.asegurado)];
+  for(const k of tk){ if(k && state._ejecProyEmis[k]){ const o = state._ejecProyEmis[k]; const c = o.c && o.c[ck]; if(!c) return 0; const v = (suf==='u') ? c.usd : c.ars; return isFinite(v) ? v : 0; } }
+  return 0;
+}
 function parseProyEmis(rows){
   state._ejecProyEmis = {};
   const numOf = (v)=>{ if(v==null||v==='') return NaN; if(typeof v==='number') return v; return parseFloat(String(v).replace(/[^0-9.\-]/g,'')); };
@@ -846,7 +855,9 @@ function parseProyEmis(rows){
       continue;
     }
     if(lbl==='asegurado'){
-      cur = {ars:0, usd:0};
+      /* c = desglose POR CONCEPTO (cada concepto tiene su propio $ y US$ en el Excel).
+         ars/usd = total prima+ajuste+malus (sin bono) para compatibilidad. */
+      cur = {ars:0, usd:0, c:{primaMin:{ars:0,usd:0}, ajuste:{ars:0,usd:0}, malus:{ars:0,usd:0}, bono:{ars:0,usd:0}}};
       const nombre = String(r[AG]==null?'':r[AG]).trim();
       cur.aseg = nombre;
       reg(_normProyKey(nombre), cur); /* índice por asegurado (fallback) */
@@ -861,12 +872,12 @@ function parseProyEmis(rows){
       }
       continue;
     }
-    if(cur && (lbl==='prima minima' || lbl==='prima mínima' || lbl==='ajuste' || lbl==='malus')){
+    const _ck = {'prima minima':'primaMin','prima mínima':'primaMin','ajuste':'ajuste','malus':'malus','bono':'bono'}[lbl];
+    if(cur && _ck){
       const ars=numOf(r[AG]), usd=numOf(r[AH]);
-      if(isFinite(ars)) cur.ars += ars;
-      if(isFinite(usd)) cur.usd += usd;
+      if(isFinite(ars)){ cur.c[_ck].ars += ars; if(_ck!=='bono') cur.ars += ars; }
+      if(isFinite(usd)){ cur.c[_ck].usd += usd; if(_ck!=='bono') cur.usd += usd; }
     }
-    /* 'bono' u otras filas → se ignoran (sin bono). */
   }
 }
 
@@ -3286,50 +3297,36 @@ function desglosePendientePorConcepto(polFiltradas, mesCorte){
     }
     if(items.length===0) continue;
 
-    /* Grupo de la póliza según el DATO de emisión, en su moneda propia. */
-    /* DATO de emisión: el Excel (bloque AF–AH) trae el monto en AMBAS monedas ($ y US$); o se
-       carga a mano por moneda. Con dato → "se emite este mes" ('mes'); sin dato → "pendiente
-       sin fecha" ('anio'). */
-    const excelA = _excelEstimVal(p, 'a'), excelU = _excelEstimVal(p, 'u');
-    const manA = (state._ejecEstim.a||{})[p.clave], manU = (state._ejecEstim.u||{})[p.clave];
-    const hasManA = isFinite(manA) && manA>0, hasManU = isFinite(manU) && manU>0;
-    const hasData = (excelA>0)||(excelU>0)||hasManA||hasManU;
-    const grupo = hasData ? 'mes' : 'anio';
-    if(!_contab[grupo]) continue;   /* grupo NO contabilizado → no aporta nada al desvío */
-
-    /* Conceptos pendientes (con TC) y su peso automático por concepto. */
-    const conc = [];
+    /* CADA concepto pendiente se evalúa por SEPARADO: toma SOLO su propio dato del Excel
+       (bloque AF–AH) / lo cargado a mano para ese concepto. Si ese concepto tiene dato → "se
+       emite este mes" (grupo 'mes', usa el monto del Excel por moneda, sin TC); si no →
+       "pendiente sin fecha" (grupo 'anio', usa el pendiente 2025 con TC). Si un concepto da 0
+       en el Excel, NO se le pone nada (no se mezcla con otros conceptos). */
+    let polContada = false;
     for(const it of items){
       const k = KEYS[it.concepto]; if(!k) continue;
-      const cv = convertirPendienteTC(it.ars, it.usd, p.moneda);
-      conc.push({k, ars:cv.ars, usd:cv.usd});
-    }
-    if(!conc.length) continue;
-    out.total.n++;
-
-    if(hasData){
-      /* "Se emite este mes": el monto en CADA moneda viene del Excel (o cargado a mano) tal
-         cual — el TC NO se aplica (el Excel ya trae $ y US$). Se reparte entre los conceptos
-         según su peso automático en esa misma moneda. */
-      const vARS = hasManA ? manA : excelA;
-      const vUSD = hasManU ? manU : excelU;
-      const sumA = conc.reduce((a,x)=>a+Math.abs(x.ars),0);
-      const sumU = conc.reduce((a,x)=>a+Math.abs(x.usd),0);
-      for(const x of conc){
-        const wA = sumA>0 ? Math.abs(x.ars)/sumA : (1/conc.length);
-        const wU = sumU>0 ? Math.abs(x.usd)/sumU : (1/conc.length);
-        const vA = vARS*wA, vU = vUSD*wU;
-        out[x.k].n++; out[x.k].totARS+=vA; out[x.k].totUSD+=vU;
-        out.total.totARS+=vA; out.total.totUSD+=vU;
+      const exA = _excelEstimConcepto(p, k, 'a'), exU = _excelEstimConcepto(p, k, 'u');
+      const mA = (state._ejecEstim.a||{})[p.clave+'|'+k], mU = (state._ejecEstim.u||{})[p.clave+'|'+k];
+      const hasMA = isFinite(mA) && mA!==0, hasMU = isFinite(mU) && mU!==0;
+      const hasData = Math.abs(exA)>0 || Math.abs(exU)>0 || hasMA || hasMU;
+      const grupo = hasData ? 'mes' : 'anio';
+      if(!_contab[grupo]) continue;   /* grupo NO contabilizado → este concepto no suma */
+      let vA, vU;
+      if(hasData){
+        /* Monto por moneda directo del Excel/manual de ESE concepto (sin TC). */
+        vA = hasMA ? mA : exA;
+        vU = hasMU ? mU : exU;
+      } else {
+        /* Pendiente 2025 de ese concepto en moneda original + equivalente por TC del 7°. */
+        const cv = convertirPendienteTC(it.ars, it.usd, p.moneda);
+        vA = cv.ars; vU = cv.usd;
       }
-    } else {
-      /* "Pendiente sin fecha": pendiente 2025 en la MONEDA ORIGINAL; el equivalente en la otra
-         moneda se calcula con el TC del 7° ($ → US dividiendo, US → $ multiplicando). */
-      for(const x of conc){
-        out[x.k].n++; out[x.k].totARS+=x.ars; out[x.k].totUSD+=x.usd;
-        out.total.totARS+=x.ars; out.total.totUSD+=x.usd;
-      }
+      if(Math.abs(vA)<0.5 && Math.abs(vU)<0.5) continue;   /* 0 → no se pone nada */
+      out[k].n++; out[k].totARS+=vA; out[k].totUSD+=vU;
+      out.total.totARS+=vA; out.total.totUSD+=vU;
+      polContada = true;
     }
+    if(polContada) out.total.n++;
   }
   return out;
 }
@@ -3867,7 +3864,7 @@ window.setEjecEstim = function(suf, clave, raw){
      y convertimos la coma decimal a punto antes de parsear. */
   const limpio = String(raw==null?'':raw).replace(/\./g,'').replace(',','.').replace(/[^0-9.\-]/g,'');
   const v = parseFloat(limpio);
-  if(isFinite(v) && v>0) st[clave] = v; else delete st[clave];
+  if(isFinite(v) && v!==0) st[clave] = v; else delete st[clave];
   /* Editar un pendiente debe recalcular el desvío, los conceptos y el GRÁFICO (no solo el
      drill): redibujamos el ejecutivo completo y re-abrimos el mismo drill. */
   _ejecRerenderConDrill();
@@ -5491,34 +5488,39 @@ window.toggleEjecCausa = function(id){
     const on = !!state._ejecContab[which];
     const colC = seEmite ? '#2d9b6a' : '#4ba3c7';
     const titulo = seEmite ? 'Se emite este mes' : 'Pendiente sin fecha';
-    /* Mostramos TODAS las pólizas pendientes (no un solo concepto): el valor editable es por
-       póliza y el total de cada columna coincide con lo que aporta ese grupo al gráfico. */
-    const all = [...collect(false,'pendiente'), ...collect(true,'pendiente')];
+    /* CONCEPTO de este drill: cada lápiz abre SOLO su concepto (prima/ajuste/malus/bono), así
+       no se mezclan (la prima de una póliza no aparece en el malus). */
+    const CK = {pend_prima:'primaMin', pend_ajuste:'ajuste', pend_malus:'malus', pend_bono:'bono'}[id] || null;
     const otherSuf = btnUSD?'a':'u';
+    const mkey = (r)=> CK ? (r.clave+'|'+CK) : r.clave;
+    /* collect(false) ya filtra por el concepto del drill (id). */
+    const all = [...collect(false), ...collect(true)];
     const items = all.map(r=>{
-      const excelV = _excelEstimVal(r, suf);            /* Excel en la moneda de la vista */
-      const excelO = _excelEstimVal(r, otherSuf);       /* Excel en la otra moneda */
-      const manual = store[r.clave];
-      const manualO = (state._ejecEstim[otherSuf]||{})[r.clave];
-      const hasManual = isFinite(manual) && manual>0;
-      const hasManualO = isFinite(manualO) && manualO>0;
-      const auto = Math.abs(valBtnR(r));                /* pendiente 2025 (con TC) */
-      /* Hay dato (se emite este mes) si el Excel/manual tiene valor en CUALQUIER moneda. */
-      const data = (excelV>0)||(excelO>0)||hasManual||hasManualO;
-      /* Monto en la moneda de la vista: con dato → Excel/manual de ESA moneda (sin TC, el Excel
-         ya trae $ y US$); sin dato → pendiente 2025 convertido con el TC del 7°. */
+      const excelV = CK ? _excelEstimConcepto(r, CK, suf)      : _excelEstimVal(r, suf);
+      const excelO = CK ? _excelEstimConcepto(r, CK, otherSuf) : _excelEstimVal(r, otherSuf);
+      const manual = store[mkey(r)];
+      const manualO = (state._ejecEstim[otherSuf]||{})[mkey(r)];
+      const hasManual = isFinite(manual) && manual!==0;
+      const hasManualO = isFinite(manualO) && manualO!==0;
+      const auto = valBtnR(r);                           /* pendiente 2025 de ESE concepto (con TC) */
+      /* Hay dato (se emite este mes) si el Excel/manual de ESTE concepto tiene valor en
+         cualquiera de las dos monedas. */
+      const data = Math.abs(excelV)>0 || Math.abs(excelO)>0 || hasManual || hasManualO;
+      /* Monto en la moneda de la vista: con dato → Excel/manual de ESE concepto y moneda (sin
+         TC); sin dato → pendiente 2025 de ese concepto convertido con el TC del 7°. */
       const eff = data ? (hasManual ? manual : excelV) : auto;
       return {r, excel:excelV, hasManual, auto, eff, data};
-    }).filter(x=> seEmite ? x.data : !x.data).sort((a,b)=> b.eff - a.eff);
+    }).filter(x=> (seEmite ? x.data : !x.data) && Math.abs(x.eff)>=0.5)
+      .sort((a,b)=> Math.abs(b.eff) - Math.abs(a.eff));
     const tot = items.reduce((a,x)=>a+x.eff,0);
     const dvA = (state._ejecDesvioAbs && state._ejecDesvioAbs[suf]) || 0;
-    const pct = dvA>0 ? Math.round(tot/dvA*100) : 0;
+    const pct = dvA>0 ? Math.round(Math.abs(tot)/dvA*100) : 0;
     const rowH = (x)=>{
       const r=x.r; const monC = r.moneda==='US'?'var(--pos)':'var(--accent)';
-      const eDisp = x.eff>0 ? Number(x.eff).toLocaleString('es-AR',{maximumFractionDigits:0}) : '';
+      const eDisp = x.eff!==0 ? Number(x.eff).toLocaleString('es-AR',{maximumFractionDigits:0}) : '';
       return `<div style="display:grid;grid-template-columns:1fr 120px;gap:8px;align-items:center;padding:7px 10px;border-bottom:1px solid var(--line)">
         <div style="min-width:0"><span style="font-size:13px;font-weight:800;color:var(--accent-3);background:var(--bg-2);padding:2px 7px;border-radius:5px">${fmtPoliza(r.poliza)}</span> <span style="font-size:10.5px;font-weight:800;color:${monC}" title="Moneda original">${r.moneda}</span> <span style="font-size:12.5px;color:var(--ink-1);font-weight:600">${(r.asegurado||'').substring(0,22)}</span></div>
-        <span style="display:flex;align-items:center;gap:4px"><span style="font-size:12px;color:var(--ink-3)" title="Editable">✎</span><input type="text" inputmode="decimal" value="${eDisp}" onchange="setEjecEstim('${suf}','${r.clave}', this.value)" style="width:100%;padding:5px 7px;font-family:var(--font-mono);font-size:12.5px;border:1.5px solid ${x.hasManual?'var(--pos)':'var(--line-2)'};border-radius:6px;text-align:right;background:var(--panel);color:var(--ink)" /></span>
+        <span style="display:flex;align-items:center;gap:4px"><span style="font-size:12px;color:var(--ink-3)" title="Editable">✎</span><input type="text" inputmode="decimal" value="${eDisp}" onchange="setEjecEstim('${suf}','${mkey(r)}', this.value)" style="width:100%;padding:5px 7px;font-family:var(--font-mono);font-size:12.5px;border:1.5px solid ${x.hasManual?'var(--pos)':'var(--line-2)'};border-radius:6px;text-align:right;background:var(--panel);color:var(--ink)" /></span>
       </div>`;
     };
     return `<div style="border:1px solid var(--line-2);border-radius:8px;overflow:hidden;${on?'':'opacity:.6'}">
