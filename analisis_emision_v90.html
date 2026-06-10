@@ -3295,33 +3295,28 @@ function desglosePendientePorConcepto(polFiltradas, mesCorte){
       const mARS=f25.breakdownARS.primaMin, mUSD=f25.breakdownUSD.primaMin;
       if(mARS>0||mUSD>0) items=[{concepto:'Prima mínima', ars:mARS, usd:mUSD}];
     }
-    if(items.length===0) continue;
+    /* Pendiente 2025 (con TC) por concepto, según conceptosPendientes. */
+    const pendByK = {};
+    for(const it of items){ const k=KEYS[it.concepto]; if(!k) continue; pendByK[k]=convertirPendienteTC(it.ars, it.usd, p.moneda); }
 
-    /* CADA concepto pendiente se evalúa por SEPARADO: toma SOLO su propio dato del Excel
-       (bloque AF–AH) / lo cargado a mano para ese concepto. Si ese concepto tiene dato → "se
-       emite este mes" (grupo 'mes', usa el monto del Excel por moneda, sin TC); si no →
-       "pendiente sin fecha" (grupo 'anio', usa el pendiente 2025 con TC). Si un concepto da 0
-       en el Excel, NO se le pone nada (no se mezcla con otros conceptos). */
+    /* CADA concepto (prima/ajuste/malus/bono) se evalúa por SEPARADO: toma SOLO su propio dato
+       del Excel (bloque AF–AH) / lo cargado a mano. Con dato → "se emite este mes" (monto del
+       Excel por moneda, sin TC); sin dato pero pendiente 2025 → "pendiente sin fecha" (con TC).
+       Si un concepto no tiene ni dato ni pendiente, NO se le pone nada. Incluye conceptos con
+       dato del Excel aunque conceptosPendientes no los marque (p. ej. malus/bono del cuadro). */
     let polContada = false;
-    for(const it of items){
-      const k = KEYS[it.concepto]; if(!k) continue;
+    for(const k of ['primaMin','ajuste','malus','bono']){
       const exA = _excelEstimConcepto(p, k, 'a'), exU = _excelEstimConcepto(p, k, 'u');
       const mA = (state._ejecEstim.a||{})[p.clave+'|'+k], mU = (state._ejecEstim.u||{})[p.clave+'|'+k];
       const hasMA = isFinite(mA) && mA!==0, hasMU = isFinite(mU) && mU!==0;
       const hasData = Math.abs(exA)>0 || Math.abs(exU)>0 || hasMA || hasMU;
-      const grupo = hasData ? 'mes' : 'anio';
+      const pend25 = pendByK[k];
+      let vA, vU, grupo;
+      if(hasData){ grupo='mes'; vA = hasMA ? mA : exA; vU = hasMU ? mU : exU; }
+      else if(pend25){ grupo='anio'; vA = pend25.ars; vU = pend25.usd; }
+      else continue;   /* ni dato ni pendiente → nada */
       if(!_contab[grupo]) continue;   /* grupo NO contabilizado → este concepto no suma */
-      let vA, vU;
-      if(hasData){
-        /* Monto por moneda directo del Excel/manual de ESE concepto (sin TC). */
-        vA = hasMA ? mA : exA;
-        vU = hasMU ? mU : exU;
-      } else {
-        /* Pendiente 2025 de ese concepto en moneda original + equivalente por TC del 7°. */
-        const cv = convertirPendienteTC(it.ars, it.usd, p.moneda);
-        vA = cv.ars; vU = cv.usd;
-      }
-      if(Math.abs(vA)<0.5 && Math.abs(vU)<0.5) continue;   /* 0 → no se pone nada */
+      if(Math.abs(vA)<0.5 && Math.abs(vU)<0.5) continue;
       out[k].n++; out[k].totARS+=vA; out[k].totUSD+=vU;
       out.total.totARS+=vA; out.total.totUSD+=vU;
       polContada = true;
@@ -5492,26 +5487,41 @@ window.toggleEjecCausa = function(id){
        no se mezclan (la prima de una póliza no aparece en el malus). */
     const CK = {pend_prima:'primaMin', pend_ajuste:'ajuste', pend_malus:'malus', pend_bono:'bono'}[id] || null;
     const otherSuf = btnUSD?'a':'u';
-    const mkey = (r)=> CK ? (r.clave+'|'+CK) : r.clave;
-    /* collect(false) ya filtra por el concepto del drill (id). */
-    const all = [...collect(false), ...collect(true)];
-    const items = all.map(r=>{
-      const excelV = CK ? _excelEstimConcepto(r, CK, suf)      : _excelEstimVal(r, suf);
-      const excelO = CK ? _excelEstimConcepto(r, CK, otherSuf) : _excelEstimVal(r, otherSuf);
-      const manual = store[mkey(r)];
-      const manualO = (state._ejecEstim[otherSuf]||{})[mkey(r)];
+    const N2K = {'Prima mínima':'primaMin','Prima Mínima':'primaMin','Ajuste':'ajuste','Malus':'malus','Bono':'bono'};
+    const mkey = (p)=> CK ? (p.clave+'|'+CK) : p.clave;
+    /* Recorremos el universo de pólizas y, para ESTE concepto, calculamos su dato del Excel/manual
+       (se emite este mes) o su pendiente 2025 (pendiente sin fecha). Incluye pólizas con dato del
+       Excel aunque conceptosPendientes no las marque para ese concepto (malus/bono del cuadro). */
+    const items = [];
+    for(const p of polFiltradas){
+      /* pendiente 2025 de ESTE concepto (con TC), en la moneda de la vista. */
+      let auto = 0;
+      if(CK){
+        const cpItems = conceptosPendientes(p, mesCorte).items;
+        let it = cpItems.find(x=> N2K[x.concepto]===CK);
+        if(!it && CK==='primaMin'){
+          const est = estadoPolizaConsolidado(p, mesCorte);
+          if(est==='desvio_emision_pendiente' || est==='desvio_pendiente_mayor_2m'){
+            const f25 = calcEmisionFiltrada(p,2025,0);
+            if(f25.breakdownARS.primaMin>0 || f25.breakdownUSD.primaMin>0) it={concepto:'Prima mínima', ars:f25.breakdownARS.primaMin, usd:f25.breakdownUSD.primaMin};
+          }
+        }
+        if(it){ const cv=convertirPendienteTC(it.ars, it.usd, p.moneda); auto = (suf==='u')?cv.usd:cv.ars; }
+      }
+      const excelV = CK ? _excelEstimConcepto(p, CK, suf)      : 0;
+      const excelO = CK ? _excelEstimConcepto(p, CK, otherSuf) : 0;
+      const manual = store[mkey(p)];
+      const manualO = (state._ejecEstim[otherSuf]||{})[mkey(p)];
       const hasManual = isFinite(manual) && manual!==0;
       const hasManualO = isFinite(manualO) && manualO!==0;
-      const auto = valBtnR(r);                           /* pendiente 2025 de ESE concepto (con TC) */
-      /* Hay dato (se emite este mes) si el Excel/manual de ESTE concepto tiene valor en
-         cualquiera de las dos monedas. */
       const data = Math.abs(excelV)>0 || Math.abs(excelO)>0 || hasManual || hasManualO;
-      /* Monto en la moneda de la vista: con dato → Excel/manual de ESE concepto y moneda (sin
-         TC); sin dato → pendiente 2025 de ese concepto convertido con el TC del 7°. */
-      const eff = data ? (hasManual ? manual : excelV) : auto;
-      return {r, excel:excelV, hasManual, auto, eff, data};
-    }).filter(x=> (seEmite ? x.data : !x.data) && Math.abs(x.eff)>=0.5)
-      .sort((a,b)=> Math.abs(b.eff) - Math.abs(a.eff));
+      let eff;
+      if(seEmite){ if(!data) continue; eff = hasManual ? manual : excelV; }
+      else { if(data) continue; eff = auto; }
+      if(Math.abs(eff)<0.5) continue;
+      items.push({r:p, hasManual, eff});
+    }
+    items.sort((a,b)=> Math.abs(b.eff) - Math.abs(a.eff));
     const tot = items.reduce((a,x)=>a+x.eff,0);
     const dvA = (state._ejecDesvioAbs && state._ejecDesvioAbs[suf]) || 0;
     const pct = dvA>0 ? Math.round(Math.abs(tot)/dvA*100) : 0;
