@@ -534,7 +534,6 @@ h4.section-title{margin:14px 0 8px 0;font-size:13px;color:var(--accent-3);font-w
     <button class="tab active" data-tab="ejecutivo"><span class="num">01</span>Resumen Ejecutivo</button>
     <button class="tab" data-tab="top10"><span class="num">02</span>Top 5 Casos</button>
     <button class="tab" data-tab="polizas"><span class="num">03</span>Justificación por Póliza</button>
-    <button class="tab" data-tab="desvios"><span class="num">04</span>Desvíos de Fecha</button>
   </nav>
 </div>
 
@@ -2463,7 +2462,7 @@ function renderAll(){
   document.getElementById('emptyState')?.remove();
   const content = document.getElementById('content');
   content.innerHTML='';
-  ['ejecutivo','desvios','polizas','top10'].forEach(id=>{
+  ['ejecutivo','polizas','top10'].forEach(id=>{
     const sec = document.createElement('section');
     sec.className = 'section' + (id==='ejecutivo'?' active':'');
     sec.dataset.section = id;
@@ -2473,7 +2472,6 @@ function renderAll(){
   destroyCharts();
   bindGlobalToggles();
   renderEjecutivo();
-  renderDesvios();
   renderPolizas();
   renderTop10();
   setupTabs();
@@ -6635,22 +6633,32 @@ function drawEjecRubroMini(polArr, f, useUSD){
     const c = good?'var(--pos)':'var(--neg)';
     return `<span style="color:${c};font-weight:700">${d>0?'▲':'▼'} ${d>0?'+':''}${fmt(d)}</span>`;
   };
-  const grid = 'grid-template-columns:minmax(90px,1.2fr) 1.4fr 1fr 1.8fr';
+  /* Siniestralidad: muestra el paso de un año a otro "2025 → 2026" con una flecha coloreada
+     (bajar siniestralidad es bueno = verde; subir = rojo). */
+  const sinTrans=(a,b)=>{
+    const d=b-a, z=Math.abs(d)<1e-9;
+    const c=z?'var(--ink-3)':(d<0?'var(--pos)':'var(--neg)');
+    return `<span style="color:var(--ink-2)">${FMT_PCT_SIN(a)}</span> <span style="color:${c};font-weight:800;font-size:12px">${z?'→':(d>0?'▲':'▼')}</span> <span style="color:var(--accent-3);font-weight:700">${FMT_PCT_SIN(b)}</span>`;
+  };
+  const grid = 'grid-template-columns:minmax(90px,1fr) 1.4fr 1.2fr 2.6fr';
   const rows = filas.map(r=>{
     const dProy=r.p26-r.p25, dPp=r.p25?dProy/Math.abs(r.p25):null;
     const dTasa=r.t26-r.t25, dUV=r.uv26-r.uv25, dH=r.h26-r.h25;
     const dTp=r.t25?dTasa/Math.abs(r.t25):null;
-    return `<div style="display:grid;${grid};gap:8px;align-items:center;padding:6px 10px;border-bottom:1px solid var(--line);font-size:12px">
+    return `<div style="display:grid;${grid};gap:14px;align-items:center;padding:8px 12px;border-bottom:1px solid var(--line);font-size:12px">
       <div style="font-weight:800;color:var(--accent-3);white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${r.rubro}</div>
       <div style="font-family:var(--font-mono);white-space:nowrap">${ind(dProy, FMTc, false)}${dPp!=null?` <span style="font-size:10px;color:var(--ink-3)">(${dProy>=0?'+':''}${FMT_PCT(dPp)})</span>`:''}</div>
       <div style="font-family:var(--font-mono);white-space:nowrap">${ind(dTasa, FMT_PCT_TASA, false)}${dTp!=null?` <span style="font-size:10px;color:var(--ink-3)">(${dTasa>=0?'+':''}${FMT_PCT(dTp)})</span>`:''}</div>
-      <div style="font-family:var(--font-mono);white-space:nowrap;font-size:11px">UV ${ind(dUV, FMT_PCT_SIN, true)} · H ${ind(dH, FMT_PCT_SIN, true)}</div>
+      <div style="display:grid;grid-template-columns:18px 1fr;gap:4px 8px;align-items:baseline;font-family:var(--font-mono);font-size:11px">
+        <span style="font-weight:800;color:var(--ink-3)">UV</span><div style="white-space:nowrap">${sinTrans(r.uv25,r.uv26)}</div>
+        <span style="font-weight:800;color:var(--ink-3)">H</span><div style="white-space:nowrap">${sinTrans(r.h25,r.h26)}</div>
+      </div>
     </div>`;
   }).join('');
   wrap.innerHTML = `<div style="border:1px solid var(--line-2);border-radius:9px;overflow:hidden;background:var(--panel);box-shadow:0 1px 3px rgba(10,31,58,.04)">
     <div style="padding:8px 12px;background:#f3f1fb;color:#5a3db8;font-weight:800;font-size:12px;text-transform:uppercase;letter-spacing:.04em;border-bottom:1px solid var(--line-2)">Resumen por rubro · proyección · tasa · siniestralidad</div>
-    <div style="display:grid;${grid};gap:8px;padding:6px 10px;background:var(--bg-2);font-size:10px;text-transform:uppercase;letter-spacing:.04em;color:var(--ink-3);font-weight:700">
-      <div>Rubro</div><div>Proyección</div><div>Tasa prom.</div><div>Siniestralidad UV / H</div>
+    <div style="display:grid;${grid};gap:14px;padding:6px 12px;background:var(--bg-2);font-size:10px;text-transform:uppercase;letter-spacing:.04em;color:var(--ink-3);font-weight:700">
+      <div>Rubro</div><div>Proyección</div><div>Tasa prom.</div><div>Siniestralidad UV / H (2025 → 2026)</div>
     </div>
     ${rows}
   </div>`;
@@ -11573,6 +11581,40 @@ function renderTop10(){
   document.getElementById('fTop10Motivo').addEventListener('change',()=>drawTop10());
   drawTop10();
 }
+/* Desvío REAL (emitido, con signo) de una póliza: suma de las bajas reales de Prima Mínima +
+   Ajuste + Bono + Malus, aplicando las reglas de categoría del Excel — excluye conceptos
+   PENDIENTES y los que dicen "corresponde a la anualidad anterior"; "no corresponde" = se emitió
+   0 (baja real, no pendiente). Devuelve montos NEGATIVOS por moneda. Misma lógica que el
+   desglose "Menor Emisión" del Resumen Ejecutivo, para que el Top 5 de CAÍDAS muestre solo
+   movimientos efectivamente emitidos (no pendientes). */
+function desvioRealPoliza(p, mesCorte){
+  if(polizaTerminada(p)) return {mARS:0, mUSD:0};
+  let mARS=0, mUSD=0;
+  /* Prima Mínima: solo cuenta si NO tiene cuotas pendientes (si está pendiente, no es caída). */
+  if(!primaMinTienePendiente(p, mesCorte)){
+    const nc = primaNoCorrespondeDesvio(p, mesCorte);
+    if(nc.entra){ mARS+=nc.mARS; mUSD+=nc.mUSD; }
+    else {
+      const parA = conceptoBajaPareada(p,'Prima Minima',false,mesCorte);
+      const parU = conceptoBajaPareada(p,'Prima Minima',true,mesCorte);
+      if(parA.baja || parU.baja){
+        const rPM = p.conceptos['Prima Minima'];
+        const dARS=(rPM && typeof rPM.desvioARS==='number' && rPM.desvioARS<0)?rPM.desvioARS:null;
+        const dUSD=(rPM && typeof rPM.desvioUSD==='number' && rPM.desvioUSD<0)?rPM.desvioUSD:null;
+        const bajaA=parA.pm25-parA.pm26, bajaU=parU.pm25-parU.pm26;
+        mARS += (dARS!=null)?dARS:-(bajaA>0?bajaA:0);
+        mUSD += (dUSD!=null)?dUSD:-(bajaU>0?bajaU:0);
+      }
+    }
+  }
+  /* Ajuste / Bono / Malus: desvioConceptoABM ya excluye pendientes y "anualidad anterior",
+     y trata "no corresponde" como emisión 0 (baja real). */
+  for(const cn of ['Ajuste','Bono','Malus']){
+    const dv = desvioConceptoABM(p, cn, mesCorte);
+    if(dv.entra){ mARS+=dv.mARS; mUSD+=dv.mUSD; }
+  }
+  return {mARS, mUSD};
+}
 function drawTop10(){
   const f = getSectionFilters('top10');
   setActiveCtx(f);
@@ -11616,12 +11658,22 @@ function drawTop10(){
   if(motF){
     arr = arr.filter(x=> x._just.motivos.some(m=>m.toLowerCase().includes(motF.toLowerCase())));
   }
+  /* CAÍDAS: se rankean por el desvío REAL emitido (prima/ajuste/bono/malus efectivamente
+     emitidos a la baja, sin pendientes), NO por la variación total de emisión (que podría
+     bajar solo porque un concepto está pendiente). Base común USD para que el Top sea fijo. */
+  const calcCaida = (x)=>{
+    const dr = desvioRealPoliza(x.p, mesCorte);
+    return (x.p.moneda==='US') ? dr.mUSD : (TC>0 ? dr.mARS/TC : dr.mARS);
+  };
   const mejoras = [...arr].sort((a,b)=>calcVar(b)-calcVar(a)).filter(x=>calcVar(x)>0).slice(0,5);
-  const caidas = [...arr].sort((a,b)=>calcVar(a)-calcVar(b)).filter(x=>calcVar(x)<0).slice(0,5);
+  const caidas = [...arr].sort((a,b)=>calcCaida(a)-calcCaida(b)).filter(x=>calcCaida(x)<-0.5).slice(0,5);
 
   const buildCard = (item, idx, esPos)=>{
-    const v = item._just.f26.totUSD - item._just.f25.totUSD;   /* variación USD */
-    const vAr = item._just.f26.totARS - item._just.f25.totARS; /* variación ARS */
+    /* CAÍDAS: el valor mostrado es el desvío REAL emitido (mismo criterio que el ranking);
+       MEJORAS: la variación total de emisión 2025→2026. */
+    const _dr = esPos ? null : desvioRealPoliza(item.p, mesCorte);
+    const v = _dr ? _dr.mUSD : (item._just.f26.totUSD - item._just.f25.totUSD);   /* variación USD */
+    const vAr = _dr ? _dr.mARS : (item._just.f26.totARS - item._just.f25.totARS); /* variación ARS */
     const pctU = item._just.f25.totUSD>0 ? FMT_PCT(v/item._just.f25.totUSD) : (item._just.f26.totUSD>0?'nuevo':'—');
     const pctA = item._just.f25.totARS>0 ? FMT_PCT(vAr/item._just.f25.totARS) : (item._just.f26.totARS>0?'nuevo':'—');
     /* Moneda a mostrar: unificada si se eligió una; si "Moneda Original", la propia. */
