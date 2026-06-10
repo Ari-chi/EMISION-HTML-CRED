@@ -847,7 +847,13 @@ function _excelEstimConcepto(p, ck, suf){
 function _excelEstimTotal(suf){
   if(!state._ejecProyEmis) return 0;
   const seen = new Set(); let tot = 0;
-  for(const k in state._ejecProyEmis){ const o = state._ejecProyEmis[k]; if(!o || seen.has(o)) continue; seen.add(o); const v = (suf==='u') ? o.usd : o.ars; if(isFinite(v)) tot += v; }
+  for(const k in state._ejecProyEmis){
+    const o = state._ejecProyEmis[k]; if(!o || seen.has(o)) continue; seen.add(o);
+    const base = (suf==='u') ? o.usd : o.ars;                                   /* prima+ajuste+malus */
+    const bono = o.c && o.c.bono ? ((suf==='u') ? o.c.bono.usd : o.c.bono.ars) : 0;
+    if(isFinite(base)) tot += base;
+    if(isFinite(bono)) tot -= Math.abs(bono);   /* el BONO SIEMPRE resta (nota de crédito) */
+  }
   return tot;
 }
 function parseProyEmis(rows){
@@ -3321,6 +3327,8 @@ function desglosePendientePorConcepto(polFiltradas, mesCorte){
       if(hasData){ grupo='mes'; vA = hasMA ? mA : exA; vU = hasMU ? mU : exU; }
       else if(pend25){ grupo='anio'; vA = pend25.ars; vU = pend25.usd; }
       else continue;   /* ni dato ni pendiente → nada */
+      /* El BONO es nota de crédito: SIEMPRE resta emisión (negativo). */
+      if(k==='bono'){ vA = -Math.abs(vA); vU = -Math.abs(vU); }
       if(!_contab[grupo]) continue;   /* grupo NO contabilizado → este concepto no suma */
       if(Math.abs(vA)<0.5 && Math.abs(vU)<0.5) continue;
       out[k].n++; out[k].totARS+=vA; out[k].totUSD+=vU;
@@ -3649,12 +3657,10 @@ function ejecJustificacion(S, useUSD, dual, useUSDprimary){
     const id = causa ? causa.id : null;
     const totSigned = causa ? (causa.vSigned!=null?causa.vSigned:causa.val) : p.val;
     const totColor = clickable
-      ? (id==='pend_bono' ? 'var(--pos)'
-        : ((causa.grupo==='pendiente'||id==='pendiente'||id==='perdidas') ? 'var(--neg)'
-          : (totSigned>0?'var(--pos)':'var(--neg)')))
+      ? ((causa.grupo==='pendiente'||id==='pendiente'||id==='perdidas') ? 'var(--neg)'
+          : (totSigned>0?'var(--pos)':'var(--neg)'))
       : 'var(--ink-3)';
-    const sgnLeg = id==='pend_bono' ? '+'
-      : (p.lbl==='Sin justificar' ? '−'
+    const sgnLeg = (p.lbl==='Sin justificar' ? '−'
         : (clickable && (causa.grupo==='pendiente'||id==='pendiente'||id==='perdidas') ? '−'
           : (totSigned>=0?'+':'−')));
     const nPolStr = causa && causa.n>0 ? ` <span style="color:var(--ink-3);font-weight:500;font-size:12.5px">· ${causa.n} pól.</span>` : '';
@@ -3791,8 +3797,8 @@ function ejecJustificacion(S, useUSD, dual, useUSDprimary){
     <div style="font-size:14px;color:var(--ink-2);margin-bottom:10px;font-weight:600">El desvío de <span style="font-size:21px;color:var(--neg);font-weight:700;font-family:var(--font-mono)">−${FMTc(dvAbs)}</span> se compone así:</div>
 
     ${causas.length>0 ? `
-    <div style="display:grid;grid-template-columns:minmax(220px,280px) 1fr;gap:22px;align-items:center;margin-bottom:8px">
-      <div style="width:100%;max-width:250px;justify-self:center"><canvas id="${pieIdDes}" style="max-height:240px"></canvas></div>
+    <div style="display:grid;grid-template-columns:minmax(330px,400px) 1fr;gap:48px;align-items:center;margin-bottom:8px">
+      <div style="width:100%;max-width:380px;justify-self:center"><canvas id="${pieIdDes}" style="max-height:340px"></canvas></div>
       <div>${leyendaDes}</div>
     </div>` : ''}
     ${(()=>{
@@ -3812,28 +3818,28 @@ function ejecJustificacion(S, useUSD, dual, useUSDprimary){
       const pctTxt = (d)=> presup ? `${sg(d)}${Math.round(Math.abs(d/presup*100))}%` : '';
       const combo = (emisLbl, emisVal, desvLbl, desvVal)=>{
         const dc = desvVal>=0?'var(--pos)':'var(--neg)';
-        return `<div style="background:var(--bg-2);border-radius:8px;padding:12px 14px;border-left:4px solid ${dc}">
-          <div style="display:flex;align-items:center;gap:12px;flex-wrap:wrap;margin-bottom:9px">
-            <div><div style="font-size:9.5px;color:var(--ink-3);text-transform:uppercase;letter-spacing:.03em;font-weight:700">Presupuesto 2026</div>
-              <div style="font-family:var(--font-mono);font-size:17px;font-weight:800;color:var(--accent)">${fv(presup)}</div></div>
-            <span style="font-size:18px;color:var(--ink-3);font-weight:800">→</span>
-            <div><div style="font-size:9.5px;color:var(--ink-3);text-transform:uppercase;letter-spacing:.03em;font-weight:700">${emisLbl}</div>
-              <div style="font-family:var(--font-mono);font-size:17px;font-weight:800;color:var(--ink-1)">${fv(emisVal)}</div></div>
+        return `<div style="background:var(--bg-2);border-radius:7px;padding:7px 10px;border-left:3px solid ${dc}">
+          <div style="display:flex;align-items:center;gap:9px;flex-wrap:wrap;margin-bottom:5px">
+            <div><div style="font-size:8.5px;color:var(--ink-3);text-transform:uppercase;letter-spacing:.02em;font-weight:700">Presupuesto 2026</div>
+              <div style="font-family:var(--font-mono);font-size:14px;font-weight:800;color:var(--accent)">${fv(presup)}</div></div>
+            <span style="font-size:14px;color:var(--ink-3);font-weight:800">→</span>
+            <div><div style="font-size:8.5px;color:var(--ink-3);text-transform:uppercase;letter-spacing:.02em;font-weight:700">${emisLbl}</div>
+              <div style="font-family:var(--font-mono);font-size:14px;font-weight:800;color:var(--ink-1)">${fv(emisVal)}</div></div>
           </div>
-          <div style="border-top:1px solid var(--line);padding-top:8px">
-            <div style="font-size:9.5px;color:var(--ink-3);text-transform:uppercase;letter-spacing:.03em;font-weight:700">${desvLbl}</div>
-            <div style="font-family:var(--font-mono);font-size:20px;font-weight:800;color:${dc}">${sg(desvVal)}${fv(desvVal)} <span style="font-size:13px">(${pctTxt(desvVal)})</span></div>
+          <div style="border-top:1px solid var(--line);padding-top:5px">
+            <div style="font-size:8.5px;color:var(--ink-3);text-transform:uppercase;letter-spacing:.02em;font-weight:700">${desvLbl}</div>
+            <div style="font-family:var(--font-mono);font-size:16px;font-weight:800;color:${dc}">${sg(desvVal)}${fv(desvVal)} <span style="font-size:11px">(${pctTxt(desvVal)})</span></div>
           </div>
         </div>`;
       };
-      const pendCard = `<div style="background:var(--bg-2);border-radius:8px;padding:12px 14px;border-left:4px solid var(--pos);display:flex;flex-direction:column;justify-content:center">
-        <div style="font-size:9.5px;color:var(--ink-3);text-transform:uppercase;letter-spacing:.03em;font-weight:700;margin-bottom:5px;line-height:1.3">Emisión pendiente<br>(se emite este mes)</div>
-        <div style="font-family:var(--font-mono);font-size:20px;font-weight:800;color:var(--pos)">+${fv(pend)}</div>
-        <div style="font-size:10px;color:var(--ink-3);margin-top:4px">Emisión estimada del Excel</div>
+      const pendCard = `<div style="background:var(--bg-2);border-radius:7px;padding:7px 10px;border-left:3px solid var(--pos);display:flex;flex-direction:column;justify-content:center">
+        <div style="font-size:8.5px;color:var(--ink-3);text-transform:uppercase;letter-spacing:.02em;font-weight:700;margin-bottom:3px;line-height:1.25">Emisión pendiente (se emite este mes)</div>
+        <div style="font-family:var(--font-mono);font-size:16px;font-weight:800;color:var(--pos)">+${fv(pend)}</div>
+        <div style="font-size:9px;color:var(--ink-3);margin-top:2px">Emisión estimada del Excel</div>
       </div>`;
-      return `<div style="margin-top:10px;border-top:1px solid var(--line);padding-top:10px">
-        <div style="font-size:12.5px;font-weight:800;color:var(--accent-3);text-transform:uppercase;letter-spacing:.04em;margin-bottom:8px">Comparación de desvíos</div>
-        <div style="display:grid;grid-template-columns:1.25fr 0.7fr 1.25fr;gap:10px;align-items:stretch">
+      return `<div style="margin-top:8px;border-top:1px solid var(--line);padding-top:8px">
+        <div style="font-size:11.5px;font-weight:800;color:var(--accent-3);text-transform:uppercase;letter-spacing:.04em;margin-bottom:6px">Comparación de desvíos</div>
+        <div style="display:grid;grid-template-columns:1.25fr 0.7fr 1.25fr;gap:9px;align-items:stretch">
           ${combo('Emisión 2026', emisReal, 'Desvío real', desvReal)}
           ${pendCard}
           ${combo('Emisión + pendiente', emisProy, 'Desvío con emisión pendiente', desvProy)}
@@ -5562,6 +5568,8 @@ window.toggleEjecCausa = function(id){
       let eff;
       if(seEmite){ if(!data) continue; eff = hasManual ? manual : excelV; }
       else { if(data) continue; eff = auto; }
+      /* El BONO es nota de crédito: SIEMPRE resta (negativo). */
+      if(CK==='bono') eff = -Math.abs(eff);
       if(Math.abs(eff)<0.5) continue;
       items.push({r:p, hasManual, eff});
     }
