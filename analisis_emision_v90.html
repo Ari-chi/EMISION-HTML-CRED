@@ -2069,12 +2069,17 @@ function estadoPolizaConsolidado(p, mesCorte){
 state.sectionFilters = {};
 function getSectionFilters(sectionId){
   if(!state.sectionFilters[sectionId]){
-    state.sectionFilters[sectionId] = {mes: 0, universo:'todos', cur:'dual', segmento:'all', polNuevas:'incluir', anualAnt:'incluir', tc:null};
+    state.sectionFilters[sectionId] = {mes: 0, universo:'todos', cur:'dual', segmento:'all', polNuevas:'incluir', anualAnt:'incluir', tc:null, proy:0};
   }
   /* Compat: si el filtro existía sin polNuevas/anualAnt, agregarlo */
   if(!state.sectionFilters[sectionId].polNuevas) state.sectionFilters[sectionId].polNuevas = 'incluir';
   if(!state.sectionFilters[sectionId].anualAnt) state.sectionFilters[sectionId].anualAnt = 'excluir';
   if(!('tc' in state.sectionFilters[sectionId])) state.sectionFilters[sectionId].tc = null;
+  if(!('proy' in state.sectionFilters[sectionId])) state.sectionFilters[sectionId].proy = 0;
+  /* UNIFICADO (pedido del usuario): el "Mes de corte" es UNO solo. El acumulado (f.mes) que
+     filtra AMBOS años sigue al mes de corte global (state.globalMes2026). Así un único botón
+     fija "dónde estamos parados" (2026) Y "acumular 2025/2026 hasta ese mes". */
+  state.sectionFilters[sectionId].mes = state.globalMes2026 || 0;
   return state.sectionFilters[sectionId];
 }
 /* Builder del HTML del bar de filtros — se monta en la cabecera de cada sección */
@@ -2109,41 +2114,39 @@ function sectionFiltersBarHTML(sectionId, opts={}){
   const MESES_OP_G = [{value:'0',label:'Todo el año'}].concat(MESES.map((m,i)=>({value:String(i+1),label:m})));
   setCur(gMesId, String(state.globalMes2026||0));
 
-  /* Modo mínimo: solo los filtros de fecha (1° Mes Corte y 2° Acumulado). */
+  /* Modo mínimo: solo el filtro de fecha unificado (mes de corte = acumulado 2025/2026). */
   if(opts.minimal){
     return `<div class="sf-bar" data-sf="${sectionId}">
       <div class="sf-cols">
         <div class="sf-col">
           <div class="sf-group">
-            <span class="sf-lbl">1° Mes Corte 2026 <span style="color:var(--ink-3);font-style:italic;font-weight:400;text-transform:none;letter-spacing:0;margin-left:3px;font-size:8.5px">(solo 2026)</span></span>
+            <span class="sf-lbl">1° Mes de corte 2026 <span style="color:var(--ink-3);font-style:italic;font-weight:400;text-transform:none;letter-spacing:0;margin-left:3px;font-size:8.5px">(acumula 2025/2026)</span></span>
             <select id="${gMesId}" class="sf-select">${MESES_OP_G.map(o=>`<option value="${o.value}"${String(state.globalMes2026||0)===o.value?' selected':''}>${o.label}</option>`).join('')}</select>
-          </div>
-          <div class="sf-group">
-            <span class="sf-lbl">2° Acumulado hasta <span style="color:var(--ink-3);font-style:italic;font-weight:400;text-transform:none;letter-spacing:0;margin-left:3px;font-size:8.5px">(ambos años)</span></span>
-            <select id="${mesId}" class="sf-select">${MESES_OP.map(o=>`<option value="${o.value}"${String(f.mes)===o.value?' selected':''}>${o.label}</option>`).join('')}</select>
           </div>
         </div>
       </div>
     </div>`;
   }
 
+  const proyId = `${sectionId}_SF_proy`;
   return `<div class="sf-bar" data-sf="${sectionId}">
     ${gMesBanner}
     <div class="sf-cols">
       <div class="sf-col">
         <div class="sf-group">
-          <span class="sf-lbl">1° Mes Corte 2026 <span style="color:var(--ink-3);font-style:italic;font-weight:400;text-transform:none;letter-spacing:0;margin-left:3px;font-size:8.5px">(solo 2026)</span></span>
+          <span class="sf-lbl">1° Mes de corte 2026 <span style="color:var(--ink-3);font-style:italic;font-weight:400;text-transform:none;letter-spacing:0;margin-left:3px;font-size:8.5px">(acumula 2025/2026)</span></span>
           <select id="${gMesId}" class="sf-select">${MESES_OP_G.map(o=>`<option value="${o.value}"${String(state.globalMes2026||0)===o.value?' selected':''}>${o.label}</option>`).join('')}</select>
         </div>
         <div class="sf-group">
-          <span class="sf-lbl">2° Acumulado hasta <span style="color:var(--ink-3);font-style:italic;font-weight:400;text-transform:none;letter-spacing:0;margin-left:3px;font-size:8.5px">(ambos años)</span></span>
-          <select id="${mesId}" class="sf-select">${MESES_OP.map(o=>`<option value="${o.value}"${String(f.mes)===o.value?' selected':''}>${o.label}</option>`).join('')}</select>
+          <span class="sf-lbl">2° Proyecciones <span style="color:var(--ink-3);font-style:italic;font-weight:400;text-transform:none;letter-spacing:0;margin-left:3px;font-size:8.5px">(mes)</span></span>
+          <select id="${proyId}" class="sf-select">${MESES_OP.map(o=>`<option value="${o.value}"${String(f.proy||0)===o.value?' selected':''}>${o.label}</option>`).join('')}</select>
         </div>
       </div>
       <div class="sf-col">
         <div class="sf-group">
-          <span class="sf-lbl">3° Universo</span>
-          ${viewToggleHTML(univId,[{value:'todos',label:'Todas las pólizas'},{value:'emit26',label:'Emitidas 2026'}],f.universo)}
+          <span class="sf-lbl">3° TC <span style="color:var(--ink-3);font-style:italic;font-weight:400;text-transform:none;letter-spacing:0;margin-left:3px;font-size:8.5px">(Pendiente)</span></span>
+          <input type="number" id="${sectionId}_SF_tc" min="0" step="any" placeholder="1400" value="${(f.tc!=null && f.tc>0)?f.tc:''}"
+            style="width:72px;padding:2px 6px;font-family:var(--font-mono);font-size:10.5px;border:1px solid var(--line-2);border-radius:5px;color:var(--ink);background:var(--panel)" />
         </div>
         <div class="sf-group">
           <span class="sf-lbl">4° Moneda${curDisabledNote}</span>
@@ -2162,9 +2165,8 @@ function sectionFiltersBarHTML(sectionId, opts={}){
           ${viewToggleHTML(aantId,[{value:'incluir',label:'Sí'},{value:'excluir',label:'No'}],f.anualAnt||'incluir')}
         </div>
         <div class="sf-group">
-          <span class="sf-lbl">7° TC <span style="color:var(--ink-3);font-style:italic;font-weight:400;text-transform:none;letter-spacing:0;margin-left:3px;font-size:8.5px">(Pendiente)</span></span>
-          <input type="number" id="${sectionId}_SF_tc" min="0" step="any" placeholder="1400" value="${(f.tc!=null && f.tc>0)?f.tc:''}"
-            style="width:72px;padding:2px 6px;font-family:var(--font-mono);font-size:10.5px;border:1px solid var(--line-2);border-radius:5px;color:var(--ink);background:var(--panel)" />
+          <span class="sf-lbl">7° Universo</span>
+          ${viewToggleHTML(univId,[{value:'todos',label:'Todas las pólizas'},{value:'emit26',label:'Emitidas 2026'}],f.universo)}
         </div>
       </div>
     </div>
@@ -2181,19 +2183,23 @@ function bindSectionFilters(sectionId, onChange){
   const segId  = `${sectionId}_SF_segmento`;
   const nuevId = `${sectionId}_SF_polNuevas`;
   const aantId = `${sectionId}_SF_anualAnt`;
+  const proyId = `${sectionId}_SF_proy`;
   const trigger = ()=>{
     const f = getSectionFilters(sectionId);
-    const _mSel = document.getElementById(mesId);
-    f.mes = _mSel ? (parseInt(_mSel.value,10)||0) : (parseInt(getCur(mesId,'0'),10)||0);
+    /* f.mes (acumulado) sigue al mes de corte unificado (getSectionFilters ya lo deriva de
+       state.globalMes2026). */
     f.universo = getCur(univId,'todos');
     f.cur = getCur(curId,'dual');
-    f.segmento = 'all'; /* 5° Segmento eliminado: siempre todas las monedas */
+    f.segmento = 'all'; /* Segmento eliminado: siempre todas las monedas */
     f.polNuevas = getCur(nuevId,'incluir');
     f.anualAnt = getCur(aantId,'excluir');
+    const _pSel = document.getElementById(proyId);
+    if(_pSel) f.proy = parseInt(_pSel.value,10)||0;
     if(onChange) onChange(f);
   };
-  /* 1° Mes Corte 2026 (desplegable) — afecta a TODAS las secciones (state.globalMes2026).
-     Cualquier cambio dispara un re-render completo para mantener todo en sincro. */
+  /* 1° Mes de corte 2026 UNIFICADO (desplegable) — un solo botón que fija "dónde estamos
+     parados" (2026) Y el acumulado de AMBOS años hasta ese mes. Afecta a todas las secciones
+     (state.globalMes2026) y dispara un re-render completo. */
   const gSel = document.getElementById(gMesId);
   if(gSel) gSel.addEventListener('change', ()=>{
     const v = parseInt(gSel.value,10) || 0;
@@ -2205,9 +2211,9 @@ function bindSectionFilters(sectionId, onChange){
     setCur('GLOBAL_mes', String(v));
     if(typeof renderAll==='function') renderAll();
   });
-  /* 2° Acumulado hasta (desplegable) */
-  const mSel = document.getElementById(mesId);
-  if(mSel) mSel.addEventListener('change', trigger);
+  /* 2° Proyecciones (desplegable de mes) */
+  const pSel = document.getElementById(proyId);
+  if(pSel) pSel.addEventListener('change', trigger);
   bindCur(univId, trigger);
   bindCur(curId, trigger);
   bindCur(segId, trigger);
