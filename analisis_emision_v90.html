@@ -3956,7 +3956,10 @@ function ejecJustificacion(S, useUSD, dual, useUSDprimary){
       mk('perdidas',APP_CONFIG.textos.perdidas, mkVal(cnt.perdidas), cnt.perdidas.n, APP_CONFIG.colores.perdidas),
       mk('menor',APP_CONFIG.textos.menor || 'Menor Emisión', menorSigned, menorN, APP_CONFIG.colores.abm),
     /* Los pendientes (amarillo/celeste) siempre figuran aunque su valor sea 0. */
-    ].filter(c=>c.val>1 || c.grupo==='pendiente');
+    ].filter(c=>c.val>1 || c.grupo==='pendiente')
+     /* Orden DESCENDENTE por magnitud (pedido del usuario). "Sin justificar" no está acá: se
+        agrega siempre al final (en piePartes). */
+     .sort((a,b)=>Math.abs(b.val)-Math.abs(a.val));
   } else {
     const mk = (id,lbl,vSigned,n,col)=>({id,lbl,val:Math.abs(vSigned),vSigned,n,col});
     causas = [
