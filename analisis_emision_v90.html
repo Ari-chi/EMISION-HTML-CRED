@@ -493,7 +493,7 @@ h4.section-title{margin:14px 0 8px 0;font-size:13px;color:var(--accent-3);font-w
 <body>
 <header class="header">
   <div class="brand">
-    <h1>Emisión <em>2025 vs 2026</em></h1>
+    <h1>Emisión <em>Comercial Créditos</em></h1>
   </div>
   <div class="header-meta">
     <!-- Botón compacto del Mes de Corte Global — ahora vive como "1° Mes Corte 2026"
@@ -3410,7 +3410,7 @@ function ejecFlujo(S, useUSD){
               <div style="font-size:11.5px;color:${c};text-transform:uppercase;letter-spacing:.03em;font-weight:800">${titulo} <span style="font-size:9.5px;color:var(--ink-3);font-weight:600;text-transform:none;letter-spacing:0">${sub}</span></div>
               <div style="display:flex;align-items:baseline;gap:8px;margin-top:2px">
                 <span style="font-size:20px;font-weight:800;color:${c};font-family:var(--font-mono)">${neg?'−':'+'}${FMTc(Math.abs(val))}</span>
-                <span style="font-size:13px;font-weight:800;color:${c};font-family:var(--font-mono)">${pct!=null?'('+(pct>0?'−':'+')+Math.abs(pct).toFixed(1)+'%)':''}</span>
+                <span style="font-size:13px;font-weight:800;color:${c};font-family:var(--font-mono)">${pct!=null?'('+(pct>0?'−':'+')+Math.abs(pct).toFixed(0)+'%)':''}</span>
               </div>
             </div>`;
           };
