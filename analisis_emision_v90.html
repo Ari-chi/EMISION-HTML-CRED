@@ -3816,6 +3816,10 @@ function ejecJustificacion(S, useUSD, dual, useUSDprimary){
     const _confV = _ejecContabOn('pend_conf','mes') ? _conf.total : 0;   /* toggle Contabilizar */
     const _presV = _ejecContabOn('pend_presup','mes') ? _pres.total : 0;
     const _p25V  = _ejecContabOn('pend_2025','mes') ? _p25.total : 0;
+    /* Hoist para la "Comparación de desvíos": se emite este mes (Emisión Confirmada) y hasta fin
+       de año (los 3 pendientes contabilizados). */
+    state._ejecPendVals = state._ejecPendVals || {};
+    state._ejecPendVals[_sufp] = {conf:_confV, pres:_presV, p25:_p25V};
     causas = [
       mk('pend_conf','Pendiente - Emisión Confirmada', _confV, _conf.n, '#ffd54a','pendiente'),
       mk('pend_presup','Pendiente - Proyección Arg.', _presV, _pres.n, APP_CONFIG.colores.pendiente,'pendiente'),
@@ -4165,52 +4169,49 @@ function ejecJustificacion(S, useUSD, dual, useUSDprimary){
       <div>${leyendaDes}</div>
     </div>` : ''}
     ${(()=>{
-      /* COMPARACIÓN DE DESVÍOS en 3 cuadros:
-         1) HOY: Presupuesto → Emisión 2026, y Desvío real (con % de variación).
-         2) Emisión pendiente (se emite este mes) = "Emisión estimada" del Excel (AF–AH).
-         3) PROYECTADO: Presupuesto → Emisión + pendiente, y Desvío resultante (con %). */
+      /* COMPARACIÓN DE DESVÍOS (formato tipo "Resumen"): IZQUIERDA = presupuesto + emisión real;
+         MEDIO (verde) = pendiente que SE EMITE ESTE MES (Emisión Confirmada) y pendiente HASTA FIN
+         DE AÑO (Emisión Confirmada + Proyección Arg. + Comparación 2025); DERECHA = desvío resultante
+         de sumar cada pendiente a la emisión real. */
       const sufx = useUSD?'u':'a';
       const presup = S.presup26 || 0;
       const emisReal = S.emis26 || 0;
-      const pend = _excelEstimContab(sufx);         /* Excel filas 19–190, por concepto contabilizado */
-      const emisProy = emisReal + pend;
-      const desvReal = emisReal - presup;           /* negativo si no se alcanzó el presupuesto */
-      const desvProy = emisProy - presup;
-      const presupEmi = S.presup26_emi || 0;         /* presupuesto hasta el último mes con emisión */
+      const pv = (state._ejecPendVals && state._ejecPendVals[sufx]) || {conf:0,pres:0,p25:0};
+      const pendMes  = pv.conf;                         /* se emite este mes = Emisión Confirmada */
+      const pendAnio = pv.conf + pv.pres + pv.p25;      /* hasta fin de año = los 3 pendientes */
+      const desvMes  = (emisReal + pendMes)  - presup;  /* desvío sumando lo de este mes */
+      const desvAnio = (emisReal + pendAnio) - presup;  /* desvío sumando todo lo pendiente */
       const _mLast  = (S.lastEmis26>0) ? MESES[S.lastEmis26-1] : '—';
       const _mCorte = (S.mesCorteSet>0) ? MESES[S.mesCorteSet-1] : 'Dic';
       const fv = (v)=>FMTc(Math.abs(v));
-      const sg = (v)=> v>0?'+':(v<0?'−':'');
-      /* 2 desvíos: a la fecha (hasta el último mes con emisión real) y hasta el mes de corte. */
-      const combo = (budLbl, budgetVal, emisLbl, emisVal, desvLbl, desvVal)=>{
-        const dc = desvVal>=0?'var(--pos)':'var(--neg)';
-        const pct = budgetVal ? `${desvVal>0?'+':'−'}${Math.round(Math.abs(desvVal/budgetVal*100))}%` : '';
-        return `<div style="background:var(--bg-2);border-radius:8px;padding:9px 12px;border-left:4px solid ${dc}">
-          <div style="display:flex;align-items:center;gap:10px;flex-wrap:wrap;margin-bottom:7px">
-            <div><div style="font-size:9px;color:var(--ink-3);text-transform:uppercase;letter-spacing:.02em;font-weight:700">${budLbl}</div>
-              <div style="font-family:var(--font-mono);font-size:16px;font-weight:800;color:var(--ink-1)">${fv(budgetVal)}</div></div>
-            <span style="font-size:16px;color:var(--ink-3);font-weight:800">→</span>
-            <div><div style="font-size:9px;color:var(--ink-3);text-transform:uppercase;letter-spacing:.02em;font-weight:700">${emisLbl}</div>
-              <div style="font-family:var(--font-mono);font-size:16px;font-weight:800;color:var(--accent)">${fv(emisVal)}</div></div>
-          </div>
-          <div style="border-top:1px solid var(--line);padding-top:6px">
-            <div style="font-size:9px;color:var(--ink-3);text-transform:uppercase;letter-spacing:.02em;font-weight:700">${desvLbl}</div>
-            <div style="font-family:var(--font-mono);font-size:18px;font-weight:800;color:${dc}">${sg(desvVal)}${fv(desvVal)} <span style="font-size:12px">(${pct})</span></div>
-          </div>
-        </div>`;
-      };
-      const pendCard = `<div style="background:rgba(45,155,106,.08);border-radius:8px;padding:9px 12px;border-left:4px solid var(--pos);display:flex;flex-direction:column;justify-content:center;align-items:center;text-align:center">
-        <div style="font-size:9px;color:var(--ink-3);text-transform:uppercase;letter-spacing:.02em;font-weight:700;line-height:1.25;margin-bottom:4px">Emisión pendiente<br>(se emite este mes)</div>
-        <div style="font-family:var(--font-mono);font-size:22px;font-weight:800;color:var(--pos)">+${fv(pend)}</div>
-      </div>`;
+      const card = (bg,fg,lbl,sub,inner)=>`<div style="flex:1;background:${bg};border-radius:10px;padding:8px 13px;display:flex;flex-direction:column;justify-content:center">
+        <div style="font-size:11.5px;color:${fg};text-transform:uppercase;letter-spacing:.03em;font-weight:800">${lbl}${sub?` <span style="font-size:9.5px;color:var(--ink-3);font-weight:600;text-transform:none;letter-spacing:0">${sub}</span>`:''}</div>
+        ${inner}</div>`;
+      const valDiv = (color,txt)=>`<div style="font-size:20px;font-weight:800;color:${color};line-height:1;font-family:var(--font-mono);margin-top:3px">${txt}</div>`;
+      const cardBlue = (lbl,sub,val)=> card('rgba(30,111,217,.10)','var(--accent)',lbl,sub, valDiv('var(--accent-3)',FMTc(val)));
+      const cardGreen = (lbl,sub,val)=> card('rgba(45,155,106,.10)','var(--pos)',lbl,sub, valDiv('var(--pos)','+'+fv(val)));
+      const cardDesv = (lbl,sub,val)=>{ const neg=val<0; const c=neg?'var(--neg)':'var(--pos)';
+        const pct = presup ? `(${neg?'−':'+'}${Math.round(Math.abs(val/presup*100))}%)` : '';
+        const inner = `<div style="display:flex;align-items:baseline;gap:8px;margin-top:2px"><span style="font-size:20px;font-weight:800;color:${c};font-family:var(--font-mono)">${neg?'−':'+'}${fv(val)}</span><span style="font-size:13px;font-weight:800;color:${c};font-family:var(--font-mono)">${pct}</span></div>`;
+        return card(neg?'rgba(217,71,71,.10)':'rgba(45,155,106,.10)', c, lbl, sub, inner); };
+      const flecha = (s)=>`<div style="display:flex;align-items:center;color:var(--ink-3);font-size:24px;font-weight:300">${s}</div>`;
       return `<div style="margin-top:8px;border-top:1px solid var(--line);padding-top:8px">
         <div style="font-size:11.5px;font-weight:800;color:var(--accent-3);text-transform:uppercase;letter-spacing:.04em;margin-bottom:8px">Comparación de desvíos</div>
-        <div style="display:grid;grid-template-columns:1.25fr auto 0.7fr auto 1.25fr;gap:10px;align-items:center">
-          ${combo('Presup. a '+_mLast, presupEmi, 'Emisión 2026', emisReal, 'Desvío a la fecha', emisReal-presupEmi)}
-          <span style="font-size:24px;color:var(--ink-3);font-weight:800">→</span>
-          ${pendCard}
-          <span style="font-size:24px;color:var(--ink-3);font-weight:800">→</span>
-          ${combo('Presup. a '+_mCorte, presup, 'Emisión + pendiente', emisProy, 'Desvío hasta corte', desvProy)}
+        <div style="display:flex;align-items:stretch;gap:8px">
+          <div style="flex:1.05;display:flex;flex-direction:column;gap:6px">
+            ${cardBlue('Presupuesto Hasta '+_mCorte,'',presup)}
+            ${cardBlue('Emisión Real 2026','(hasta '+_mLast+')',emisReal)}
+          </div>
+          ${flecha('+')}
+          <div style="flex:1.15;display:flex;flex-direction:column;gap:6px">
+            ${cardGreen('Pendiente · se emite este mes','',pendMes)}
+            ${cardGreen('Pendiente · hasta fin de año','(confirmada + proyección + comp. 2025)',pendAnio)}
+          </div>
+          ${flecha('=')}
+          <div style="flex:1.15;display:flex;flex-direction:column;gap:6px">
+            ${cardDesv('Desvío · se emite este mes','',desvMes)}
+            ${cardDesv('Desvío · hasta fin de año','',desvAnio)}
+          </div>
         </div>
       </div>`;
     })()}
