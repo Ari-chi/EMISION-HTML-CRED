@@ -2240,7 +2240,6 @@ function sectionFiltersBarHTML(sectionId, opts={}){
     </div>`;
   }
 
-  const proyId = `${sectionId}_SF_proy`;
   return `<div class="sf-bar" data-sf="${sectionId}">
     ${gMesBanner}
     <div class="sf-cols">
@@ -2250,8 +2249,8 @@ function sectionFiltersBarHTML(sectionId, opts={}){
           <select id="${gMesId}" class="sf-select">${MESES_OP_G.map(o=>`<option value="${o.value}"${String(state.globalMes2026||0)===o.value?' selected':''}>${o.label}</option>`).join('')}</select>
         </div>
         <div class="sf-group">
-          <span class="sf-lbl">2° Proyecciones <span style="color:var(--ink-3);font-style:italic;font-weight:400;text-transform:none;letter-spacing:0;margin-left:3px;font-size:8.5px">(mes)</span></span>
-          <select id="${proyId}" class="sf-select">${MESES_OP.map(o=>`<option value="${o.value}"${String(f.proy||0)===o.value?' selected':''}>${o.label}</option>`).join('')}</select>
+          <span class="sf-lbl">2° Moneda${curDisabledNote}</span>
+          ${curToggleHTML(curId,{def:f.cur, dualLabel})}
         </div>
       </div>
       <div class="sf-col">
@@ -2261,23 +2260,17 @@ function sectionFiltersBarHTML(sectionId, opts={}){
             style="width:72px;padding:2px 6px;font-family:var(--font-mono);font-size:10.5px;border:1px solid var(--line-2);border-radius:5px;color:var(--ink);background:var(--panel)" />
         </div>
         <div class="sf-group">
-          <span class="sf-lbl">4° Moneda${curDisabledNote}</span>
-          ${curToggleHTML(curId,{def:f.cur, dualLabel})}
-        </div>
-      </div>
-      <div class="sf-col">
-        <div class="sf-group">
-          <span class="sf-lbl">5° Pólizas nuevas 25/26</span>
+          <span class="sf-lbl">4° Pólizas nuevas 25/26</span>
           ${viewToggleHTML(nuevId,[{value:'incluir',label:'Sí'},{value:'excluir',label:'No'}],f.polNuevas||'incluir')}
         </div>
       </div>
       <div class="sf-col">
         <div class="sf-group">
-          <span class="sf-lbl">6° "Anualidad Anterior" 2026</span>
+          <span class="sf-lbl">5° "Anualidad Anterior" 2026</span>
           ${viewToggleHTML(aantId,[{value:'incluir',label:'Sí'},{value:'excluir',label:'No'}],f.anualAnt||'incluir')}
         </div>
         <div class="sf-group">
-          <span class="sf-lbl">7° Universo</span>
+          <span class="sf-lbl">6° Universo</span>
           ${viewToggleHTML(univId,[{value:'todos',label:'Todas las pólizas'},{value:'emit26',label:'Emitidas 2026'}],f.universo)}
         </div>
       </div>
@@ -2295,7 +2288,6 @@ function bindSectionFilters(sectionId, onChange){
   const segId  = `${sectionId}_SF_segmento`;
   const nuevId = `${sectionId}_SF_polNuevas`;
   const aantId = `${sectionId}_SF_anualAnt`;
-  const proyId = `${sectionId}_SF_proy`;
   const trigger = ()=>{
     const f = getSectionFilters(sectionId);
     /* f.mes (acumulado) sigue al mes de corte unificado (getSectionFilters ya lo deriva de
@@ -2305,8 +2297,6 @@ function bindSectionFilters(sectionId, onChange){
     f.segmento = 'all'; /* Segmento eliminado: siempre todas las monedas */
     f.polNuevas = getCur(nuevId,'incluir');
     f.anualAnt = getCur(aantId,'excluir');
-    const _pSel = document.getElementById(proyId);
-    if(_pSel) f.proy = parseInt(_pSel.value,10)||0;
     if(onChange) onChange(f);
   };
   /* 1° Mes de corte 2026 UNIFICADO (desplegable) — un solo botón que fija "dónde estamos
@@ -2323,9 +2313,6 @@ function bindSectionFilters(sectionId, onChange){
     setCur('GLOBAL_mes', String(v));
     if(typeof renderAll==='function') renderAll();
   });
-  /* 2° Proyecciones (desplegable de mes) */
-  const pSel = document.getElementById(proyId);
-  if(pSel) pSel.addEventListener('change', trigger);
   bindCur(univId, trigger);
   bindCur(curId, trigger);
   bindCur(segId, trigger);
