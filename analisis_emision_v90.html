@@ -7037,7 +7037,15 @@ function drawEjecChartMensual(canvasId, polArr, presArr, mesCorte, useUSD, showE
         meta.data.forEach((el, i)=>{
           const v = ds.data[i];
           if(v==null || v===0) return;
-          items.push({x:el.x, ly:(el.y - (isLine?13:6)), text:fmtCompact(v,useUSD),
+          /* La etiqueta de la LÍNEA Presupuesto se ubica ARRIBA de la barra del mes (no adentro),
+             para que no se confunda con el valor de la barra (ej. Jun: $876M presupuesto vs la
+             barra amarilla de Proyección Actualizada). */
+          let ly = el.y - (isLine?13:6);
+          if(isLine){
+            const barTopY = chart.scales.y.getPixelForValue(_stackTot[i]||0);
+            ly = Math.min(el.y, barTopY) - 13;
+          }
+          items.push({x:el.x, ly, text:fmtCompact(v,useUSD),
                       color:colorOf(ds.label), font:'700 9.5px Calibri'});
         });
       });
