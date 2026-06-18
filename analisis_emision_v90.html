@@ -822,7 +822,7 @@ function readExcel(file){
       parsePresupArg(_findSheet(/presup/));   /* formato antiguo */
     }
     state._presupArg.ok = state._presupArg.rows.length>0;
-    parseGrupos(_findSheet(/grupos/));   /* hoja "Grupos": Póliza → Grupo económico (para Top 10) */
+    parseGrupos(wb);   /* hoja "Grupos" (o cualquiera con columnas Póliza + Grupo): Póliza → Grupo económico */
     aggregatePolizas();
     renderAll();
     document.getElementById('tabsWrap').style.display='block';
@@ -1087,15 +1087,22 @@ function parseInsur(rows){
 }
 
 /* Hoja "Grupos": mapea Póliza → Grupo económico (cols: Nombre Asegurado · Póliza · Grupo).
-   Varias pólizas pueden compartir grupo; se usa en el Top 10 para sumar la prima por grupo. */
-function parseGrupos(ws){
+   Varias pólizas pueden compartir grupo; se usa en el Top 10 para sumar la prima por grupo.
+   Recibe el workbook y busca la hoja por nombre (/grupos/) o por contenido (columnas Póliza+Grupo). */
+function parseGrupos(wb){
   state._grupos = {};
-  if(!ws || !ws['!ref']) return;
-  const range=XLSX.utils.decode_range(ws['!ref']);
-  const getv=(r,c)=>{ const cell=ws[XLSX.utils.encode_cell({r,c})]; return cell?cell.v:null; };
-  let cPol=-1,cGr=-1;
-  for(let c=range.s.c;c<=range.e.c;c++){ const h=_accent(getv(0,c)); if(h==='poliza') cPol=c; else if(h==='grupo') cGr=c; }
-  if(cPol<0||cGr<0) return;
+  if(!wb || !wb.SheetNames) return;
+  const colsDe = (ws)=>{ if(!ws||!ws['!ref']) return null; const range=XLSX.utils.decode_range(ws['!ref']);
+    const getv=(r,c)=>{ const cell=ws[XLSX.utils.encode_cell({r,c})]; return cell?cell.v:null; };
+    let cPol=-1,cGr=-1; for(let c=range.s.c;c<=range.e.c;c++){ const h=_accent(getv(0,c)); if(h==='poliza') cPol=c; else if(h==='grupo') cGr=c; }
+    return (cPol>=0&&cGr>=0) ? {ws,range,getv,cPol,cGr} : null; };
+  /* 1) por nombre; 2) por contenido (cualquier hoja con columnas Póliza + Grupo). */
+  let found=null;
+  const byName = wb.SheetNames.find(n=>/grupos/.test(_accent(n)));
+  if(byName) found = colsDe(wb.Sheets[byName]);
+  if(!found){ for(const n of wb.SheetNames){ const f=colsDe(wb.Sheets[n]); if(f){ found=f; break; } } }
+  if(!found) return;
+  const {range,getv,cPol,cGr}=found;
   for(let r=1;r<=range.e.r;r++){
     const pol=getv(r,cPol), gr=getv(r,cGr); if(pol==null||gr==null||String(gr).trim()==='') continue;
     const k=_digitsKey(pol); if(k) state._grupos[k]=String(gr).trim();
