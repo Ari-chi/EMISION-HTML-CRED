@@ -3606,11 +3606,11 @@ function ejecFlujo(S, useUSD){
     <div style="display:flex;align-items:stretch;gap:8px">
       <div style="flex:1;display:flex;flex-direction:column;gap:6px;justify-content:center">
         <div style="flex:1;background:rgba(30,111,217,.10);border-radius:10px;padding:8px 13px;display:flex;flex-direction:column;justify-content:center">
-          <div style="font-size:11.5px;color:var(--accent);text-transform:uppercase;letter-spacing:.03em;font-weight:800">Presupuesto Acumulado <span style="font-size:9.5px;color:var(--ink-3);font-weight:600;text-transform:none;letter-spacing:0">(hasta ${_mLast})</span></div>
+          <div style="font-size:11.5px;color:var(--accent);text-transform:uppercase;letter-spacing:.03em;font-weight:800">Presupuesto Acumulado · ${_mLast}</div>
           <div style="font-size:20px;font-weight:800;color:var(--accent-3);line-height:1;font-family:var(--font-mono);margin-top:3px">${FMTc(S.presup26_emi)}</div>
         </div>
         <div style="flex:1;background:rgba(30,111,217,.10);border-radius:10px;padding:8px 13px;display:flex;flex-direction:column;justify-content:center">
-          <div style="font-size:11.5px;color:var(--accent);text-transform:uppercase;letter-spacing:.03em;font-weight:800">Presupuesto Acumulado <span style="font-size:9.5px;color:var(--ink-3);font-weight:600;text-transform:none;letter-spacing:0">(hasta ${_mCorte})</span></div>
+          <div style="font-size:11.5px;color:var(--accent);text-transform:uppercase;letter-spacing:.03em;font-weight:800">Presupuesto Acumulado · ${_mCorte}</div>
           <div style="font-size:20px;font-weight:800;color:var(--accent-3);line-height:1;font-family:var(--font-mono);margin-top:3px">${FMTc(S.presup26)}</div>
         </div>
       </div>
@@ -3619,8 +3619,8 @@ function ejecFlujo(S, useUSD){
         <div style="${tituloCardCss('var(--pos)')}">Emisión Real 2026 <span style="font-size:11px;color:var(--pos)">▾</span></div>
         <div style="font-size:22px;font-weight:800;color:var(--pos);line-height:1;font-family:var(--font-mono);margin-top:4px">${FMTc(S.emis26)}</div>
         ${(()=>{ const cumplEmi = S.presup26_emi>0 ? S.emis26/S.presup26_emi : null;
-          const linea = (pct,sub)=>`<div style="font-size:17px;font-weight:800;color:var(--pos);margin-top:7px;font-family:var(--font-mono)">${pct!=null?Math.round(pct*100)+'%':'—'}<span style="font-size:11px;font-weight:600;margin-left:4px">del objetivo <span style="color:var(--ink-3);font-size:9.5px">${sub}</span></span></div>`;
-          return linea(cumplEmi,'(hasta '+_mLast+')') + linea(S.cumpl,'(hasta '+_mCorte+')');
+          const linea = (pct,sub)=>`<div style="font-size:17px;font-weight:800;color:var(--pos);margin-top:7px;font-family:var(--font-mono)">${pct!=null?Math.round(pct*100)+'%':'—'}<span style="font-size:11px;font-weight:600;margin-left:4px">del objetivo · ${sub}</span></div>`;
+          return linea(cumplEmi,_mLast) + linea(S.cumpl,_mCorte);
         })()}
         ${_bubbleHTML}
       </div>
@@ -3632,15 +3632,15 @@ function ejecFlujo(S, useUSD){
           const subCard = (titulo, sub, val, pct)=>{
             const neg = val>0; const c = neg?'var(--neg)':'var(--pos)';
             return `<div style="flex:1;background:${neg?'rgba(217,71,71,.10)':'rgba(45,155,106,.10)'};border-radius:10px;padding:8px 13px;display:flex;flex-direction:column;justify-content:center">
-              <div style="font-size:11.5px;color:${c};text-transform:uppercase;letter-spacing:.03em;font-weight:800">${titulo} <span style="font-size:9.5px;color:var(--ink-3);font-weight:600;text-transform:none;letter-spacing:0">${sub}</span></div>
+              <div style="font-size:11.5px;color:${c};text-transform:uppercase;letter-spacing:.03em;font-weight:800">${titulo}${sub?' · '+sub:''}</div>
               <div style="display:flex;align-items:baseline;gap:8px;margin-top:2px">
                 <span style="font-size:20px;font-weight:800;color:${c};font-family:var(--font-mono)">${neg?'−':'+'}${FMTc(Math.abs(val))}</span>
                 <span style="font-size:13px;font-weight:800;color:${c};font-family:var(--font-mono)">${pct!=null?'('+(pct>0?'−':'+')+Math.abs(pct).toFixed(0)+'%)':''}</span>
               </div>
             </div>`;
           };
-          return subCard('Desvío Acumulado', '(hasta '+_mLast+')', desvioEmi, desvPctEmi)
-               + subCard('Desvío Acumulado', '(hasta '+_mCorte+')', desvio, desvPct);
+          return subCard('Desvío Acumulado', _mLast, desvioEmi, desvPctEmi)
+               + subCard('Desvío Acumulado', _mCorte, desvio, desvPct);
         })()}
       </div>
     </div>
@@ -4277,7 +4277,7 @@ function ejecJustificacion(S, useUSD, dual, useUSDprimary){
   const _pctCorte = S.presup26>0 ? S.desvio/S.presup26*100 : null;
   const _selCard = (mode,titulo,sub,dv,pct)=>{ const sel=(selMode===mode);
     return `<div onclick="window.ejecSelDesvio('${mode}')" style="flex:1;cursor:pointer;background:${sel?'rgba(217,71,71,.13)':'rgba(120,135,160,.07)'};border:1.5px solid ${sel?'var(--neg)':'var(--line-2)'};border-radius:9px;padding:6px 11px;transition:all .12s">
-      <div style="font-size:10px;color:${sel?'var(--neg)':'var(--ink-2)'};text-transform:uppercase;letter-spacing:.03em;font-weight:800">${titulo} <span style="font-size:8.5px;color:var(--ink-3);font-weight:600;text-transform:none;letter-spacing:0">${sub}</span></div>
+      <div style="font-size:10px;color:${sel?'var(--neg)':'var(--ink-2)'};text-transform:uppercase;letter-spacing:.03em;font-weight:800">${titulo}${sub?' · '+sub:''}</div>
       <div style="display:flex;align-items:baseline;gap:7px;margin-top:1px">
         <span style="font-size:16px;font-weight:800;color:var(--neg);font-family:var(--font-mono)">${dv>0?'−':'+'}${FMTc(Math.abs(dv))}</span>
         <span style="font-size:11px;font-weight:800;color:var(--neg);font-family:var(--font-mono)">${pct!=null?'('+(pct>0?'−':'+')+Math.abs(Math.round(pct))+'%)':''}</span>
@@ -4286,8 +4286,8 @@ function ejecJustificacion(S, useUSD, dual, useUSDprimary){
   /* Primero HASTA DIC (corte del botón 1°), después emisión real. Achicadas y separadas para
      diferenciarlas del total. */
   const _selectorCards = `<div style="display:flex;gap:18px;margin-bottom:10px;max-width:540px">
-    ${_selCard('corte','Desvío Acumulado','(hasta '+_mCorteD+')', S.desvio, _pctCorte)}
-    ${_selCard('fecha','Desvío Acumulado','(hasta '+_mLastD+')', S.desvio_emi, _pctEmi)}
+    ${_selCard('corte','Desvío Acumulado',_mCorteD, S.desvio, _pctCorte)}
+    ${_selCard('fecha','Desvío Acumulado',_mLastD, S.desvio_emi, _pctEmi)}
   </div>`;
   return `<div style="margin-top:${dual?8:2}px">
     ${dual?`<div style="font-size:11px;color:var(--ink-3);text-transform:uppercase;letter-spacing:.05em;font-weight:700;margin-bottom:4px">${mLbl}</div>`:''}
@@ -4318,7 +4318,7 @@ function ejecJustificacion(S, useUSD, dual, useUSDprimary){
       const _mCorte = (S.mesCorteSet>0) ? MESES[S.mesCorteSet-1] : 'Dic';
       const fv = (v)=>FMTc(Math.abs(v));
       const card = (bg,fg,lbl,sub,inner)=>`<div style="flex:1;background:${bg};border-radius:10px;padding:8px 13px;display:flex;flex-direction:column;justify-content:center">
-        <div style="font-size:11.5px;color:${fg};text-transform:uppercase;letter-spacing:.03em;font-weight:800">${lbl}${sub?` <span style="font-size:9.5px;color:var(--ink-3);font-weight:600;text-transform:none;letter-spacing:0">${sub}</span>`:''}</div>
+        <div style="font-size:11.5px;color:${fg};text-transform:uppercase;letter-spacing:.03em;font-weight:800">${lbl}${sub?' · '+sub:''}</div>
         ${inner}</div>`;
       const valDiv = (color,txt)=>`<div style="font-size:20px;font-weight:800;color:${color};line-height:1;font-family:var(--font-mono);margin-top:3px">${txt}</div>`;
       const cardBlue  = (lbl,sub,val)=> card('rgba(30,111,217,.10)','var(--accent)',lbl,sub, valDiv('var(--accent-3)',FMTc(val)));
@@ -4333,9 +4333,9 @@ function ejecJustificacion(S, useUSD, dual, useUSDprimary){
         <div style="font-size:11.5px;font-weight:800;color:var(--accent-3);text-transform:uppercase;letter-spacing:.04em;margin-bottom:6px">Comparación de desvíos</div>
         <div style="display:flex;align-items:stretch;gap:8px">
           <div style="flex:1.05;display:flex;flex-direction:column;gap:6px">
-            ${cardBlue('Presupuesto Acumulado','(hasta '+_mCorte+')',presup)}
-            ${cardBlue('Presupuesto Acumulado','(hasta '+_mLast+', mes con emisión real)',presupEmi)}
-            ${cardEmis('Emisión Real 2026','(hasta '+_mLast+')',emisReal)}
+            ${cardBlue('Presupuesto Acumulado',_mCorte,presup)}
+            ${cardBlue('Presupuesto Acumulado',_mLast,presupEmi)}
+            ${cardEmis('Emisión Real 2026',_mLast,emisReal)}
           </div>
           ${flecha('+')}
           <div style="flex:1.15;display:flex;flex-direction:column;gap:6px;justify-content:center">
@@ -4344,8 +4344,8 @@ function ejecJustificacion(S, useUSD, dual, useUSDprimary){
           </div>
           ${flecha('=')}
           <div style="flex:1.15;display:flex;flex-direction:column;gap:6px;justify-content:center">
-            ${cardDesv('Desvío Acumulado','(hasta '+_mCorte+')',desvAnio, presup)}
-            ${cardDesv('Desvío Acumulado','(hasta '+_mLast+')',desvMes, presupEmi)}
+            ${cardDesv('Desvío Acumulado',_mCorte,desvAnio, presup)}
+            ${cardDesv('Desvío Acumulado',_mLast,desvMes, presupEmi)}
           </div>
         </div>
       </div>`;
@@ -6893,38 +6893,40 @@ function drawEjecChartMensual(canvasId, polArr, presArr, mesCorte, useUSD, showE
   const r26full = (useUSD? md.real26.usd : md.real26.ars).slice(0,lim);
   const r26 = r26full.map((v,i)=> (i < corte26) ? v : null);
   const presup = (presArr||Array(12).fill(0)).slice(0,lim);
-  /* PROYECCIÓN (Presupuesto Argentina): AMARILLO = "Proyección Actualizada" (confirmado),
-     GRIS rayado = "Estimación Inicial" (presupuestado).
-     - Meses SIN emisión real: amarillo = confirmado, gris = estimación − confirmado.
-     - Meses CON emisión real: si el toggle "Estimaciones anteriores" está activo, se apila el gris
-       = max(0, estimación inicial − emitido) sobre lo emitido (si se estimó más que lo emitido el
-       gris sobresale; si se emitió más, la barra azul queda más alta). */
+  /* PROYECCIÓN (Presupuesto Argentina):
+     AMARILLO "Proyección Actualizada" (confirmado) = se apila sobre el celeste en los meses SIN
+       emisión real.
+     GRIS "Estimación Inicial" (presupuestado) = se dibuja SIEMPRE como OVERLAY (encima del celeste,
+       semitransparente) hasta el nivel de la estimación total, así se ve si se estimó más o menos
+       que lo emitido y el celeste de abajo sigue distinguiéndose. En meses con emisión real solo
+       aparece si el toggle "Estimaciones anteriores" está activo. */
   const paM = presupArgMensual(useUSD?'u':'a');
-  const projConf=[], grayEstim=[];
+  const projConf=[], grayFull=[];
   for(let i=0;i<lim;i++){
     const actual=r26full[i]||0; const budget=paM.total[i]||0;
     if(actual>0.5){
       projConf[i]=null;
-      const g = showEstim ? Math.max(0, budget-actual) : 0;
-      grayEstim[i] = g>0.5 ? g : null;
+      grayFull[i] = (showEstim && budget>0.5) ? budget : null;   /* overlay = estimación total */
     } else {
       const conf=paM.conf[i]||0;
       projConf[i]= conf>0.5?conf:null;
-      const rest=budget-conf; grayEstim[i]= rest>0.5?rest:null;
+      grayFull[i]= budget>0.5?budget:null;
     }
   }
   const hayAmar = projConf.some(v=>v!=null);
-  const hayGris = grayEstim.some(v=>v!=null);
+  const hayGris = grayFull.some(v=>v!=null);
   const hayProj = hayAmar || hayGris;
   const datasets = [];
   datasets.push({label:'Presupuesto 2026', data:presup, type:'line', stack:'pl26', borderColor:'#0a3d7a', backgroundColor:'rgba(10,61,122,.08)', pointBackgroundColor:'#0a3d7a', pointBorderColor:'#fff', pointBorderWidth:1, borderWidth:1.8, borderDash:[2,3], pointRadius:2.4, pointHoverRadius:4, fill:false, tension:.25, spanGaps:true});
-  /* Emisión Real 2026 + proyección/estimación apiladas en el mismo stack 'y26'. */
+  /* Emisión Real 2026 (celeste) + Proyección Actualizada (amarillo) apiladas en 'y26'. */
   datasets.push({label:'Emisión Real 2026', data:r26, stack:'y26', backgroundColor:'rgba(108,189,237,.88)', borderColor:'#4aa3e0', borderWidth:1.5, borderRadius:3, barPercentage:.7, categoryPercentage:.8});
   if(hayAmar){
     datasets.push({label:'Proyección Actualizada', data:projConf, stack:'y26', backgroundColor:'#ffe14d', borderColor:'#e0a800', borderWidth:1, borderRadius:3, barPercentage:.7, categoryPercentage:.8});
   }
   if(hayGris){
-    datasets.push({label:'Estimación Inicial', data:grayEstim, stack:'y26', backgroundColor:_stripeGray(), borderColor:'#aab4c2', borderWidth:1, borderRadius:3, barPercentage:.7, categoryPercentage:.8});
+    /* OVERLAY (grouped:false, stack propio): se superpone al celeste/amarillo, suave y con borde
+       superior visible (la "línea" de la estimación). Va al final → se dibuja por encima. */
+    datasets.push({label:'Estimación Inicial', data:grayFull, stack:'estim', grouped:false, backgroundColor:'rgba(150,160,176,0.16)', borderColor:'#8a96a8', borderWidth:1.4, borderRadius:2, barPercentage:.7, categoryPercentage:.8});
   }
   /* Opciones base + meses más grandes (pedido del usuario) + margen superior
      para que entren las etiquetas de valor arriba de las barras/puntos. */
@@ -6951,37 +6953,49 @@ function drawEjecChartMensual(canvasId, polArr, presArr, mesCorte, useUSD, showE
   });
   opts.scales.x.ticks.font = {family:'Calibri', size:13, weight:'700'};
   opts.scales.x.ticks.color = '#3d5475';
-  /* Apilado: la proyección (confirmado + presupuestado) se apila sobre Real 2026 en su mes.
-     Las líneas de presupuesto tienen stack propio, así no se apilan con las barras. */
+  /* Eje X (meses) más abajo: deja un hueco entre las barras y los nombres de mes para escribir
+     ahí los valores de Emisión Real 2026. */
+  opts.scales.x.ticks.padding = 22;
+  /* Apilado: la Proyección Actualizada (amarillo) se apila sobre el celeste; la Estimación Inicial
+     es overlay con stack propio. Las líneas de presupuesto tienen stack propio. */
   opts.scales.x = opts.scales.x || {}; opts.scales.x.stacked = true;
   opts.scales.y = opts.scales.y || {}; opts.scales.y.stacked = true;
-  /* Headroom arriba: el eje Y llega ~30% por encima del valor más alto (barras o puntos de
-     presupuesto) para que las etiquetas de valor NO se peguen al borde ni se superpongan con
-     el gráfico/leyenda. */
-  const _stackTot = r26.map((v,i)=>(v||0)+(projConf[i]||0)+(grayEstim[i]||0));
-  const _allVals = [...presup, ..._stackTot].filter(v=>v!=null && isFinite(v));
+  /* Headroom arriba: el eje Y llega ~30% por encima del valor más alto (celeste+amarillo, overlay
+     gris o puntos de presupuesto). */
+  const _maxBar = labels.map((_,i)=> Math.max((r26[i]||0)+(projConf[i]||0), grayFull[i]||0));
+  const _allVals = [...presup, ..._maxBar].filter(v=>v!=null && isFinite(v));
   const _dataMax = _allVals.length ? Math.max(..._allVals.map(Math.abs)) : 0;
   if(_dataMax>0){ opts.scales.y = opts.scales.y || {}; opts.scales.y.suggestedMax = _dataMax*1.3; }
-  opts.layout = {padding:{top:30, bottom:hayProj?80:6}};
-  /* Totales de la PROYECCIÓN debajo del mes (sin recuadro): si hay AMARILLO (confirmado) un valor
-     en ámbar, y si hay GRIS (presupuestado sin confirmar) otro valor en gris. */
-  const projTotalPlugin = {
-    id:'projTotals',
+  opts.layout = {padding:{top:28, bottom:hayProj?98:34, left:86}};
+  /* Filas de valores DEBAJO del gráfico, con título a la izquierda y bien separadas:
+       · Emisión Real 2026 (celeste) — en el hueco, ARRIBA de los nombres de mes.
+       · Proyección Actualizada (ámbar) — debajo de los nombres de mes.
+       · Estimación Inicial (gris) — más abajo. */
+  const r26vals = r26;
+  const footerPlugin = {
+    id:'mensualFooter',
     afterDraw(chart){
-      if(!hayProj) return;
       const xs=chart.scales.x, ctx=chart.ctx, ca=chart.chartArea, yBase=ca.bottom;
-      const yConf=yBase+46, yPres=yBase+66;   /* bien separados del eje y entre sí */
+      const yEmis=yBase+11;              /* en el hueco, sobre los meses (eje en ~yBase+22) */
+      const yProy=yBase+52, yEstim=yBase+74;
       ctx.save();
-      /* Grilla: líneas finas horizontales que enmarcan las dos filas de valores. */
-      ctx.strokeStyle='rgba(120,135,160,0.28)'; ctx.lineWidth=1;
-      [yBase+34, yConf+10, yPres+10].forEach(y=>{ ctx.beginPath(); ctx.moveTo(ca.left,y); ctx.lineTo(ca.right,y); ctx.stroke(); });
-      ctx.textAlign='center'; ctx.textBaseline='middle'; ctx.font='800 11px Calibri';
-      for(let i=0;i<grayEstim.length;i++){
+      /* Separadores finos entre filas. */
+      ctx.strokeStyle='rgba(120,135,160,0.22)'; ctx.lineWidth=1;
+      [yBase+34, yProy+11, yEstim+11].forEach(y=>{ ctx.beginPath(); ctx.moveTo(ca.left,y); ctx.lineTo(ca.right,y); ctx.stroke(); });
+      /* Títulos de fila a la izquierda. */
+      ctx.textAlign='right'; ctx.textBaseline='middle'; ctx.font='700 9.5px Calibri';
+      const lblX = ca.left-8;
+      ctx.fillStyle='#1565c0'; ctx.fillText('Emisión Real', lblX, yEmis);
+      if(hayAmar){ ctx.fillStyle='#d39a00'; ctx.fillText('Proy. Actualizada', lblX, yProy); }
+      if(hayGris){ ctx.fillStyle='#8894a6'; ctx.fillText('Estim. Inicial', lblX, yEstim); }
+      /* Valores por mes. */
+      ctx.textAlign='center'; ctx.font='800 11px Calibri';
+      for(let i=0;i<labels.length;i++){
         const x=xs.getPixelForValue(i);
-        if(projConf[i]!=null && Math.abs(projConf[i])>0.5){ ctx.fillStyle='#d39a00';
-          ctx.fillText(fmtCompact(projConf[i],useUSD), x, yConf); }
-        if(grayEstim[i]!=null && Math.abs(grayEstim[i])>0.5){ ctx.fillStyle='#8894a6';
-          ctx.fillText(fmtCompact(grayEstim[i],useUSD), x, yPres); }
+        const e=r26vals[i];
+        if(e!=null && Math.abs(e)>0.5){ ctx.fillStyle='#1565c0'; ctx.fillText(fmtCompact(e,useUSD), x, yEmis); }
+        if(projConf[i]!=null && Math.abs(projConf[i])>0.5){ ctx.fillStyle='#d39a00'; ctx.fillText(fmtCompact(projConf[i],useUSD), x, yProy); }
+        if(grayFull[i]!=null && Math.abs(grayFull[i])>0.5){ ctx.fillStyle='#8894a6'; ctx.fillText(fmtCompact(grayFull[i],useUSD), x, yEstim); }
       }
       ctx.restore();
     }
@@ -6995,10 +7009,11 @@ function drawEjecChartMensual(canvasId, polArr, presArr, mesCorte, useUSD, showE
     afterDatasetsDraw(chart){
       const {ctx} = chart;
       const colTop = (chart.chartArea ? chart.chartArea.top : 0) + 7;
-      const wantBar  = (lbl)=> lbl==='Emisión Real 2026';
+      /* Solo la LÍNEA de Presupuesto se etiqueta arriba; los valores de Emisión Real van en la
+         fila inferior (footerPlugin), no sobre las barras. */
+      const wantBar  = (lbl)=> false;
       const wantLine = (lbl)=> lbl==='Presupuesto 2026';
-      const colorOf = (lbl)=> lbl==='Emisión Real 2026' ? '#1565c0'
-                            : lbl==='Presupuesto 2026' ? '#0a3d7a' : '#94a8c2';
+      const colorOf = (lbl)=> lbl==='Presupuesto 2026' ? '#0a3d7a' : '#94a8c2';
       const items = [];
       chart.data.datasets.forEach((ds, di)=>{
         const meta = chart.getDatasetMeta(di);
@@ -7040,7 +7055,7 @@ function drawEjecChartMensual(canvasId, polArr, presArr, mesCorte, useUSD, showE
       ctx.restore();
     }
   };
-  drawChart(canvasId,{type:'bar', data:{labels,datasets}, options:opts, plugins:[valueLabelPlugin, projTotalPlugin]});
+  drawChart(canvasId,{type:'bar', data:{labels,datasets}, options:opts, plugins:[valueLabelPlugin, footerPlugin]});
 }
 
 /* Cascada waterfall */
