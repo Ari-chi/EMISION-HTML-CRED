@@ -3971,7 +3971,7 @@ function ejecJustificacion(S, useUSD, dual, useUSDprimary){
     state._ejecPresArr = state._ejecPresArr || {}; state._ejecPresArr[_sufp] = _presArr;   /* para el drill por mes */
     state._ejecPresCorte = _pendCut;
     state._ejecPresMes = state._ejecPresMes || {};
-    const _presMesDefault = (m)=> (m <= _pendCut) && (m > (S.lastEmis26||0)) && !((_paMc[m-1]||0) > 0.5);   /* meses pendientes (futuros), sin confirmado */
+    const _presMesDefault = (m)=> (m >= (S.lastEmis26||0) + 2) && (m <= _pendCut);   /* desde julio en adelante (salta junio = se emite este mes), hasta el corte */
     const _presMesOn = (m)=>{ const v = state._ejecPresMes[m]; return (v!==undefined) ? !!v : _presMesDefault(m); };
     let presFull = 0, _presMeses = 0;
     if(_ejecContabOn('pend_presup','mes')){ for(let m=1;m<=12;m++){ if(_presMesOn(m)){ presFull += (_presArr[m-1]||0); _presMeses++; } } }
@@ -6717,7 +6717,7 @@ window.toggleEjecCausa = function(id){
     const on = _ejecContabOn('pend_presup','mes');
     state._ejecPresMes = state._ejecPresMes || {};
     const _le26 = state._ejecLastEmis26||0;
-    const onMes = (m)=>{ const v=state._ejecPresMes[m]; return (v!==undefined)?!!v:((m<=corte)&&(m>_le26)&&!((confM[m-1]||0)>0.5)); };
+    const onMes = (m)=>{ const v=state._ejecPresMes[m]; return (v!==undefined)?!!v:((m>=_le26+2)&&(m<=corte)); };
     let total=0; for(let m=1;m<=12;m++){ if(onMes(m)) total+=(presArr[m-1]||0); }
     const tc='#3a8fc0';
     const filas = MESES.map((mn,idx)=>{ const m=idx+1; const pres=presArr[idx]||0; const conf=confM[idx]||0; const chk=onMes(m); const fut=(m<=corte);
@@ -12628,7 +12628,7 @@ window.toggleTopDetalle = function(id){ const d=document.getElementById(id); if(
 window.ejecTogglePresMes = function(m){
   state._ejecPresMes = state._ejecPresMes || {};
   const cur = state._ejecPresMes[m];
-  const def = (()=>{ const corte=state._ejecPresCorte||12; const le26=state._ejecLastEmis26||0; const suf=(state._ejecData&&state._ejecData.btnUSD)?'u':'a'; const confM=presupArgMensual(suf).conf; return (m<=corte)&&(m>le26)&&!((confM[m-1]||0)>0.5); })();
+  const def = (()=>{ const corte=state._ejecPresCorte||12; const le26=state._ejecLastEmis26||0; return (m>=le26+2)&&(m<=corte); })();
   state._ejecPresMes[m] = (cur===undefined) ? !def : !cur;
   if(typeof drawEjecutivo==='function') drawEjecutivo();
   setTimeout(()=>{ if(typeof window.toggleEjecCausa==='function') window.toggleEjecCausa('pend_presup'); }, 0);
