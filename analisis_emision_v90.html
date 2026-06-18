@@ -1029,23 +1029,35 @@ function parsePresupArgBudget(ws){
   const colBy=lbl=>{ for(let c=range.s.c;c<=range.e.c;c++){ if(_accent(hdr[c])===lbl) return c; } return -1; };
   const cPol=colBy('poliza'), cAseg=colBy('nombre asegurado'), cMon=colBy('moneda'), cMesGen=colBy('mes');
   if(cPol<0) return;
-  /* concepto canónico → col del VALOR (ARS = col+1, MES = col+2). Prima Mín = Renov + 2da Anualidad. */
+  /* Cada concepto tiene 3 columnas de valor: "<concepto> Moneda Original", "<concepto> ARS",
+     "<concepto> US" y luego "MES ESTIMADO EMISION". (Layout nuevo con equivalente en dólares.)
+     Se mantiene compatibilidad con el layout viejo (sin columna US): orig, ars, mes. */
+  const mkConc=(tipo,pre)=>{
+    const colOrig = colBy(pre+' moneda original'); const colArs = colBy(pre+' ars'); const colUs = colBy(pre+' us');
+    const base = (colOrig>=0)?colOrig : colBy(pre);   /* fallback layout viejo */
+    const colMes = (colUs>=0) ? colUs+1 : ((colArs>=0)?colArs+1 : (base>=0?base+2:-1));
+    return {tipo, colOrig: (colOrig>=0?colOrig:base), colArs: (colArs>=0?colArs:(base>=0?base+1:-1)), colUs, colMes};
+  };
   const conceptos=[
-    {tipo:'Renovación', col:colBy('prima minima renovacion')},
-    {tipo:'Prima Minima 2da Anualidad', col:colBy('prima minima 2da anualidad')},
-    {tipo:'Ajuste', col:colBy('ajuste presupuestado')},
-    {tipo:'Bono', col:colBy('profit estimado')},
-    {tipo:'Malus', col:colBy('malus estimado')},
-  ].filter(x=>x.col>=0);
+    mkConc('Renovación','prima minima renovacion'),
+    mkConc('Prima Minima 2da Anualidad','prima minima 2da anualidad'),
+    mkConc('Ajuste','ajuste presupuestado'),
+    mkConc('Bono','profit estimado'),
+    mkConc('Malus','malus estimado'),
+  ].filter(x=>x.colOrig>=0 || x.colArs>=0);
   for(let r=1;r<=range.e.r;r++){
     const pol=getv(r,cPol), aseg=(cAseg>=0?getv(r,cAseg):null); if(pol==null&&aseg==null) continue;
     const monedaRaw=String((cMon>=0?getv(r,cMon):'')||'').toUpperCase();
     const esUS=/US|U\$|USD|DOLAR|DÓLAR/.test(monedaRaw);
     for(const cc of conceptos){
-      let orig=_numv(getv(r,cc.col)), ars=_numv(getv(r,cc.col+1)); if(!orig&&!ars) continue;
-      const _ss=(_tipoToConcepto(cc.tipo)==='bono')?-1:1; orig*=_ss; ars*=_ss;   /* Bono: conserva signo natural */
-      let m=_mesToNum(getv(r,cc.col+2)); if(!m && cMesGen>=0) m=_mesToNum(getv(r,cMesGen)); if(!m) m=12;
-      _presupArgPush({poliza:pol, aseg, tipo:cc.tipo, esUS, months:[{m, orig, ars, yellow:false}]});
+      let orig=cc.colOrig>=0?_numv(getv(r,cc.colOrig)):0;
+      let ars =cc.colArs>=0 ?_numv(getv(r,cc.colArs)) :0;
+      let usd =cc.colUs>=0  ?_numv(getv(r,cc.colUs))  :null;
+      if(!orig && !ars && !usd) continue;
+      const _ss=(_tipoToConcepto(cc.tipo)==='bono')?-1:1;   /* Bono: conserva signo natural */
+      orig*=_ss; ars*=_ss; if(usd!=null) usd*=_ss;
+      let m=_mesToNum(cc.colMes>=0?getv(r,cc.colMes):null); if(!m && cMesGen>=0) m=_mesToNum(getv(r,cMesGen)); if(!m) m=12;
+      _presupArgPush({poliza:pol, aseg, tipo:cc.tipo, esUS, months:[{m, orig, ars, usd, yellow:false}]});
     }
   }
 }
@@ -1132,7 +1144,7 @@ function _presupArgVal(p, ck, suf, modo){
     for(const mo of e.months){
       if(modo==='confirmado' && !mo.yellow) continue;
       if(modo==='pendiente' && mo.yellow) continue;
-      tot += (suf==='u') ? mo.orig : mo.ars;
+      tot += (suf==='u') ? ((mo.usd!=null)?mo.usd:mo.orig) : mo.ars;
     }
   }
   return tot;
@@ -1151,7 +1163,7 @@ function _presupArgGlobal(suf, modo, maxMes, excludeSet, minMes){
     if(excludeSet && excludeSet.has(key)) continue;
     const sgn=(ck==='bono')?-1:1; let any=false;
     for(const mo of e.months){ if(maxMes && mo.m>maxMes) continue; if(minMes && mo.m<=minMes) continue; if(modo==='confirmado'&&!mo.yellow)continue; if(modo==='pendiente'&&mo.yellow)continue;
-      const v=(suf==='u')?mo.orig:mo.ars; if(!isFinite(v)||!v)continue; c[ck]+=sgn*v; total+=sgn*v; any=true; }
+      const v=(suf==='u')?((mo.usd!=null)?mo.usd:mo.orig):mo.ars; if(!isFinite(v)||!v)continue; c[ck]+=sgn*v; total+=sgn*v; any=true; }
     if(any){ pol.add(String(e.poliza||e.aseg)); keys.add(key); } }
   return {total, c, n:pol.size, keys};
 }
@@ -1196,7 +1208,7 @@ function _pendConceptoPolizas(id, ck, suf, polPend, mesCorte, maxMes, minMes){
     const modo=id==='pend_conf'?'confirmado':'pendiente'; const pa=state._presupArg;
     if(pa&&pa.ok) for(const e of pa.rows){ if(_tipoToConcepto(e.tipo)!==ck) continue;
       if(excl && excl.has(_polKey(e.poliza)+'|'+ck)) continue;
-      let v=0; for(const mo of e.months){ if(maxMes && mo.m>maxMes) continue; if(minMes && modo==='pendiente' && mo.m<=minMes) continue; if(modo==='confirmado'&&!mo.yellow)continue; if(modo==='pendiente'&&mo.yellow)continue; const x=(suf==='u')?mo.orig:mo.ars; if(isFinite(x))v+=x; }
+      let v=0; for(const mo of e.months){ if(maxMes && mo.m>maxMes) continue; if(minMes && modo==='pendiente' && mo.m<=minMes) continue; if(modo==='confirmado'&&!mo.yellow)continue; if(modo==='pendiente'&&mo.yellow)continue; const x=(suf==='u')?((mo.usd!=null)?mo.usd:mo.orig):mo.ars; if(isFinite(x))v+=x; }
       v*=(ck==='bono')?-1:1; if(Math.abs(v)>0.5) out.push({poliza:e.poliza,aseg:e.aseg,val:v}); }
   }
   out.sort((a,b)=>Math.abs(b.val)-Math.abs(a.val));
@@ -6838,7 +6850,7 @@ function presupArgMensual(suf){
   const out={total:Array(12).fill(0), conf:Array(12).fill(0)};
   const pa=state._presupArg; if(!pa||!pa.ok) return out;
   for(const e of pa.rows){ const ck=_tipoToConcepto(e.tipo); if(!ck) continue; const sgn=(ck==='bono')?-1:1;
-    for(const mo of e.months){ const v=(suf==='u')?mo.orig:mo.ars; if(!isFinite(v)||!v) continue; const mi=mo.m-1; if(mi<0||mi>11)continue;
+    for(const mo of e.months){ const v=(suf==='u')?((mo.usd!=null)?mo.usd:mo.orig):mo.ars; if(!isFinite(v)||!v) continue; const mi=mo.m-1; if(mi<0||mi>11)continue;
       out.total[mi]+=sgn*v; if(mo.yellow) out.conf[mi]+=sgn*v; } }
   return out;
 }
