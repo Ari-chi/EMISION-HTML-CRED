@@ -892,7 +892,8 @@ function _ejecContabOn(ck, which){
   state._ejecContab = state._ejecContab || {};
   const v = state._ejecContab[ck+'_'+which];
   if(v!==undefined) return !!v;
-  return (which==='mes');   /* todos los pendientes contabilizan por defecto (el dedup evita duplicar) */
+  if(ck==='pend_2025') return false;   /* "Emisión Pendiente - Sin Fecha": por defecto NO contabiliza (el usuario lo enciende si quiere) */
+  return (which==='mes');   /* el resto de los pendientes contabilizan por defecto (el dedup evita duplicar) */
 }
 /* "Emisión pendiente (se emite este mes)" del Excel CONTABILIZADA: suma, por concepto, solo los
    que tienen su toggle 'mes' en SÍ (el bono resta). Así apagar un concepto lo descuenta solo a él
