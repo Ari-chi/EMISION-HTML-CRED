@@ -1087,22 +1087,24 @@ function parseInsur(rows){
    Varias pólizas pueden compartir grupo; se usa en el Top 10 para sumar la prima por grupo.
    Recibe el workbook y busca la hoja por nombre (/grupos/) o por contenido (columnas Póliza+Grupo). */
 function parseGrupos(wb){
-  state._grupos = {};
+  state._grupos = {}; state._gruposByAseg = {};
   if(!wb || !wb.SheetNames) return;
   const colsDe = (ws)=>{ if(!ws||!ws['!ref']) return null; const range=XLSX.utils.decode_range(ws['!ref']);
     const getv=(r,c)=>{ const cell=ws[XLSX.utils.encode_cell({r,c})]; return cell?cell.v:null; };
-    let cPol=-1,cGr=-1; for(let c=range.s.c;c<=range.e.c;c++){ const h=_accent(getv(0,c)); if(h==='poliza') cPol=c; else if(h==='grupo') cGr=c; }
-    return (cPol>=0&&cGr>=0) ? {ws,range,getv,cPol,cGr} : null; };
-  /* 1) por nombre; 2) por contenido (cualquier hoja con columnas Póliza + Grupo). */
+    let cPol=-1,cGr=-1,cAseg=-1; for(let c=range.s.c;c<=range.e.c;c++){ const h=_accent(getv(0,c)); if(h==='poliza') cPol=c; else if(h==='grupo') cGr=c; else if(h==='nombre asegurado'||h==='asegurado') cAseg=c; }
+    return (cGr>=0 && (cPol>=0||cAseg>=0)) ? {ws,range,getv,cPol,cGr,cAseg} : null; };
+  /* 1) por nombre; 2) por contenido (cualquier hoja con columna Grupo + Póliza o Asegurado). */
   let found=null;
   const byName = wb.SheetNames.find(n=>/grupos/.test(_accent(n)));
   if(byName) found = colsDe(wb.Sheets[byName]);
   if(!found){ for(const n of wb.SheetNames){ const f=colsDe(wb.Sheets[n]); if(f){ found=f; break; } } }
   if(!found) return;
-  const {range,getv,cPol,cGr}=found;
+  const {range,getv,cPol,cGr,cAseg}=found;
   for(let r=1;r<=range.e.r;r++){
-    const pol=getv(r,cPol), gr=getv(r,cGr); if(pol==null||gr==null||String(gr).trim()==='') continue;
-    const k=_digitsKey(pol); if(k) state._grupos[k]=String(gr).trim();
+    const gr=getv(r,cGr); if(gr==null||String(gr).trim()==='') continue;
+    const grupo=String(gr).trim();
+    if(cPol>=0){ const k=_digitsKey(getv(r,cPol)); if(k) state._grupos[k]=grupo; }
+    if(cAseg>=0){ const ak=_normProyKey(getv(r,cAseg)); if(ak) state._gruposByAseg[ak]=grupo; }
   }
 }
 
@@ -12466,6 +12468,7 @@ function drawTop10(){
   (()=>{
     const wrap = document.getElementById('top2025'); if(!wrap) return;
     const grupos = state._grupos || {};
+    const gruposAseg = state._gruposByAseg || {};
     const TCv = (TC>0)?TC:1400;
     const acc = {};   /* grupo → {tot, primaMin, ajuste, bono, malus, n} en ARS */
     for(const p of polFiltradas){
@@ -12475,7 +12478,7 @@ function drawTop10(){
       const bd = esUS ? f25.breakdownUSD : f25.breakdownARS;
       const tot = (esUS ? f25.totUSD : f25.totARS) * conv;
       if(!(tot>0.5)) continue;
-      const gk = grupos[_digitsKey(p.poliza)] || p.asegurado || '—';
+      const gk = grupos[_digitsKey(p.poliza)] || gruposAseg[_normProyKey(p.asegurado)] || p.asegurado || '—';
       const g = acc[gk] || (acc[gk]={nombre:gk, tot:0, primaMin:0, ajuste:0, bono:0, malus:0, n:0});
       g.tot += tot;
       g.primaMin += (bd.primaMin||0)*conv;
