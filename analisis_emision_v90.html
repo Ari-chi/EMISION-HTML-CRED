@@ -3266,11 +3266,11 @@ function drawEjecutivo(){
       <div style="margin-top:10px">
         ${dual ? `
           <div style="font-size:11px;color:var(--ink-3);text-transform:uppercase;letter-spacing:.05em;font-weight:700;margin-bottom:4px">USD</div>
-          <div class="chart-box" style="height:225px"><canvas id="ejecChartMensual_u"></canvas></div>
+          <div class="chart-box" style="height:260px"><canvas id="ejecChartMensual_u"></canvas></div>
           <div style="font-size:11px;color:var(--ink-3);text-transform:uppercase;letter-spacing:.05em;font-weight:700;margin:10px 0 4px">ARS$</div>
-          <div class="chart-box" style="height:225px"><canvas id="ejecChartMensual_a"></canvas></div>
+          <div class="chart-box" style="height:260px"><canvas id="ejecChartMensual_a"></canvas></div>
         ` : `
-          <div class="chart-box" style="height:270px"><canvas id="ejecChartMensual"></canvas></div>
+          <div class="chart-box" style="height:315px"><canvas id="ejecChartMensual"></canvas></div>
         `}
         <label style="font-size:11.5px;color:var(--ink-2);cursor:pointer;display:flex;align-items:center;gap:5px;margin-top:8px"><input type="checkbox" id="ejecShow2025" style="cursor:pointer"> Mostrar 2025</label>
       </div>
@@ -6651,21 +6651,26 @@ function drawEjecChartMensual(canvasId, polArr, presArr, mesCorte, useUSD, show2
   const _allVals = [...presup, ...presup25, ...r25, ...r26, ..._projTot].filter(v=>v!=null && isFinite(v));
   const _dataMax = _allVals.length ? Math.max(..._allVals.map(Math.abs)) : 0;
   if(_dataMax>0){ opts.scales.y = opts.scales.y || {}; opts.scales.y.suggestedMax = _dataMax*1.3; }
-  opts.layout = {padding:{top:30, bottom:hayProj?48:6}};
+  opts.layout = {padding:{top:30, bottom:hayProj?80:6}};
   /* Totales de la PROYECCIÓN debajo del mes (sin recuadro): si hay AMARILLO (confirmado) un valor
      en ámbar, y si hay GRIS (presupuestado sin confirmar) otro valor en gris. */
   const projTotalPlugin = {
     id:'projTotals',
     afterDraw(chart){
       if(!hayProj) return;
-      const xs=chart.scales.x, ctx=chart.ctx, yBase=chart.chartArea.bottom;
-      ctx.save(); ctx.textAlign='center'; ctx.textBaseline='middle';
+      const xs=chart.scales.x, ctx=chart.ctx, ca=chart.chartArea, yBase=ca.bottom;
+      const yConf=yBase+46, yPres=yBase+66;   /* bien separados del eje y entre sí */
+      ctx.save();
+      /* Grilla: líneas finas horizontales que enmarcan las dos filas de valores. */
+      ctx.strokeStyle='rgba(120,135,160,0.28)'; ctx.lineWidth=1;
+      [yBase+34, yConf+10, yPres+10].forEach(y=>{ ctx.beginPath(); ctx.moveTo(ca.left,y); ctx.lineTo(ca.right,y); ctx.stroke(); });
+      ctx.textAlign='center'; ctx.textBaseline='middle'; ctx.font='800 11px Calibri';
       for(let i=0;i<projConf.length;i++){
         const x=xs.getPixelForValue(i);
-        if(projConf[i]!=null && Math.abs(projConf[i])>0.5){ ctx.font='800 11px Calibri'; ctx.fillStyle='#d39a00';
-          ctx.fillText(fmtCompact(projConf[i],useUSD), x, yBase+30); }
-        if(projBudget[i]!=null && Math.abs(projBudget[i])>0.5){ ctx.font='800 11px Calibri'; ctx.fillStyle='#8894a6';
-          ctx.fillText(fmtCompact(projBudget[i],useUSD), x, yBase+44); }
+        if(projConf[i]!=null && Math.abs(projConf[i])>0.5){ ctx.fillStyle='#d39a00';
+          ctx.fillText(fmtCompact(projConf[i],useUSD), x, yConf); }
+        if(projBudget[i]!=null && Math.abs(projBudget[i])>0.5){ ctx.fillStyle='#8894a6';
+          ctx.fillText(fmtCompact(projBudget[i],useUSD), x, yPres); }
       }
       ctx.restore();
     }
