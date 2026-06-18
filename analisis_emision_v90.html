@@ -3660,6 +3660,7 @@ function ejecJustificacion(S, useUSD, dual, useUSDprimary){
   const selMode = (state._ejecDesvioSel==='fecha') ? 'fecha' : 'corte';
   const _cutoff = (selMode==='fecha') ? (S.lastEmis26 || S.mesCorteSet || 12) : (S.mesCorteSet || 12);
   state._ejecDesvioCutoff = _cutoff;   /* lo lee el drill */
+  state._ejecLastEmis = S.lastEmis26 || _cutoff;   /* tope del pendiente Comparación 2025 */
   const desvio = (selMode==='fecha') ? S.desvio_emi : S.desvio;
   const dvAbs=Math.abs(desvio);
   /* Guardar el desvío total por moneda para que el drill calcule el % de cada columna. */
@@ -3707,7 +3708,9 @@ function ejecJustificacion(S, useUSD, dual, useUSDprimary){
     const _sufp = useUSD?'u':'a';
     const _conf = _presupArgGlobal(_sufp, 'confirmado', _cutoff);
     const _pres = _presupArgGlobal(_sufp, 'pendiente', _cutoff);
-    const _p25  = _pend2025Global(polPend, _cutoff, _sufp);
+    /* Comparación 2025 SOLO suma hasta el último mes con emisión real 2026 (en adelante, no). */
+    const _cut25 = Math.min(_cutoff, S.lastEmis26 || _cutoff);
+    const _p25  = _pend2025Global(polPend, _cut25, _sufp);
     const _confV = _ejecContabOn('pend_conf','mes') ? _conf.total : 0;   /* toggle Contabilizar */
     const _presV = _ejecContabOn('pend_presup','mes') ? _pres.total : 0;
     const _p25V  = _ejecContabOn('pend_2025','mes') ? _p25.total : 0;
@@ -6414,7 +6417,9 @@ window.toggleEjecCausa = function(id){
     /* Sub-desglose por concepto (prima/ajuste/malus/bono) con total + % de ese total; cada
        concepto se puede expandir para ver el detalle por póliza. Toggle Contabilizar. */
     const suf = btnUSD?'u':'a';
-    const g = id==='pend_2025' ? _pend2025Global(polFiltradas, mesCorte, suf)
+    /* Comparación 2025 se topa en el último mes con emisión real 2026. */
+    const _drillCut = (id==='pend_2025') ? Math.min(mesCorte, state._ejecLastEmis||mesCorte) : mesCorte;
+    const g = id==='pend_2025' ? _pend2025Global(polFiltradas, _drillCut, suf)
             : _presupArgGlobal(suf, id==='pend_conf'?'confirmado':'pendiente', mesCorte);
     const on = _ejecContabOn(id,'mes');
     const tc = id==='pend_conf' ? '#d39a00' : id==='pend_presup' ? '#3a8fc0' : '#3a8a82';
@@ -6424,7 +6429,7 @@ window.toggleEjecCausa = function(id){
     const totAbs = ['primaMin','ajuste','malus','bono'].reduce((a,k)=>a+Math.abs(g.c[k]),0) || 1;
     const filas = ['primaMin','ajuste','malus','bono'].filter(k=>Math.abs(g.c[k])>0.5).map(k=>{
       const pct = Math.round(Math.abs(g.c[k])/totAbs*100);
-      const pols = _pendConceptoPolizas(id, k, suf, polFiltradas, mesCorte, mesCorte);
+      const pols = _pendConceptoPolizas(id, k, suf, polFiltradas, _drillCut, mesCorte);
       const det = pols.map(p=>`<div style="display:flex;justify-content:space-between;gap:10px;padding:5px 14px 5px 28px;border-top:1px dashed var(--line);font-size:12px">
         <span><span style="font-weight:800;color:var(--accent-3);background:var(--bg-2);padding:1px 6px;border-radius:4px">${fmtPoliza(p.poliza)}</span> <span style="color:var(--ink-1)">${(p.aseg||'').toString().substring(0,26)}</span></span>
         <span style="font-family:var(--font-mono);font-weight:700;color:${p.val<0?'var(--neg)':'var(--accent-3)'}">${p.val<0?'−':''}${fmtCompact(Math.abs(p.val),btnUSD)}</span></div>`).join('');
