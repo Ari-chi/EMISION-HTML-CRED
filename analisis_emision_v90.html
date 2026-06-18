@@ -880,7 +880,9 @@ function _excelEstimTotal(suf){
 function _ejecContabOn(ck, which){
   state._ejecContab = state._ejecContab || {};
   const v = state._ejecContab[ck+'_'+which];
-  return (v===undefined) ? (which==='mes') : !!v;
+  if(v!==undefined) return !!v;
+  if(ck==='pend_2025') return false;   /* "Comparación 2025" NO contabiliza por defecto (no duplicar) */
+  return (which==='mes');
 }
 /* "Emisión pendiente (se emite este mes)" del Excel CONTABILIZADA: suma, por concepto, solo los
    que tienen su toggle 'mes' en SÍ (el bono resta). Así apagar un concepto lo descuenta solo a él
@@ -1042,6 +1044,44 @@ function _presupArgGlobal(suf, modo){
       const v=(suf==='u')?mo.orig:mo.ars; if(!isFinite(v)||!v)continue; c[ck]+=sgn*v; total+=sgn*v; any=true; }
     if(any) pol.add(String(e.poliza||e.aseg)); }
   return {total, c, n:pol.size};
+}
+/* Pendiente "Comparación 2025": lo de antes — por póliza pendiente, los conceptos pendientes
+   según conceptosPendientes (emisión 2025 por fecha/concepto/categoría: vacío, "anualidad
+   anterior", etc.). Devuelve total + desglose por concepto (bono resta) + conteo. */
+function _pend2025Global(polPend, mesCorte, suf){
+  const c={primaMin:0,ajuste:0,malus:0,bono:0}; let total=0; const pol=new Set();
+  const KEYS={'Prima mínima':'primaMin','Ajuste':'ajuste','Bono':'bono','Malus':'malus'};
+  for(const p of (polPend||[])){
+    const est=estadoPolizaConsolidado(p,mesCorte);
+    const pend=(est==='desvio_emision_pendiente'||est==='desvio_pendiente_mayor_2m');
+    const cp=conceptosPendientes(p,mesCorte); let items=cp.items;
+    if(items.length===0 && pend){ const f25=calcEmisionFiltrada(p,2025,0); const a=f25.breakdownARS.primaMin,u=f25.breakdownUSD.primaMin; if(a>0||u>0) items=[{concepto:'Prima mínima',ars:a,usd:u}]; }
+    let any=false;
+    for(const it of items){ const k=KEYS[it.concepto]; if(!k) continue; const cv=convertirPendienteTC(it.ars,it.usd,p.moneda); const v=Math.abs((suf==='u')?cv.usd:cv.ars); const sgn=(k==='bono')?-1:1; c[k]+=sgn*v; total+=sgn*v; any=true; }
+    if(any) pol.add(p.clave);
+  }
+  return {total, c, n:pol.size};
+}
+/* Pólizas de un pendiente (pend_conf/pend_presup/pend_2025) para UN concepto, ordenadas por valor. */
+function _pendConceptoPolizas(id, ck, suf, polPend, mesCorte){
+  const out=[];
+  if(id==='pend_2025'){
+    const NAME={primaMin:'Prima mínima',ajuste:'Ajuste',malus:'Malus',bono:'Bono'};
+    for(const p of (polPend||[])){
+      const est=estadoPolizaConsolidado(p,mesCorte);
+      const cp=conceptosPendientes(p,mesCorte); let items=cp.items;
+      if(items.length===0 && (est==='desvio_emision_pendiente'||est==='desvio_pendiente_mayor_2m')){ const f25=calcEmisionFiltrada(p,2025,0); if(f25.breakdownARS.primaMin>0||f25.breakdownUSD.primaMin>0) items=[{concepto:'Prima mínima',ars:f25.breakdownARS.primaMin,usd:f25.breakdownUSD.primaMin}]; }
+      let v=0; for(const it of items){ if(it.concepto!==NAME[ck]) continue; const cv=convertirPendienteTC(it.ars,it.usd,p.moneda); v+=Math.abs((suf==='u')?cv.usd:cv.ars); }
+      v*=(ck==='bono')?-1:1; if(Math.abs(v)>0.5) out.push({poliza:p.poliza,aseg:p.asegurado,val:v});
+    }
+  } else {
+    const modo=id==='pend_conf'?'confirmado':'pendiente'; const pa=state._presupArg;
+    if(pa&&pa.ok) for(const e of pa.rows){ if(_tipoToConcepto(e.tipo)!==ck) continue;
+      let v=0; for(const mo of e.months){ if(modo==='confirmado'&&!mo.yellow)continue; if(modo==='pendiente'&&mo.yellow)continue; const x=(suf==='u')?mo.orig:mo.ars; if(isFinite(x))v+=x; }
+      v*=(ck==='bono')?-1:1; if(Math.abs(v)>0.5) out.push({poliza:e.poliza,aseg:e.aseg,val:v}); }
+  }
+  out.sort((a,b)=>Math.abs(b.val)-Math.abs(a.val));
+  return out;
 }
 
 /* Si es true, el presupuesto se fuerza a 0. El reporte sigue funcionando: los bloques de
@@ -3652,11 +3692,14 @@ function ejecJustificacion(S, useUSD, dual, useUSDprimary){
     const _sufp = useUSD?'u':'a';
     const _conf = _presupArgGlobal(_sufp, 'confirmado');
     const _pres = _presupArgGlobal(_sufp, 'pendiente');
+    const _p25  = _pend2025Global(polPend, dd.mesCorte, _sufp);
     const _confV = _ejecContabOn('pend_conf','mes') ? _conf.total : 0;   /* toggle Contabilizar */
     const _presV = _ejecContabOn('pend_presup','mes') ? _pres.total : 0;
+    const _p25V  = _ejecContabOn('pend_2025','mes') ? _p25.total : 0;
     causas = [
-      mk('pend_conf','Se va a emitir (confirmado)', _confV, _conf.n, '#ffd54a','pendiente'),
-      mk('pend_presup','Presupuestado (sin justificar)', _presV, _pres.n, APP_CONFIG.colores.pendiente,'pendiente'),
+      mk('pend_conf','Pendiente - Confirmado que se emite', _confV, _conf.n, '#ffd54a','pendiente'),
+      mk('pend_presup','Pendiente - Proyección Arg.', _presV, _pres.n, APP_CONFIG.colores.pendiente,'pendiente'),
+      mk('pend_2025','Pendiente - Comparación 2025', _p25V, _p25.n, '#4fb0a8','pendiente'),
       mk('perdidas',APP_CONFIG.textos.perdidas, mkVal(cnt.perdidas), cnt.perdidas.n, APP_CONFIG.colores.perdidas),
       mk('menor',APP_CONFIG.textos.menor || 'Menor Emisión', menorSigned, menorN, APP_CONFIG.colores.abm),
     /* Los pendientes (amarillo/celeste) siempre figuran aunque su valor sea 0. */
@@ -5957,7 +6000,7 @@ window.toggleEjecCausa = function(id){
     </div>`;
   }
 
-  const titulos = {pendiente:'Pendiente de emisión', pend_conf:'Se va a emitir (confirmado)', pend_presup:'Presupuestado (sin justificar)', pend_prima:'Prima mínima pendiente', pend_ajuste:'Ajuste pendiente', pend_bono:'Bono pendiente', pend_malus:'Malus pendiente', perdidas:'Pólizas que se fueron', prima:'Prima mínima', ajuste:'Ajuste', bono:'Bono', malus:'Malus', menor:'Menor Emisión', sinjust:'Pólizas que no crecieron'};
+  const titulos = {pendiente:'Pendiente de emisión', pend_conf:'Pendiente - Confirmado que se emite', pend_presup:'Pendiente - Proyección Arg.', pend_2025:'Pendiente - Comparación 2025', pend_prima:'Prima mínima pendiente', pend_ajuste:'Ajuste pendiente', pend_bono:'Bono pendiente', pend_malus:'Malus pendiente', perdidas:'Pólizas que se fueron', prima:'Prima mínima', ajuste:'Ajuste', bono:'Bono', malus:'Malus', menor:'Menor Emisión', sinjust:'Pólizas que no crecieron'};
 
   /* Resumen pre-card de las pólizas involucradas en ESTA causa, antes del
      desglose por póliza. Mismo formato que en "Emisión 2026": Proyección $/US,
@@ -6328,28 +6371,42 @@ window.toggleEjecCausa = function(id){
       <div id="ejecAbmCols" style="display:grid;grid-template-columns:1fr 1fr;gap:16px">${colAbm(false,'ajuste')}${colAbm(true,'ajuste')}</div>`;
   } else if(id==='sinjust'){
     contenido = `<div style="display:grid;grid-template-columns:1fr 1fr;gap:16px">${colNoCrecen(false)}${colNoCrecen(true)}</div>`;
-  } else if(id==='pend_conf' || id==='pend_presup'){
-    /* Sub-desglose por concepto del pendiente AMARILLO (confirmado) o CELESTE (presupuestado),
-       desde Presup Arg HTML, con su toggle Contabilizar. */
-    const modo = id==='pend_conf' ? 'confirmado' : 'pendiente';
+  } else if(id==='pend_conf' || id==='pend_presup' || id==='pend_2025'){
+    /* Sub-desglose por concepto (prima/ajuste/malus/bono) con total + % de ese total; cada
+       concepto se puede expandir para ver el detalle por póliza. Toggle Contabilizar. */
     const suf = btnUSD?'u':'a';
-    const g = _presupArgGlobal(suf, modo);
+    const g = id==='pend_2025' ? _pend2025Global(polFiltradas, mesCorte, suf)
+            : _presupArgGlobal(suf, id==='pend_conf'?'confirmado':'pendiente');
     const on = _ejecContabOn(id,'mes');
-    const tc = id==='pend_conf' ? '#e0a800' : '#3a8fc0';
-    const tlbl = id==='pend_conf' ? 'Se va a emitir (confirmado)' : 'Presupuestado (sin justificar)';
+    const tc = id==='pend_conf' ? '#d39a00' : id==='pend_presup' ? '#3a8fc0' : '#3a8a82';
+    const tlbl = id==='pend_conf' ? 'Pendiente - Confirmado que se emite'
+               : id==='pend_presup' ? 'Pendiente - Proyección Arg.' : 'Pendiente - Comparación 2025';
     const CN = {primaMin:'Prima Mínima', ajuste:'Ajuste', malus:'Malus', bono:'Bono'};
-    const filas = ['primaMin','ajuste','malus','bono'].filter(k=>Math.abs(g.c[k])>0.5).map(k=>
-      `<div style="display:flex;justify-content:space-between;align-items:center;padding:9px 14px;border-bottom:1px solid var(--line);font-size:13.5px">
-        <span style="font-weight:700;color:var(--accent-3)">${CN[k]}</span>
-        <span style="font-family:var(--font-mono);font-weight:800;color:${k==='bono'?'var(--neg)':'var(--accent-3)'}">${k==='bono'?'−':''}${fmtCompact(Math.abs(g.c[k]),btnUSD)}</span>
-      </div>`).join('');
-    contenido = `<div style="border:1px solid var(--line-2);border-radius:9px;overflow:hidden;max-width:560px;${on?'':'opacity:.6'}">
+    const totAbs = ['primaMin','ajuste','malus','bono'].reduce((a,k)=>a+Math.abs(g.c[k]),0) || 1;
+    const filas = ['primaMin','ajuste','malus','bono'].filter(k=>Math.abs(g.c[k])>0.5).map(k=>{
+      const pct = Math.round(Math.abs(g.c[k])/totAbs*100);
+      const pols = _pendConceptoPolizas(id, k, suf, polFiltradas, mesCorte);
+      const det = pols.map(p=>`<div style="display:flex;justify-content:space-between;gap:10px;padding:5px 14px 5px 28px;border-top:1px dashed var(--line);font-size:12px">
+        <span><span style="font-weight:800;color:var(--accent-3);background:var(--bg-2);padding:1px 6px;border-radius:4px">${fmtPoliza(p.poliza)}</span> <span style="color:var(--ink-1)">${(p.aseg||'').toString().substring(0,26)}</span></span>
+        <span style="font-family:var(--font-mono);font-weight:700;color:${p.val<0?'var(--neg)':'var(--accent-3)'}">${p.val<0?'−':''}${fmtCompact(Math.abs(p.val),btnUSD)}</span></div>`).join('');
+      const rid = `pc_${id}_${k}_${suf}`;
+      return `<div>
+        <div onclick="(function(){var d=document.getElementById('${rid}');if(d)d.style.display=d.style.display==='none'?'block':'none';})()" style="display:grid;grid-template-columns:14px 1fr auto auto;gap:10px;align-items:center;padding:9px 14px;border-bottom:1px solid var(--line);font-size:13.5px;cursor:pointer">
+          <span style="color:var(--accent);font-size:11px">▸</span>
+          <span style="font-weight:700;color:var(--accent-3)">${CN[k]} <span style="color:var(--ink-3);font-weight:500;font-size:11.5px">· ${pols.length} pól.</span></span>
+          <span style="font-family:var(--font-mono);font-weight:800;color:var(--accent-3);min-width:38px;text-align:right">${pct}%</span>
+          <span style="font-family:var(--font-mono);font-weight:800;color:${k==='bono'?'var(--neg)':'var(--accent-3)'};min-width:84px;text-align:right">${k==='bono'?'−':''}${fmtCompact(Math.abs(g.c[k]),btnUSD)}</span>
+        </div>
+        <div id="${rid}" style="display:none">${det||'<div style="padding:6px 28px;color:var(--ink-3);font-style:italic;font-size:12px">— sin pólizas —</div>'}</div>
+      </div>`;
+    }).join('');
+    contenido = `<div style="border:1px solid var(--line-2);border-radius:9px;overflow:hidden;max-width:640px;${on?'':'opacity:.6'}">
       <div style="display:flex;justify-content:space-between;align-items:center;gap:10px;padding:11px 14px;background:${tc}22;border-bottom:1px solid var(--line)">
         <span style="font-weight:800;color:${tc};text-transform:uppercase;letter-spacing:.03em;font-size:12px">${tlbl} <span style="color:var(--ink-3);font-weight:600;text-transform:none">· ${g.n} pól.</span></span>
         <button onclick="ejecToggleContab('${id}','mes')" title="Contabilizar este grupo en el desvío" style="font-size:10px;font-weight:800;border-radius:5px;padding:4px 10px;cursor:pointer;white-space:nowrap;border:1.5px solid ${on?'var(--pos)':'var(--line-2)'};background:${on?'var(--pos)':'var(--panel)'};color:${on?'#fff':'var(--ink-2)'}">Contabilizar: ${on?'SÍ':'NO'}</button>
       </div>
-      <div style="font-family:var(--font-mono);font-size:17px;font-weight:800;color:${tc};padding:9px 14px;border-bottom:1px solid var(--line)">Total: ${fmtCompact(g.total,btnUSD)}</div>
-      ${filas || '<div style="padding:12px 14px;color:var(--ink-3);font-style:italic;font-size:12.5px">— sin datos en Presup Arg HTML —</div>'}
+      <div style="font-family:var(--font-mono);font-size:17px;font-weight:800;color:${tc};padding:9px 14px;border-bottom:1px solid var(--line)">Total: ${g.total<0?'−':''}${fmtCompact(Math.abs(g.total),btnUSD)}</div>
+      ${filas || '<div style="padding:12px 14px;color:var(--ink-3);font-style:italic;font-size:12.5px">— sin datos —</div>'}
     </div>`;
   } else if(esPend){
     /* Drill de pendiente: dos columnas por DATO DEL EXCEL (no por moneda), editable. */
