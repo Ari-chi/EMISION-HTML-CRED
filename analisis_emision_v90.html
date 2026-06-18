@@ -3972,24 +3972,26 @@ function ejecJustificacion(S, useUSD, dual, useUSDprimary){
       const emisProy = emisReal + pend;
       const desvReal = emisReal - presup;           /* negativo si no se alcanzó el presupuesto */
       const desvProy = emisProy - presup;
+      const presupEmi = S.presup26_emi || 0;         /* presupuesto hasta el último mes con emisión */
+      const _mLast  = (S.lastEmis26>0) ? MESES[S.lastEmis26-1] : '—';
+      const _mCorte = (S.mesCorteSet>0) ? MESES[S.mesCorteSet-1] : 'Dic';
       const fv = (v)=>FMTc(Math.abs(v));
       const sg = (v)=> v>0?'+':(v<0?'−':'');
-      const pctTxt = (d)=> presup ? `${sg(d)}${Math.round(Math.abs(d/presup*100))}%` : '';
-      /* 3 cuadros fáciles de leer: HOY (Presupuesto → Emisión + Desvío real), Emisión pendiente,
-         y PROYECTADO (Presupuesto → Emisión + pendiente + Desvío resultante). */
-      const combo = (emisLbl, emisVal, desvLbl, desvVal)=>{
+      /* 2 desvíos: a la fecha (hasta el último mes con emisión real) y hasta el mes de corte. */
+      const combo = (budLbl, budgetVal, emisLbl, emisVal, desvLbl, desvVal)=>{
         const dc = desvVal>=0?'var(--pos)':'var(--neg)';
+        const pct = budgetVal ? `${desvVal>0?'+':'−'}${Math.round(Math.abs(desvVal/budgetVal*100))}%` : '';
         return `<div style="background:var(--bg-2);border-radius:8px;padding:9px 12px;border-left:4px solid ${dc}">
           <div style="display:flex;align-items:center;gap:10px;flex-wrap:wrap;margin-bottom:7px">
-            <div><div style="font-size:9px;color:var(--ink-3);text-transform:uppercase;letter-spacing:.02em;font-weight:700">Presupuesto 2026</div>
-              <div style="font-family:var(--font-mono);font-size:16px;font-weight:800;color:var(--ink-1)">${fv(presup)}</div></div>
+            <div><div style="font-size:9px;color:var(--ink-3);text-transform:uppercase;letter-spacing:.02em;font-weight:700">${budLbl}</div>
+              <div style="font-family:var(--font-mono);font-size:16px;font-weight:800;color:var(--ink-1)">${fv(budgetVal)}</div></div>
             <span style="font-size:16px;color:var(--ink-3);font-weight:800">→</span>
             <div><div style="font-size:9px;color:var(--ink-3);text-transform:uppercase;letter-spacing:.02em;font-weight:700">${emisLbl}</div>
               <div style="font-family:var(--font-mono);font-size:16px;font-weight:800;color:var(--accent)">${fv(emisVal)}</div></div>
           </div>
           <div style="border-top:1px solid var(--line);padding-top:6px">
             <div style="font-size:9px;color:var(--ink-3);text-transform:uppercase;letter-spacing:.02em;font-weight:700">${desvLbl}</div>
-            <div style="font-family:var(--font-mono);font-size:18px;font-weight:800;color:${dc}">${sg(desvVal)}${fv(desvVal)} <span style="font-size:12px">(${pctTxt(desvVal)})</span></div>
+            <div style="font-family:var(--font-mono);font-size:18px;font-weight:800;color:${dc}">${sg(desvVal)}${fv(desvVal)} <span style="font-size:12px">(${pct})</span></div>
           </div>
         </div>`;
       };
@@ -4000,11 +4002,11 @@ function ejecJustificacion(S, useUSD, dual, useUSDprimary){
       return `<div style="margin-top:8px;border-top:1px solid var(--line);padding-top:8px">
         <div style="font-size:11.5px;font-weight:800;color:var(--accent-3);text-transform:uppercase;letter-spacing:.04em;margin-bottom:8px">Comparación de desvíos</div>
         <div style="display:grid;grid-template-columns:1.25fr auto 0.7fr auto 1.25fr;gap:10px;align-items:center">
-          ${combo('Emisión 2026', emisReal, 'Desvío real', desvReal)}
+          ${combo('Presup. a '+_mLast, presupEmi, 'Emisión 2026', emisReal, 'Desvío a la fecha', emisReal-presupEmi)}
           <span style="font-size:24px;color:var(--ink-3);font-weight:800">→</span>
           ${pendCard}
           <span style="font-size:24px;color:var(--ink-3);font-weight:800">→</span>
-          ${combo('Emisión + pendiente', emisProy, 'Desvío con emisión pendiente', desvProy)}
+          ${combo('Presup. a '+_mCorte, presup, 'Emisión + pendiente', emisProy, 'Desvío hasta corte', desvProy)}
         </div>
       </div>`;
     })()}
