@@ -1033,21 +1033,28 @@ function _presupArgVal(p, ck, suf, modo){
   }
   return tot;
 }
+/* Clave de póliza para deduplicar entre pendientes (dígitos; fallback nombre normalizado). */
+function _polKey(x){ const d=(typeof _digitsKey==='function')?_digitsKey(x):''; return d || ((typeof _normProyKey==='function'?_normProyKey(x):'')||String(x||'')).toString(); }
 /* Total GLOBAL de "Presup Arg HTML" por modo (confirmado=amarillo / pendiente=presupuesto), con
-   desglose por concepto (primaMin/ajuste/malus/bono; el bono resta) y conteo de pólizas. */
-function _presupArgGlobal(suf, modo, maxMes){
-  const c={primaMin:0,ajuste:0,malus:0,bono:0}; let total=0; const pol=new Set();
-  const pa=state._presupArg; if(!pa||!pa.ok) return {total:0,c,n:0};
-  for(const e of pa.rows){ const ck=_tipoToConcepto(e.tipo); if(!ck) continue; const sgn=(ck==='bono')?-1:1; let any=false;
+   desglose por concepto (primaMin/ajuste/malus/bono; el bono resta) y conteo de pólizas.
+   excludeSet: claves "polKey|concepto" a NO sumar (dedup entre pendientes).
+   Devuelve también el set de claves incluidas (para construir la exclusión del siguiente). */
+function _presupArgGlobal(suf, modo, maxMes, excludeSet){
+  const c={primaMin:0,ajuste:0,malus:0,bono:0}; let total=0; const pol=new Set(); const keys=new Set();
+  const pa=state._presupArg; if(!pa||!pa.ok) return {total:0,c,n:0,keys};
+  for(const e of pa.rows){ const ck=_tipoToConcepto(e.tipo); if(!ck) continue;
+    const key=_polKey(e.poliza)+'|'+ck;
+    if(excludeSet && excludeSet.has(key)) continue;
+    const sgn=(ck==='bono')?-1:1; let any=false;
     for(const mo of e.months){ if(maxMes && mo.m>maxMes) continue; if(modo==='confirmado'&&!mo.yellow)continue; if(modo==='pendiente'&&mo.yellow)continue;
       const v=(suf==='u')?mo.orig:mo.ars; if(!isFinite(v)||!v)continue; c[ck]+=sgn*v; total+=sgn*v; any=true; }
-    if(any) pol.add(String(e.poliza||e.aseg)); }
-  return {total, c, n:pol.size};
+    if(any){ pol.add(String(e.poliza||e.aseg)); keys.add(key); } }
+  return {total, c, n:pol.size, keys};
 }
 /* Pendiente "Comparación 2025": lo de antes — por póliza pendiente, los conceptos pendientes
    según conceptosPendientes (emisión 2025 por fecha/concepto/categoría: vacío, "anualidad
    anterior", etc.). Devuelve total + desglose por concepto (bono resta) + conteo. */
-function _pend2025Global(polPend, mesCorte, suf){
+function _pend2025Global(polPend, mesCorte, suf, excludeSet){
   const c={primaMin:0,ajuste:0,malus:0,bono:0}; let total=0; const pol=new Set();
   const KEYS={'Prima mínima':'primaMin','Ajuste':'ajuste','Bono':'bono','Malus':'malus'};
   for(const p of (polPend||[])){
@@ -1056,17 +1063,25 @@ function _pend2025Global(polPend, mesCorte, suf){
     const cp=conceptosPendientes(p,mesCorte); let items=cp.items;
     if(items.length===0 && pend){ const f25=calcEmisionFiltrada(p,2025,0); const a=f25.breakdownARS.primaMin,u=f25.breakdownUSD.primaMin; if(a>0||u>0) items=[{concepto:'Prima mínima',ars:a,usd:u}]; }
     let any=false;
-    for(const it of items){ const k=KEYS[it.concepto]; if(!k) continue; const cv=convertirPendienteTC(it.ars,it.usd,p.moneda); const v=Math.abs((suf==='u')?cv.usd:cv.ars); const sgn=(k==='bono')?-1:1; c[k]+=sgn*v; total+=sgn*v; any=true; }
+    for(const it of items){ const k=KEYS[it.concepto]; if(!k) continue;
+      if(excludeSet && excludeSet.has(_polKey(p.poliza)+'|'+k)) continue;   /* ya está en Confirmado o Proyección */
+      const cv=convertirPendienteTC(it.ars,it.usd,p.moneda); const v=Math.abs((suf==='u')?cv.usd:cv.ars); const sgn=(k==='bono')?-1:1; c[k]+=sgn*v; total+=sgn*v; any=true; }
     if(any) pol.add(p.clave);
   }
   return {total, c, n:pol.size};
 }
-/* Pólizas de un pendiente (pend_conf/pend_presup/pend_2025) para UN concepto, ordenadas por valor. */
+/* Pólizas de un pendiente (pend_conf/pend_presup/pend_2025) para UN concepto, ordenadas por valor.
+   Aplica el mismo dedup por (póliza,concepto) que el donut: Confirmado > Proyección Arg > Comparación 2025. */
 function _pendConceptoPolizas(id, ck, suf, polPend, mesCorte, maxMes){
   const out=[];
+  /* Set de exclusión según prioridad. */
+  let excl=null;
+  if(id==='pend_presup'){ excl=_presupArgGlobal(suf,'confirmado',maxMes).keys; }
+  else if(id==='pend_2025'){ const cf=_presupArgGlobal(suf,'confirmado',maxMes).keys; const pr=_presupArgGlobal(suf,'pendiente',maxMes,cf).keys; excl=new Set([...cf,...pr]); }
   if(id==='pend_2025'){
     const NAME={primaMin:'Prima mínima',ajuste:'Ajuste',malus:'Malus',bono:'Bono'};
     for(const p of (polPend||[])){
+      if(excl && excl.has(_polKey(p.poliza)+'|'+ck)) continue;
       const est=estadoPolizaConsolidado(p,mesCorte);
       const cp=conceptosPendientes(p,mesCorte); let items=cp.items;
       if(items.length===0 && (est==='desvio_emision_pendiente'||est==='desvio_pendiente_mayor_2m')){ const f25=calcEmisionFiltrada(p,2025,0); if(f25.breakdownARS.primaMin>0||f25.breakdownUSD.primaMin>0) items=[{concepto:'Prima mínima',ars:f25.breakdownARS.primaMin,usd:f25.breakdownUSD.primaMin}]; }
@@ -1076,6 +1091,7 @@ function _pendConceptoPolizas(id, ck, suf, polPend, mesCorte, maxMes){
   } else {
     const modo=id==='pend_conf'?'confirmado':'pendiente'; const pa=state._presupArg;
     if(pa&&pa.ok) for(const e of pa.rows){ if(_tipoToConcepto(e.tipo)!==ck) continue;
+      if(excl && excl.has(_polKey(e.poliza)+'|'+ck)) continue;
       let v=0; for(const mo of e.months){ if(maxMes && mo.m>maxMes) continue; if(modo==='confirmado'&&!mo.yellow)continue; if(modo==='pendiente'&&mo.yellow)continue; const x=(suf==='u')?mo.orig:mo.ars; if(isFinite(x))v+=x; }
       v*=(ck==='bono')?-1:1; if(Math.abs(v)>0.5) out.push({poliza:e.poliza,aseg:e.aseg,val:v}); }
   }
@@ -3705,11 +3721,14 @@ function ejecJustificacion(S, useUSD, dual, useUSDprimary){
        (confirmado en Presup Arg) y CELESTE = lo presupuestado sin confirmar (sin justificar).
        El sub-desglose por concepto (prima/ajuste/bono/malus) aparece al hacer click. */
     const _sufp = useUSD?'u':'a';
+    /* DEDUP por (póliza, concepto), prioridad: Confirmado > Proyección Arg > Comparación 2025.
+       Una misma póliza+concepto no se cuenta dos veces; gana el de mayor prioridad. */
     const _conf = _presupArgGlobal(_sufp, 'confirmado', _cutoff);
-    const _pres = _presupArgGlobal(_sufp, 'pendiente', _cutoff);
+    const _pres = _presupArgGlobal(_sufp, 'pendiente', _cutoff, _conf.keys);
+    const _excl25 = new Set([..._conf.keys, ..._pres.keys]);
     /* Comparación 2025 SOLO suma hasta el último mes con emisión real 2026 (en adelante, no). */
     const _cut25 = Math.min(_cutoff, S.lastEmis26 || _cutoff);
-    const _p25  = _pend2025Global(polPend, _cut25, _sufp);
+    const _p25  = _pend2025Global(polPend, _cut25, _sufp, _excl25);
     const _confV = _ejecContabOn('pend_conf','mes') ? _conf.total : 0;   /* toggle Contabilizar */
     const _presV = _ejecContabOn('pend_presup','mes') ? _pres.total : 0;
     const _p25V  = _ejecContabOn('pend_2025','mes') ? _p25.total : 0;
@@ -6418,8 +6437,11 @@ window.toggleEjecCausa = function(id){
     const suf = btnUSD?'u':'a';
     /* Comparación 2025 se topa en el último mes con emisión real 2026. */
     const _drillCut = (id==='pend_2025') ? Math.min(mesCorte, state._ejecLastEmis||mesCorte) : mesCorte;
-    const g = id==='pend_2025' ? _pend2025Global(polFiltradas, _drillCut, suf)
-            : _presupArgGlobal(suf, id==='pend_conf'?'confirmado':'pendiente', mesCorte);
+    /* Mismo dedup que el donut: Confirmado > Proyección Arg > Comparación 2025. */
+    let g;
+    if(id==='pend_conf'){ g=_presupArgGlobal(suf,'confirmado',mesCorte); }
+    else if(id==='pend_presup'){ const _cf=_presupArgGlobal(suf,'confirmado',mesCorte).keys; g=_presupArgGlobal(suf,'pendiente',mesCorte,_cf); }
+    else { const _cf=_presupArgGlobal(suf,'confirmado',mesCorte).keys; const _pr=_presupArgGlobal(suf,'pendiente',mesCorte,_cf).keys; g=_pend2025Global(polFiltradas,_drillCut,suf,new Set([..._cf,..._pr])); }
     const on = _ejecContabOn(id,'mes');
     const tc = id==='pend_conf' ? '#d39a00' : id==='pend_presup' ? '#3a8fc0' : '#3a8a82';
     const tlbl = id==='pend_conf' ? 'Pendiente - Confirmado que se emite'
