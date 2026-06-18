@@ -3958,10 +3958,10 @@ function ejecJustificacion(S, useUSD, dual, useUSDprimary){
        valores que la vista "hasta Dic". */
     const _pendCut = S.mesCorteSet || 12;
     const _proyOff = (selMode==='fecha');
-    const _conf = _presupArgGlobal(_sufp, 'confirmado', _pendCut);
+    const _conf = _presupArgGlobal(_sufp, 'confirmado', 12);   /* Emisión Confirmada = pipeline completo (no depende del corte) */
     /* Comparación 2025 ("Sin Fecha") SOLO hasta el último mes con emisión real 2026, y dedup contra
        lo confirmado (por póliza+concepto). */
-    const _cut25 = Math.min(_pendCut, S.lastEmis26 || _pendCut);
+    const _cut25 = S.lastEmis26 || _pendCut;   /* Sin Fecha: siempre hasta el último mes con emisión real (fijo, no depende del corte) */
     const _p25  = _pend2025Global(polPend, _cut25, _sufp, new Set([..._conf.keys]));
     /* PRESUPUESTO de emisión: suma del presupuesto 2026 mensual de los meses "tildados". Cada mes
        tiene un toggle en el desglose. Por defecto cuentan los meses ≤ corte SIN emisión confirmada
@@ -6744,9 +6744,9 @@ window.toggleEjecCausa = function(id){
     const _minPres = state._ejecLastEmis26||0;   /* Proyección Arg: solo meses > última emisión 2026 */
     /* Mismo dedup que el donut: Confirmado > Proyección Arg > Comparación 2025. */
     let g;
-    if(id==='pend_conf'){ g=_presupArgGlobal(suf,'confirmado',_pendCut); }
-    else if(id==='pend_presup'){ const _cf=_presupArgGlobal(suf,'confirmado',_pendCut).keys; g=_presupArgGlobal(suf,'pendiente',_pendCut,_cf,_minPres); }
-    else { const _cf=_presupArgGlobal(suf,'confirmado',_pendCut).keys; const _pr=_presupArgGlobal(suf,'pendiente',_pendCut,_cf,_minPres).keys; g=_pend2025Global(polFiltradas,_drillCut,suf,new Set([..._cf,..._pr])); }
+    if(id==='pend_conf'){ g=_presupArgGlobal(suf,'confirmado',12); }
+    else if(id==='pend_presup'){ const _cf=_presupArgGlobal(suf,'confirmado',12).keys; g=_presupArgGlobal(suf,'pendiente',_pendCut,_cf,_minPres); }
+    else { const _cf=_presupArgGlobal(suf,'confirmado',12).keys; const _pr=_presupArgGlobal(suf,'pendiente',_pendCut,_cf,_minPres).keys; g=_pend2025Global(polFiltradas,_drillCut,suf,new Set([..._cf,..._pr])); }
     const on = _ejecContabOn(id,'mes');
     const tc = id==='pend_conf' ? '#d39a00' : id==='pend_presup' ? '#3a8fc0' : '#3a8a82';
     const tlbl = id==='pend_conf' ? 'Pendiente - Emisión Confirmada'
