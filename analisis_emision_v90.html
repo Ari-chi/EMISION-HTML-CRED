@@ -892,7 +892,8 @@ function _ejecContabOn(ck, which){
   state._ejecContab = state._ejecContab || {};
   const v = state._ejecContab[ck+'_'+which];
   if(v!==undefined) return !!v;
-  return (which==='mes');   /* todos los pendientes contabilizan por defecto (el dedup evita duplicar) */
+  if(ck==='pend_2025') return false;   /* "Emisión Pendiente - Sin Fecha": por defecto NO contabiliza (el usuario lo enciende si quiere) */
+  return (which==='mes');   /* el resto de los pendientes contabilizan por defecto (el dedup evita duplicar) */
 }
 /* "Emisión pendiente (se emite este mes)" del Excel CONTABILIZADA: suma, por concepto, solo los
    que tienen su toggle 'mes' en SÍ (el bono resta). Así apagar un concepto lo descuenta solo a él
@@ -1089,23 +1090,30 @@ function parseInsur(rows){
 function parseGrupos(wb){
   state._grupos = {}; state._gruposByAseg = {};
   if(!wb || !wb.SheetNames) return;
+  /* Busca la fila de encabezado (Grupo + Póliza/Asegurado) en las primeras filas, por si hay un
+     título arriba; el contenido detecta cualquier hoja con esas columnas (no solo "Grupos"). */
   const colsDe = (ws)=>{ if(!ws||!ws['!ref']) return null; const range=XLSX.utils.decode_range(ws['!ref']);
     const getv=(r,c)=>{ const cell=ws[XLSX.utils.encode_cell({r,c})]; return cell?cell.v:null; };
-    let cPol=-1,cGr=-1,cAseg=-1; for(let c=range.s.c;c<=range.e.c;c++){ const h=_accent(getv(0,c)); if(h==='poliza') cPol=c; else if(h==='grupo') cGr=c; else if(h==='nombre asegurado'||h==='asegurado') cAseg=c; }
-    return (cGr>=0 && (cPol>=0||cAseg>=0)) ? {ws,range,getv,cPol,cGr,cAseg} : null; };
-  /* 1) por nombre; 2) por contenido (cualquier hoja con columna Grupo + Póliza o Asegurado). */
+    const maxHdr=Math.min(range.s.r+8, range.e.r);
+    for(let hr=range.s.r; hr<=maxHdr; hr++){
+      let cPol=-1,cGr=-1,cAseg=-1;
+      for(let c=range.s.c;c<=range.e.c;c++){ const h=_accent(getv(hr,c)); if(h==='poliza'||h==='nro poliza'||h==='n poliza') cPol=c; else if(h==='grupo'||h==='grupo economico') cGr=c; else if(h==='nombre asegurado'||h==='asegurado') cAseg=c; }
+      if(cGr>=0 && (cPol>=0||cAseg>=0)) return {ws,range,getv,cPol,cGr,cAseg,hr};
+    }
+    return null; };
   let found=null;
-  const byName = wb.SheetNames.find(n=>/grupos/.test(_accent(n)));
+  const byName = wb.SheetNames.find(n=>/grupos?/.test(_accent(n)));
   if(byName) found = colsDe(wb.Sheets[byName]);
   if(!found){ for(const n of wb.SheetNames){ const f=colsDe(wb.Sheets[n]); if(f){ found=f; break; } } }
   if(!found) return;
-  const {range,getv,cPol,cGr,cAseg}=found;
-  for(let r=1;r<=range.e.r;r++){
+  const {range,getv,cPol,cGr,cAseg,hr}=found;
+  for(let r=hr+1;r<=range.e.r;r++){
     const gr=getv(r,cGr); if(gr==null||String(gr).trim()==='') continue;
     const grupo=String(gr).trim();
     if(cPol>=0){ const k=_digitsKey(getv(r,cPol)); if(k) state._grupos[k]=grupo; }
     if(cAseg>=0){ const ak=_normProyKey(getv(r,cAseg)); if(ak) state._gruposByAseg[ak]=grupo; }
   }
+  state._gruposN = Object.keys(state._grupos).length + Object.keys(state._gruposByAseg).length;
 }
 
 /* Parser ANTIGUO (hoja única "Presup Arg HTML" con amarillo). Se mantiene como respaldo. */
@@ -4386,7 +4394,7 @@ function ejecJustificacion(S, useUSD, dual, useUSDprimary){
           </div>
           ${flecha('=')}
           <div style="flex:1.15;display:flex;flex-direction:column;gap:6px;justify-content:center">
-            ${card('rgba(30,111,217,.10)','var(--accent)','Emisión total', esCorte?_mCorte:_mLast, valDiv('var(--accent-3)', FMTc(emisReal + pendMes + (esCorte?pendEstim:pv.p25))))}
+            ${card('rgba(30,111,217,.10)','var(--accent)','Emisión estimada', esCorte?_mCorte:_mLast, valDiv('var(--accent-3)', FMTc(emisReal + pendMes + (esCorte?pendEstim:pv.p25))))}
             ${esCorte ? cardDesv('Desvío Acumulado',_mCorte,desvAnio, presup) : cardDesv('Desvío Acumulado',_mLast,desvMes, presupEmi)}
           </div>
         </div>
@@ -4440,7 +4448,7 @@ function renderEjecDesvioPies(){
       },
       options:{
         responsive:true, maintainAspectRatio:false, cutout:'55%',
-        layout:{padding:{top:18,right:30,bottom:18,left:30}},
+        layout:{padding:{top:32,right:50,bottom:30,left:50}},
         plugins:{
           legend:{display:false},
           tooltip:{callbacks:{label:(ctx)=> `${ctx.label}: ${fmtCompact(ctx.parsed, useUSD)}`}}
@@ -12496,7 +12504,9 @@ function drawTop10(){
         <td style="text-align:right;font-family:var(--font-mono);font-weight:800;color:var(--accent-3);font-size:12.5px;padding:5px 8px">${fmtCompact(g.tot,false)}</td>
         ${cell(g.primaMin)}${cell(g.ajuste)}${cell(g.bono)}${cell(g.malus)}
       </tr>`).join('');
-    wrap.innerHTML = arr.length ? `<table style="width:100%;border-collapse:collapse">
+    const _sinGrupos = (Object.keys(grupos).length===0 && Object.keys(gruposAseg).length===0);
+    const _avisoGrupos = _sinGrupos ? `<div style="font-size:11px;color:#b9760f;background:rgba(232,155,30,.10);border-left:3px solid var(--warn);padding:6px 10px;border-radius:4px;margin-bottom:8px">⚠ No se detectó la hoja <strong>Grupos</strong> en el Excel cargado — se está agrupando por nombre de asegurado. Subí el Excel con la hoja "Grupos" (Nombre Asegurado · Póliza · Grupo) para agrupar por grupo económico.</div>` : '';
+    wrap.innerHTML = arr.length ? `${_avisoGrupos}<table style="width:100%;border-collapse:collapse">
       <thead><tr style="font-size:9.5px;text-transform:uppercase;letter-spacing:.03em;color:var(--ink-3);font-weight:700">
         <th style="text-align:left;padding:4px 8px">#</th><th style="text-align:left;padding:4px 8px">Grupo económico</th>
         <th style="text-align:right;padding:4px 8px">Emisión 2025</th><th style="text-align:right;padding:4px 8px">Prima mín.</th>
