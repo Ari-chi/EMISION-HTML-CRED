@@ -6461,6 +6461,26 @@ function drawEjecChartConcepto(canvasId, c25, c26, useUSD){
 }
 
 /* Gráfico mensual Real 2025/2026 vs Presupuesto. 2025 oculto por defecto. */
+/* Agregado mensual de "Presup Arg HTML": total y confirmado (amarillo) por mes, en la moneda
+   pedida ('u'=MON.ORIG / 'a'=ARS). El bono resta. */
+function presupArgMensual(suf){
+  const out={total:Array(12).fill(0), conf:Array(12).fill(0)};
+  const pa=state._presupArg; if(!pa||!pa.ok) return out;
+  for(const e of pa.rows){ const ck=_tipoToConcepto(e.tipo); if(!ck) continue; const sgn=(ck==='bono')?-1:1;
+    for(const mo of e.months){ const v=(suf==='u')?mo.orig:mo.ars; if(!isFinite(v)||!v) continue; const mi=mo.m-1; if(mi<0||mi>11)continue;
+      out.total[mi]+=sgn*v; if(mo.yellow) out.conf[mi]+=sgn*v; } }
+  return out;
+}
+/* Patrón rayado gris para la parte PRESUPUESTADA (no confirmada) de los meses proyectados. */
+let _stripeGrayCache=null;
+function _stripeGray(){
+  if(_stripeGrayCache) return _stripeGrayCache;
+  const c=document.createElement('canvas'); c.width=c.height=7; const x=c.getContext('2d');
+  x.fillStyle='rgba(160,170,185,0.20)'; x.fillRect(0,0,7,7);
+  x.strokeStyle='rgba(120,132,150,0.55)'; x.lineWidth=1.5;
+  x.beginPath(); x.moveTo(-1,7); x.lineTo(7,-1); x.moveTo(3,9); x.lineTo(9,3); x.stroke();
+  _stripeGrayCache=x.createPattern(c,'repeat'); return _stripeGrayCache;
+}
 function drawEjecChartMensual(canvasId, polArr, presArr, mesCorte, useUSD, show2025, presArr25){
   if(!document.getElementById(canvasId)) return;
   const md = computeMensual(polArr);
@@ -6472,18 +6492,31 @@ function drawEjecChartMensual(canvasId, polArr, presArr, mesCorte, useUSD, show2
   const r26 = r26full.map((v,i)=> (i < corte26) ? v : null);
   const presup = (presArr||Array(12).fill(0)).slice(0,lim);
   const presup25 = (presArr25||Array(12).fill(0)).slice(0,lim);
-  const datasets = [];
-  /* Líneas de presupuesto (2025 solo si se tilda) */
-  if(show2025){
-    datasets.push({label:'Presupuesto 2025', data:presup25, type:'line', borderColor:'#9ab0c8', backgroundColor:'rgba(154,176,200,.10)', borderWidth:2, borderDash:[3,3], pointRadius:2, fill:false, tension:.2, spanGaps:true});
+  /* PROYECCIÓN (hoja Presup Arg HTML): en los meses SIN emisión real 2026 se completan barras
+     con lo presupuestado, partido en CONFIRMADO (amarillo) y resto PRESUPUESTADO (gris rayado). */
+  const paM = presupArgMensual(useUSD?'u':'a');
+  const projConf=[], projBudget=[];
+  for(let i=0;i<lim;i++){
+    const actual=r26full[i]||0;
+    if(actual>0.5){ projConf[i]=null; projBudget[i]=null; }
+    else { const conf=paM.conf[i]||0, tot=paM.total[i]||0;
+      projConf[i]= conf>0.5?conf:null; const rest=tot-conf; projBudget[i]= rest>0.5?rest:null; }
   }
-  /* Presupuesto 2026: línea AZUL OSCURO (alto contraste sobre las barras celestes),
-     punteado fino y bolitas chicas (más prolijo, menos "grotesco"). */
-  datasets.push({label:'Presupuesto 2026', data:presup, type:'line', borderColor:'#0a3d7a', backgroundColor:'rgba(10,61,122,.08)', pointBackgroundColor:'#0a3d7a', pointBorderColor:'#fff', pointBorderWidth:1, borderWidth:1.8, borderDash:[2,3], pointRadius:2.4, pointHoverRadius:4, fill:false, tension:.25, spanGaps:true});
-  /* Barras: 2025 a la IZQUIERDA (va primero), 2026 a la DERECHA (va después) */
-  if(show2025) datasets.push({label:'Real 2025', data:r25, backgroundColor:'rgba(150,170,195,.6)', borderColor:'#9fb2c9', borderWidth:1.5, borderRadius:3, barPercentage:.7, categoryPercentage:.8});
-  /* Emisión Real 2026: barras CELESTE CLARO */
-  datasets.push({label:'Real 2026', data:r26, backgroundColor:'rgba(108,189,237,.88)', borderColor:'#4aa3e0', borderWidth:1.5, borderRadius:3, barPercentage:.7, categoryPercentage:.8});
+  const hayProj = projConf.some(v=>v!=null)||projBudget.some(v=>v!=null);
+  const datasets = [];
+  /* Líneas de presupuesto (2025 solo si se tilda). stack único → no se apilan con las barras. */
+  if(show2025){
+    datasets.push({label:'Presupuesto 2025', data:presup25, type:'line', stack:'pl25', borderColor:'#9ab0c8', backgroundColor:'rgba(154,176,200,.10)', borderWidth:2, borderDash:[3,3], pointRadius:2, fill:false, tension:.2, spanGaps:true});
+  }
+  datasets.push({label:'Presupuesto 2026', data:presup, type:'line', stack:'pl26', borderColor:'#0a3d7a', backgroundColor:'rgba(10,61,122,.08)', pointBackgroundColor:'#0a3d7a', pointBorderColor:'#fff', pointBorderWidth:1, borderWidth:1.8, borderDash:[2,3], pointRadius:2.4, pointHoverRadius:4, fill:false, tension:.25, spanGaps:true});
+  /* Barras 2025 (stack propio → al lado de 2026). */
+  if(show2025) datasets.push({label:'Real 2025', data:r25, stack:'y25', backgroundColor:'rgba(150,170,195,.6)', borderColor:'#9fb2c9', borderWidth:1.5, borderRadius:3, barPercentage:.7, categoryPercentage:.8});
+  /* Emisión Real 2026 + proyección apiladas en el mismo stack 'y26'. */
+  datasets.push({label:'Real 2026', data:r26, stack:'y26', backgroundColor:'rgba(108,189,237,.88)', borderColor:'#4aa3e0', borderWidth:1.5, borderRadius:3, barPercentage:.7, categoryPercentage:.8});
+  if(hayProj){
+    datasets.push({label:'Confirmado (proyección)', data:projConf, stack:'y26', backgroundColor:'#ffe14d', borderColor:'#e0a800', borderWidth:1, borderRadius:3, barPercentage:.7, categoryPercentage:.8});
+    datasets.push({label:'Presupuestado (sin confirmar)', data:projBudget, stack:'y26', backgroundColor:_stripeGray(), borderColor:'#aab4c2', borderWidth:1, borderRadius:3, barPercentage:.7, categoryPercentage:.8});
+  }
   /* Opciones base + meses más grandes (pedido del usuario) + margen superior
      para que entren las etiquetas de valor arriba de las barras/puntos. */
   const opts = chartOpts({yMoney:useUSD?'usd':'ars',legend:true});
@@ -6509,10 +6542,15 @@ function drawEjecChartMensual(canvasId, polArr, presArr, mesCorte, useUSD, show2
   });
   opts.scales.x.ticks.font = {family:'Calibri', size:13, weight:'700'};
   opts.scales.x.ticks.color = '#3d5475';
+  /* Apilado: la proyección (confirmado + presupuestado) se apila sobre Real 2026 en su mes.
+     Las líneas de presupuesto tienen stack propio, así no se apilan con las barras. */
+  opts.scales.x = opts.scales.x || {}; opts.scales.x.stacked = true;
+  opts.scales.y = opts.scales.y || {}; opts.scales.y.stacked = true;
   /* Headroom arriba: el eje Y llega ~30% por encima del valor más alto (barras o puntos de
      presupuesto) para que las etiquetas de valor NO se peguen al borde ni se superpongan con
      el gráfico/leyenda. */
-  const _allVals = [...presup, ...presup25, ...r25, ...r26].filter(v=>v!=null && isFinite(v));
+  const _projTot = projConf.map((v,i)=>(v||0)+(projBudget[i]||0));
+  const _allVals = [...presup, ...presup25, ...r25, ...r26, ..._projTot].filter(v=>v!=null && isFinite(v));
   const _dataMax = _allVals.length ? Math.max(..._allVals.map(Math.abs)) : 0;
   if(_dataMax>0){ opts.scales.y = opts.scales.y || {}; opts.scales.y.suggestedMax = _dataMax*1.3; }
   opts.layout = {padding:{top:30}};
