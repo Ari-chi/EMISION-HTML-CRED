@@ -822,6 +822,7 @@ function readExcel(file){
       parsePresupArg(_findSheet(/presup/));   /* formato antiguo */
     }
     state._presupArg.ok = state._presupArg.rows.length>0;
+    parseGrupos(_findSheet(/grupos/));   /* hoja "Grupos": Póliza → Grupo económico (para Top 10) */
     aggregatePolizas();
     renderAll();
     document.getElementById('tabsWrap').style.display='block';
@@ -1082,6 +1083,22 @@ function parseInsur(rows){
     if(!key) continue;
     for(let m=0;m<12;m++) state._insur[key][m]=num(r[AG+m]);
     state._insur.ok=true;
+  }
+}
+
+/* Hoja "Grupos": mapea Póliza → Grupo económico (cols: Nombre Asegurado · Póliza · Grupo).
+   Varias pólizas pueden compartir grupo; se usa en el Top 10 para sumar la prima por grupo. */
+function parseGrupos(ws){
+  state._grupos = {};
+  if(!ws || !ws['!ref']) return;
+  const range=XLSX.utils.decode_range(ws['!ref']);
+  const getv=(r,c)=>{ const cell=ws[XLSX.utils.encode_cell({r,c})]; return cell?cell.v:null; };
+  let cPol=-1,cGr=-1;
+  for(let c=range.s.c;c<=range.e.c;c++){ const h=_accent(getv(0,c)); if(h==='poliza') cPol=c; else if(h==='grupo') cGr=c; }
+  if(cPol<0||cGr<0) return;
+  for(let r=1;r<=range.e.r;r++){
+    const pol=getv(r,cPol), gr=getv(r,cGr); if(pol==null||gr==null||String(gr).trim()==='') continue;
+    const k=_digitsKey(pol); if(k) state._grupos[k]=String(gr).trim();
   }
 }
 
@@ -12352,7 +12369,7 @@ function renderTop10(){
   sec.innerHTML = `
     <div class="section-head"><h2>Top <em>Casos</em></h2></div>
     ${sectionFiltersBarHTML('top10', {dualLabel:'Moneda Original'})}
-    <div class="card"><h3 style="margin-bottom:10px">Top 10 — Mayor emisión 2025 <span style="font-size:12px;color:var(--ink-3);font-weight:500">(prima mínima + ajuste + bono + malus)</span></h3><div id="top2025"></div></div>
+    <div class="card"><h3 style="margin-bottom:10px">Top 10 — Mayor emisión 2025 por grupo económico <span style="font-size:12px;color:var(--ink-3);font-weight:500">(prima mínima + ajuste + bono + malus · en pesos, US convertido al TC)</span></h3><div id="top2025"></div></div>
     <div class="filters" style="margin-top:6px">
       <span class="label">Filtrar por motivo</span>
       <select id="fTop10Motivo">
@@ -12424,29 +12441,41 @@ function drawTop10(){
      y convirtiéndola con el TC del 7° (f.tc). El botón 4° de moneda SOLO cambia la conversión
      visual de los valores, no qué pólizas entran al Top. */
   const TC = (f.tc && f.tc>0) ? f.tc : 1400;
-  /* TOP 10 — mayor emisión 2025 (prima mínima + ajuste + bono + malus), con desglose por concepto.
-     Ranking por base común USD; se muestra en la moneda elegida (o la original de cada póliza). */
+  /* TOP 10 — mayor emisión 2025 por GRUPO ECONÓMICO (hoja "Grupos"): se suma la prima (prima mínima
+     + ajuste + bono + malus) de todas las pólizas del mismo grupo. TODO en PESOS: las pólizas en US
+     se convierten con el TC del botón 3°. Si no hay hoja Grupos, agrupa por nombre de asegurado. */
   (()=>{
     const wrap = document.getElementById('top2025'); if(!wrap) return;
-    const base25 = (x)=> (x.p.moneda==='US') ? x.f25.totUSD : (TC>0 ? x.f25.totARS/TC : x.f25.totARS);
-    const arr25 = polFiltradas.map(p=>({p, f25:calcEmisionFiltrada(p,2025,0)}))
-      .filter(x=> (x.f25.totUSD>0 || x.f25.totARS>0))
-      .sort((a,b)=>base25(b)-base25(a)).slice(0,10);
-    const cell=(esUS,v)=>`<td style="text-align:right;font-family:var(--font-mono);font-size:11.5px;color:var(--ink-2);padding:5px 8px">${Math.abs(v)>0.5?fmtCompact(v,esUS):'<span style="color:var(--line-2)">—</span>'}</td>`;
-    const rows = arr25.map((x,i)=>{
-      const esUS = modoUnico?unicoUSD:(x.p.moneda==='US');
-      const bd = esUS? x.f25.breakdownUSD : x.f25.breakdownARS;
-      const tot = esUS? x.f25.totUSD : x.f25.totARS;
-      return `<tr style="border-top:1px solid var(--line)">
+    const grupos = state._grupos || {};
+    const TCv = (TC>0)?TC:1400;
+    const acc = {};   /* grupo → {tot, primaMin, ajuste, bono, malus, n} en ARS */
+    for(const p of polFiltradas){
+      const f25 = calcEmisionFiltrada(p,2025,0);
+      const esUS = (p.moneda==='US');
+      const conv = esUS ? TCv : 1;
+      const bd = esUS ? f25.breakdownUSD : f25.breakdownARS;
+      const tot = (esUS ? f25.totUSD : f25.totARS) * conv;
+      if(!(tot>0.5)) continue;
+      const gk = grupos[_digitsKey(p.poliza)] || p.asegurado || '—';
+      const g = acc[gk] || (acc[gk]={nombre:gk, tot:0, primaMin:0, ajuste:0, bono:0, malus:0, n:0});
+      g.tot += tot;
+      g.primaMin += (bd.primaMin||0)*conv;
+      g.ajuste   += (bd.ajuste||0)*conv;
+      g.bono     += (bd.bono||0)*conv;
+      g.malus    += (bd.malus||0)*conv;
+      g.n++;
+    }
+    const arr = Object.values(acc).filter(g=>g.tot>0.5).sort((a,b)=>b.tot-a.tot).slice(0,10);
+    const cell=(v)=>`<td style="text-align:right;font-family:var(--font-mono);font-size:11.5px;color:var(--ink-2);padding:5px 8px">${Math.abs(v)>0.5?fmtCompact(v,false):'<span style="color:var(--line-2)">—</span>'}</td>`;
+    const rows = arr.map((g,i)=>`<tr style="border-top:1px solid var(--line)">
         <td style="color:var(--ink-3);font-family:var(--font-mono);font-size:11px;padding:5px 8px">${String(i+1).padStart(2,'0')}</td>
-        <td style="padding:5px 8px"><div style="font-weight:700;color:var(--accent-3);font-size:12.5px">${x.p.asegurado||'—'}</div><div style="font-size:10px;color:var(--ink-3)">${x.p.rubro||'—'} · ${x.p.moneda||'—'}</div></td>
-        <td style="text-align:right;font-family:var(--font-mono);font-weight:800;color:var(--accent-3);font-size:12.5px;padding:5px 8px">${fmtCompact(tot,esUS)}</td>
-        ${cell(esUS,bd.primaMin)}${cell(esUS,bd.ajuste)}${cell(esUS,bd.bono)}${cell(esUS,bd.malus)}
-      </tr>`;
-    }).join('');
-    wrap.innerHTML = arr25.length ? `<table style="width:100%;border-collapse:collapse">
+        <td style="padding:5px 8px"><div style="font-weight:700;color:var(--accent-3);font-size:12.5px">${g.nombre}</div><div style="font-size:10px;color:var(--ink-3)">${g.n} pól.</div></td>
+        <td style="text-align:right;font-family:var(--font-mono);font-weight:800;color:var(--accent-3);font-size:12.5px;padding:5px 8px">${fmtCompact(g.tot,false)}</td>
+        ${cell(g.primaMin)}${cell(g.ajuste)}${cell(g.bono)}${cell(g.malus)}
+      </tr>`).join('');
+    wrap.innerHTML = arr.length ? `<table style="width:100%;border-collapse:collapse">
       <thead><tr style="font-size:9.5px;text-transform:uppercase;letter-spacing:.03em;color:var(--ink-3);font-weight:700">
-        <th style="text-align:left;padding:4px 8px">#</th><th style="text-align:left;padding:4px 8px">Asegurado</th>
+        <th style="text-align:left;padding:4px 8px">#</th><th style="text-align:left;padding:4px 8px">Grupo económico</th>
         <th style="text-align:right;padding:4px 8px">Emisión 2025</th><th style="text-align:right;padding:4px 8px">Prima mín.</th>
         <th style="text-align:right;padding:4px 8px">Ajuste</th><th style="text-align:right;padding:4px 8px">Bono</th><th style="text-align:right;padding:4px 8px">Malus</th>
       </tr></thead><tbody>${rows}</tbody></table>`
