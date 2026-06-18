@@ -6895,40 +6895,38 @@ function drawEjecChartMensual(canvasId, polArr, presArr, mesCorte, useUSD, showE
   const r26full = (useUSD? md.real26.usd : md.real26.ars).slice(0,lim);
   const r26 = r26full.map((v,i)=> (i < corte26) ? v : null);
   const presup = (presArr||Array(12).fill(0)).slice(0,lim);
-  /* PROYECCIÓN (Presupuesto Argentina):
-     AMARILLO "Proyección Actualizada" (confirmado) = se apila sobre el celeste en los meses SIN
-       emisión real.
-     GRIS "Estimación Inicial" (presupuestado) = se dibuja SIEMPRE como OVERLAY (encima del celeste,
-       semitransparente) hasta el nivel de la estimación total, así se ve si se estimó más o menos
-       que lo emitido y el celeste de abajo sigue distinguiéndose. En meses con emisión real solo
-       aparece si el toggle "Estimaciones anteriores" está activo. */
+  /* PROYECCIÓN (Presupuesto Argentina): AMARILLO = "Proyección Actualizada" (confirmado),
+     GRIS rayado = "Estimación Inicial" (presupuestado).
+     - Meses SIN emisión real: amarillo = confirmado, gris = estimación − confirmado.
+     - Meses CON emisión real: si el toggle "Estimaciones anteriores" está activo, se apila el gris
+       = max(0, estimación inicial − emitido) sobre lo emitido (si se estimó más que lo emitido el
+       gris sobresale; si se emitió más, la barra azul queda más alta). */
   const paM = presupArgMensual(useUSD?'u':'a');
-  const projConf=[], grayFull=[];
+  const projConf=[], grayEstim=[];
   for(let i=0;i<lim;i++){
     const actual=r26full[i]||0; const budget=paM.total[i]||0;
     if(actual>0.5){
       projConf[i]=null;
-      grayFull[i] = (showEstim && budget>0.5) ? budget : null;   /* overlay = estimación total */
+      const g = showEstim ? Math.max(0, budget-actual) : 0;
+      grayEstim[i] = g>0.5 ? g : null;
     } else {
       const conf=paM.conf[i]||0;
       projConf[i]= conf>0.5?conf:null;
-      grayFull[i]= budget>0.5?budget:null;
+      const rest=budget-conf; grayEstim[i]= rest>0.5?rest:null;
     }
   }
   const hayAmar = projConf.some(v=>v!=null);
-  const hayGris = grayFull.some(v=>v!=null);
+  const hayGris = grayEstim.some(v=>v!=null);
   const hayProj = hayAmar || hayGris;
   const datasets = [];
   datasets.push({label:'Presupuesto 2026', data:presup, type:'line', stack:'pl26', borderColor:'#0a3d7a', backgroundColor:'rgba(10,61,122,.08)', pointBackgroundColor:'#0a3d7a', pointBorderColor:'#fff', pointBorderWidth:1, borderWidth:1.8, borderDash:[2,3], pointRadius:2.4, pointHoverRadius:4, fill:false, tension:.25, spanGaps:true});
-  /* Emisión Real 2026 (celeste) + Proyección Actualizada (amarillo) apiladas en 'y26'. */
+  /* Emisión Real 2026 + proyección/estimación apiladas en el mismo stack 'y26'. */
   datasets.push({label:'Emisión Real 2026', data:r26, stack:'y26', backgroundColor:'rgba(108,189,237,.88)', borderColor:'#4aa3e0', borderWidth:1.5, borderRadius:3, barPercentage:.7, categoryPercentage:.8});
   if(hayAmar){
     datasets.push({label:'Proyección Actualizada', data:projConf, stack:'y26', backgroundColor:'#ffe14d', borderColor:'#e0a800', borderWidth:1, borderRadius:3, barPercentage:.7, categoryPercentage:.8});
   }
   if(hayGris){
-    /* OVERLAY (grouped:false, stack propio): se superpone al celeste/amarillo, suave y con borde
-       superior visible (la "línea" de la estimación). Va al final → se dibuja por encima. */
-    datasets.push({label:'Estimación Inicial', data:grayFull, stack:'estim', grouped:false, backgroundColor:'rgba(150,160,176,0.16)', borderColor:'#8a96a8', borderWidth:1.4, borderRadius:2, barPercentage:.7, categoryPercentage:.8});
+    datasets.push({label:'Estimación Inicial', data:grayEstim, stack:'y26', backgroundColor:_stripeGray(), borderColor:'#aab4c2', borderWidth:1, borderRadius:3, barPercentage:.7, categoryPercentage:.8});
   }
   /* Opciones base + meses más grandes (pedido del usuario) + margen superior
      para que entren las etiquetas de valor arriba de las barras/puntos. */
@@ -6955,49 +6953,45 @@ function drawEjecChartMensual(canvasId, polArr, presArr, mesCorte, useUSD, showE
   });
   opts.scales.x.ticks.font = {family:'Calibri', size:13, weight:'700'};
   opts.scales.x.ticks.color = '#3d5475';
-  /* Eje X (meses) más abajo: deja un hueco entre las barras y los nombres de mes para escribir
-     ahí los valores de Emisión Real 2026. */
+  /* Meses más abajo: deja un hueco entre las barras y los nombres para la fila de Emisión Real. */
   opts.scales.x.ticks.padding = 22;
-  /* Apilado: la Proyección Actualizada (amarillo) se apila sobre el celeste; la Estimación Inicial
-     es overlay con stack propio. Las líneas de presupuesto tienen stack propio. */
+  /* Apilado: la proyección (confirmado + presupuestado) se apila sobre Real 2026 en su mes.
+     Las líneas de presupuesto tienen stack propio, así no se apilan con las barras. */
   opts.scales.x = opts.scales.x || {}; opts.scales.x.stacked = true;
   opts.scales.y = opts.scales.y || {}; opts.scales.y.stacked = true;
-  /* Headroom arriba: el eje Y llega ~30% por encima del valor más alto (celeste+amarillo, overlay
-     gris o puntos de presupuesto). */
-  const _maxBar = labels.map((_,i)=> Math.max((r26[i]||0)+(projConf[i]||0), grayFull[i]||0));
-  const _allVals = [...presup, ..._maxBar].filter(v=>v!=null && isFinite(v));
+  /* Headroom arriba: el eje Y llega ~30% por encima del valor más alto (barras o puntos de
+     presupuesto) para que las etiquetas de valor NO se peguen al borde ni se superpongan con
+     el gráfico/leyenda. */
+  const _stackTot = r26.map((v,i)=>(v||0)+(projConf[i]||0)+(grayEstim[i]||0));
+  const _allVals = [...presup, ..._stackTot].filter(v=>v!=null && isFinite(v));
   const _dataMax = _allVals.length ? Math.max(..._allVals.map(Math.abs)) : 0;
   if(_dataMax>0){ opts.scales.y = opts.scales.y || {}; opts.scales.y.suggestedMax = _dataMax*1.3; }
-  opts.layout = {padding:{top:28, bottom:hayProj?98:34, left:86}};
+  opts.layout = {padding:{top:30, bottom:98, left:86}};
   /* Filas de valores DEBAJO del gráfico, con título a la izquierda y bien separadas:
-       · Emisión Real 2026 (celeste) — en el hueco, ARRIBA de los nombres de mes.
-       · Proyección Actualizada (ámbar) — debajo de los nombres de mes.
-       · Estimación Inicial (gris) — más abajo. */
-  const r26vals = r26;
-  const footerPlugin = {
-    id:'mensualFooter',
+       · Emisión Real (celeste) — en el hueco, ARRIBA de los nombres de mes.
+       · Proy. Actualizada (ámbar) y Estim. Inicial (gris) — debajo de los nombres de mes. */
+  const projTotalPlugin = {
+    id:'projTotals',
     afterDraw(chart){
       const xs=chart.scales.x, ctx=chart.ctx, ca=chart.chartArea, yBase=ca.bottom;
-      const yEmis=yBase+11;              /* en el hueco, sobre los meses (eje en ~yBase+22) */
-      const yProy=yBase+52, yEstim=yBase+74;
+      const yEmis=yBase+11, yConf=yBase+52, yPres=yBase+74;
       ctx.save();
-      /* Separadores finos entre filas. */
       ctx.strokeStyle='rgba(120,135,160,0.22)'; ctx.lineWidth=1;
-      [yBase+34, yProy+11, yEstim+11].forEach(y=>{ ctx.beginPath(); ctx.moveTo(ca.left,y); ctx.lineTo(ca.right,y); ctx.stroke(); });
+      [yBase+34, yConf+11, yPres+11].forEach(y=>{ ctx.beginPath(); ctx.moveTo(ca.left,y); ctx.lineTo(ca.right,y); ctx.stroke(); });
       /* Títulos de fila a la izquierda. */
       ctx.textAlign='right'; ctx.textBaseline='middle'; ctx.font='700 9.5px Calibri';
-      const lblX = ca.left-8;
+      const lblX=ca.left-8;
       ctx.fillStyle='#1565c0'; ctx.fillText('Emisión Real', lblX, yEmis);
-      if(hayAmar){ ctx.fillStyle='#d39a00'; ctx.fillText('Proy. Actualizada', lblX, yProy); }
-      if(hayGris){ ctx.fillStyle='#8894a6'; ctx.fillText('Estim. Inicial', lblX, yEstim); }
+      if(hayAmar){ ctx.fillStyle='#d39a00'; ctx.fillText('Proy. Actualizada', lblX, yConf); }
+      if(hayGris){ ctx.fillStyle='#8894a6'; ctx.fillText('Estim. Inicial', lblX, yPres); }
       /* Valores por mes. */
       ctx.textAlign='center'; ctx.font='800 11px Calibri';
       for(let i=0;i<labels.length;i++){
         const x=xs.getPixelForValue(i);
-        const e=r26vals[i];
+        const e=r26[i];
         if(e!=null && Math.abs(e)>0.5){ ctx.fillStyle='#1565c0'; ctx.fillText(fmtCompact(e,useUSD), x, yEmis); }
-        if(projConf[i]!=null && Math.abs(projConf[i])>0.5){ ctx.fillStyle='#d39a00'; ctx.fillText(fmtCompact(projConf[i],useUSD), x, yProy); }
-        if(grayFull[i]!=null && Math.abs(grayFull[i])>0.5){ ctx.fillStyle='#8894a6'; ctx.fillText(fmtCompact(grayFull[i],useUSD), x, yEstim); }
+        if(projConf[i]!=null && Math.abs(projConf[i])>0.5){ ctx.fillStyle='#d39a00'; ctx.fillText(fmtCompact(projConf[i],useUSD), x, yConf); }
+        if(grayEstim[i]!=null && Math.abs(grayEstim[i])>0.5){ ctx.fillStyle='#8894a6'; ctx.fillText(fmtCompact(grayEstim[i],useUSD), x, yPres); }
       }
       ctx.restore();
     }
@@ -7011,11 +7005,11 @@ function drawEjecChartMensual(canvasId, polArr, presArr, mesCorte, useUSD, showE
     afterDatasetsDraw(chart){
       const {ctx} = chart;
       const colTop = (chart.chartArea ? chart.chartArea.top : 0) + 7;
-      /* Solo la LÍNEA de Presupuesto se etiqueta arriba; los valores de Emisión Real van en la
-         fila inferior (footerPlugin), no sobre las barras. */
+      /* Solo la LÍNEA de Presupuesto va arriba; la Emisión Real va en la fila inferior. */
       const wantBar  = (lbl)=> false;
       const wantLine = (lbl)=> lbl==='Presupuesto 2026';
-      const colorOf = (lbl)=> lbl==='Presupuesto 2026' ? '#0a3d7a' : '#94a8c2';
+      const colorOf = (lbl)=> lbl==='Emisión Real 2026' ? '#1565c0'
+                            : lbl==='Presupuesto 2026' ? '#0a3d7a' : '#94a8c2';
       const items = [];
       chart.data.datasets.forEach((ds, di)=>{
         const meta = chart.getDatasetMeta(di);
@@ -7057,7 +7051,7 @@ function drawEjecChartMensual(canvasId, polArr, presArr, mesCorte, useUSD, showE
       ctx.restore();
     }
   };
-  drawChart(canvasId,{type:'bar', data:{labels,datasets}, options:opts, plugins:[valueLabelPlugin, footerPlugin]});
+  drawChart(canvasId,{type:'bar', data:{labels,datasets}, options:opts, plugins:[valueLabelPlugin, projTotalPlugin]});
 }
 
 /* Cascada waterfall */
