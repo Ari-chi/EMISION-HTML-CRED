@@ -3375,8 +3375,8 @@ function ejecFlujo(S, useUSD){
               </div>
             </div>`;
           };
-          return subCard('Desvío a la fecha', '(hasta '+_mLast+')', desvioEmi, desvPctEmi)
-               + subCard('Desvío hasta corte', '(hasta '+_mCorte+')', desvio, desvPct);
+          return subCard('Desvío Emisión Real', '(hasta '+_mLast+')', desvioEmi, desvPctEmi)
+               + subCard('Desvío Hasta '+_mCorte, '', desvio, desvPct);
         })()}
       </div>
     </div>
@@ -6594,18 +6594,22 @@ function drawEjecChartMensual(canvasId, polArr, presArr, mesCorte, useUSD, show2
   const _allVals = [...presup, ...presup25, ...r25, ...r26, ..._projTot].filter(v=>v!=null && isFinite(v));
   const _dataMax = _allVals.length ? Math.max(..._allVals.map(Math.abs)) : 0;
   if(_dataMax>0){ opts.scales.y = opts.scales.y || {}; opts.scales.y.suggestedMax = _dataMax*1.3; }
-  opts.layout = {padding:{top:30, bottom:hayProj?26:6}};
-  /* Totales de la PROYECCIÓN: debajo del nombre del mes (sin recuadro), resumidos. */
-  const projTot = projConf.map((v,i)=> (v!=null||projBudget[i]!=null) ? (v||0)+(projBudget[i]||0) : null);
+  opts.layout = {padding:{top:30, bottom:hayProj?48:6}};
+  /* Totales de la PROYECCIÓN debajo del mes (sin recuadro): si hay AMARILLO (confirmado) un valor
+     en ámbar, y si hay GRIS (presupuestado sin confirmar) otro valor en gris. */
   const projTotalPlugin = {
     id:'projTotals',
     afterDraw(chart){
       if(!hayProj) return;
       const xs=chart.scales.x, ctx=chart.ctx, yBase=chart.chartArea.bottom;
       ctx.save(); ctx.textAlign='center'; ctx.textBaseline='middle';
-      ctx.font='800 11px Calibri'; ctx.fillStyle='#b9760f';
-      for(let i=0;i<projTot.length;i++){ if(projTot[i]==null) continue;
-        ctx.fillText(fmtCompact(projTot[i],useUSD), xs.getPixelForValue(i), yBase+32); }
+      for(let i=0;i<projConf.length;i++){
+        const x=xs.getPixelForValue(i);
+        if(projConf[i]!=null && Math.abs(projConf[i])>0.5){ ctx.font='800 11px Calibri'; ctx.fillStyle='#d39a00';
+          ctx.fillText(fmtCompact(projConf[i],useUSD), x, yBase+30); }
+        if(projBudget[i]!=null && Math.abs(projBudget[i])>0.5){ ctx.font='800 11px Calibri'; ctx.fillStyle='#8894a6';
+          ctx.fillText(fmtCompact(projBudget[i],useUSD), x, yBase+44); }
+      }
       ctx.restore();
     }
   };
@@ -6658,14 +6662,7 @@ function drawEjecChartMensual(canvasId, polArr, presArr, mesCorte, useUSD, show2
       ctx.save();
       ctx.textAlign = 'center';
       ctx.textBaseline = 'alphabetic';
-      /* Halo blanco detrás de cada etiqueta para que el número se lea sin encimarse
-         visualmente con barras o líneas punteadas. */
-      items.forEach(it=>{
-        ctx.font = it.font;
-        const w = ctx.measureText(it.text).width;
-        ctx.fillStyle = 'rgba(255,255,255,0.85)';
-        ctx.fillRect(it.x - w/2 - 2, it.ly - 9, w + 4, 12);
-      });
+      /* Sin halo blanco (pedido del usuario): solo el texto. */
       items.forEach(it=>{ ctx.font=it.font; ctx.fillStyle=it.color; ctx.fillText(it.text, it.x, it.ly); });
       ctx.restore();
     }
