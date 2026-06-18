@@ -3897,7 +3897,7 @@ function ejecJustificacion(S, useUSD, dual, useUSDprimary){
   const mLbl=useUSD?'USD':'ARS$';
   /* Selector de los DOS desvíos: 'corte' (hasta el mes del botón 1°) o 'fecha' (hasta el último
      mes con emisión real 2026). Cambia el desvío total y el corte con el que se calculan las causas. */
-  const selMode = (state._ejecDesvioSel==='fecha') ? 'fecha' : 'corte';
+  const selMode = 'corte';   /* se muestra solo el desvío hasta el corte (botón 1°); la vista "May" se quitó */
   const _cutoff = (selMode==='fecha') ? (S.lastEmis26 || S.mesCorteSet || 12) : (S.mesCorteSet || 12);
   state._ejecDesvioCutoff = _cutoff;   /* lo lee el drill */
   state._ejecPendCut = S.mesCorteSet || 12;          /* pendientes: cutoff completo (no se recortan por "hasta May") */
@@ -4333,9 +4333,8 @@ function ejecJustificacion(S, useUSD, dual, useUSDprimary){
     </div>`; };
   /* Primero HASTA DIC (corte del botón 1°), después emisión real. Achicadas y separadas para
      diferenciarlas del total. */
-  const _selectorCards = `<div style="display:flex;gap:18px;margin-bottom:10px;max-width:540px">
+  const _selectorCards = `<div style="display:flex;gap:18px;margin-bottom:10px;max-width:300px">
     ${_selCard('corte','Desvío Acumulado',_mCorteD, _dvCorte, _pctCorte)}
-    ${_selCard('fecha','Desvío Acumulado',_mLastD, _dvEmi, _pctEmi)}
   </div>`;
   return `<div style="margin-top:${dual?8:2}px">
     ${dual?`<div style="font-size:11px;color:var(--ink-3);text-transform:uppercase;letter-spacing:.05em;font-weight:700;margin-bottom:4px">${mLbl}</div>`:''}
