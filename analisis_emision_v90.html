@@ -6860,9 +6860,18 @@ function drawEjecChartConcepto(canvasId, c25, c26, useUSD){
 function presupArgMensual(suf){
   const out={total:Array(12).fill(0), conf:Array(12).fill(0)};
   const pa=state._presupArg; if(!pa||!pa.ok) return out;
+  /* Dedup amarillo (Confirmado) vs gris (Presupuestado): una misma (póliza, concepto) NO se
+     cuenta en los dos. Predomina el amarillo: si está confirmada, su parte presupuestada (gris)
+     no se suma. */
+  const confKeys=new Set();
+  for(const e of pa.rows){ const ck=_tipoToConcepto(e.tipo); if(!ck) continue;
+    if(e.months.some(mo=>mo.yellow)) confKeys.add(_polKey(e.poliza)+'|'+ck); }
   for(const e of pa.rows){ const ck=_tipoToConcepto(e.tipo); if(!ck) continue; const sgn=(ck==='bono')?-1:1;
+    const key=_polKey(e.poliza)+'|'+ck;
     for(const mo of e.months){ const v=(suf==='u')?((mo.usd!=null)?mo.usd:mo.orig):mo.ars; if(!isFinite(v)||!v) continue; const mi=mo.m-1; if(mi<0||mi>11)continue;
-      out.total[mi]+=sgn*v; if(mo.yellow) out.conf[mi]+=sgn*v; } }
+      if(mo.yellow){ out.conf[mi]+=sgn*v; out.total[mi]+=sgn*v; }
+      else if(!confKeys.has(key)){ out.total[mi]+=sgn*v; }   /* gris solo si NO está confirmada esa póliza+concepto */
+    } }
   return out;
 }
 /* Patrón rayado gris para la parte PRESUPUESTADA (no confirmada) de los meses proyectados. */
