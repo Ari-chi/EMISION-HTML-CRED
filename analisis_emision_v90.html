@@ -3167,7 +3167,17 @@ function drawEjecutivo(){
     const sumExpl = cPerdidas+cPend+cVariaciones;
     const cOtros = Math.max(0, desvio - sumExpl);
     const incTotal = incPrimaMin+incAjuste+incBono+incMalus+incNuevas;
+    /* DOS desvíos (pedido del usuario):
+       (1) hasta el ÚLTIMO mes con emisión real 2026 (lo emitido efectivamente, comparación
+           "justa" presupuesto-a-la-fecha vs emisión-a-la-fecha);
+       (2) hasta el MES DE CORTE del botón 1° (presupuesto acumulado hasta ahí). */
+    let lastEmis26 = 0;
+    try { const _md = computeMensual(polFiltradas); const _r = useUSD ? _md.real26.usd : _md.real26.ars;
+      for(let i=0;i<12;i++){ if((_r[i]||0)>0.5) lastEmis26=i+1; } } catch(e){}
+    const presup26_emi = presupAcumulado(presArr, lastEmis26 || 12);
+    const desvio_emi   = presup26_emi - emis26;     /* emis26 ya es lo emitido (no hay emisión tras lastEmis26) */
     return {useUSD, presArr, presup26, emis26, emis25, conc26, conc25, desvio, cumpl, sinPresup,
+      lastEmis26, presup26_emi, desvio_emi, mesCorteSet:mesCorte,
       emiSeg,nSeg, emiRen,nRen, emiTer,nTer, pmSeg, pmRen, subaProy, nSubaProy, emitidoCats, otrosConceptos,
       cPerdidas,nPerdidas, cPend,nPend, cPrimaMin,nPrimaMin, cProy,nProy, cTasa,nTasa,
       cAjuste,cBono,cMalus, cVariaciones, cOtros,
@@ -3304,6 +3314,11 @@ function ejecFlujo(S, useUSD){
   const mLbl = useUSD?'USD':'ARS$';
   const desvio=S.desvio, dvAbs=Math.abs(desvio);
   const desvPct = S.presup26>0 ? (desvio/S.presup26*100) : null;
+  /* Segundo desvío: hasta el último mes con emisión real 2026 (comparación a la fecha). */
+  const desvioEmi = S.desvio_emi||0, dvAbsEmi=Math.abs(desvioEmi);
+  const desvPctEmi = S.presup26_emi>0 ? (desvioEmi/S.presup26_emi*100) : null;
+  const _mLast  = (S.lastEmis26>0) ? MESES[S.lastEmis26-1] : '—';
+  const _mCorte = (S.mesCorteSet>0) ? MESES[S.mesCorteSet-1] : 'Dic';
   /* Títulos de las 3 tarjetas más prominentes (pedido del usuario): subir el
      tamaño y el peso, mantener el color sutil de cada bloque. Se quita
      "objetivo del período" debajo del presupuesto. */
@@ -3335,10 +3350,23 @@ function ejecFlujo(S, useUSD){
         ${_bubbleHTML}
       </div>
       <div style="display:flex;align-items:center;color:var(--ink-3);font-size:20px;font-weight:300">=</div>
-      <div style="flex:1;background:${desvio>0?'rgba(217,71,71,.10)':'rgba(45,155,106,.10)'};border-radius:10px;padding:11px 13px;display:flex;flex-direction:column;justify-content:flex-start">
-        <div style="${tituloCardCss(desvio>0?'var(--neg)':'var(--pos)')}">${desvio>0?'Desvío':'Sobre-cumplimiento'}</div>
-        <div style="font-size:22px;font-weight:800;color:${desvio>0?'var(--neg)':'var(--pos)'};line-height:1;font-family:var(--font-mono);margin-top:4px">${desvio>0?'−':'+'}${FMTc(dvAbs)}</div>
-        <div style="font-size:18px;font-weight:800;color:${desvio>0?'var(--neg)':'var(--pos)'};margin-top:8px;font-family:var(--font-mono)">${desvPct!=null?(desvPct>0?'−':'+')+Math.abs(desvPct).toFixed(1)+'%':''}<span style="font-size:12px;font-weight:600;margin-left:4px">vs presupuesto</span></div>
+      <div style="flex:1.15;display:flex;flex-direction:column;gap:6px">
+        ${(()=>{
+          /* DOS desvíos en la misma posición: (1) a la fecha (hasta emisión real 2026),
+             (2) hasta el mes de corte del botón 1°. */
+          const subCard = (titulo, sub, val, pct)=>{
+            const neg = val>0; const c = neg?'var(--neg)':'var(--pos)';
+            return `<div style="flex:1;background:${neg?'rgba(217,71,71,.10)':'rgba(45,155,106,.10)'};border-radius:10px;padding:8px 13px;display:flex;flex-direction:column;justify-content:center">
+              <div style="font-size:11.5px;color:${c};text-transform:uppercase;letter-spacing:.03em;font-weight:800">${titulo} <span style="font-size:9.5px;color:var(--ink-3);font-weight:600;text-transform:none;letter-spacing:0">${sub}</span></div>
+              <div style="display:flex;align-items:baseline;gap:8px;margin-top:2px">
+                <span style="font-size:20px;font-weight:800;color:${c};font-family:var(--font-mono)">${neg?'−':'+'}${FMTc(Math.abs(val))}</span>
+                <span style="font-size:13px;font-weight:800;color:${c};font-family:var(--font-mono)">${pct!=null?'('+(pct>0?'−':'+')+Math.abs(pct).toFixed(1)+'%)':''}</span>
+              </div>
+            </div>`;
+          };
+          return subCard('Desvío a la fecha', '(hasta '+_mLast+')', desvioEmi, desvPctEmi)
+               + subCard('Desvío hasta corte', '(hasta '+_mCorte+')', desvio, desvPct);
+        })()}
       </div>
     </div>
   </div>`;
