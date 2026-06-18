@@ -4194,13 +4194,16 @@ function ejecJustificacion(S, useUSD, dual, useUSDprimary){
          DE AÑO (Emisión Confirmada + Proyección Arg. + Comparación 2025); DERECHA = desvío resultante
          de sumar cada pendiente a la emisión real. */
       const sufx = useUSD?'u':'a';
-      const presup = S.presup26 || 0;
+      const presup = S.presup26 || 0;             /* presupuesto acumulado hasta el botón de corte */
+      const presupEmi = S.presup26_emi || 0;      /* presupuesto hasta el último mes con emisión real 2026 */
       const emisReal = S.emis26 || 0;
       const pv = (state._ejecPendVals && state._ejecPendVals[sufx]) || {conf:0,pres:0,p25:0};
       const pendMes  = pv.conf;                         /* se emite este mes = Emisión Confirmada */
       const pendAnio = pv.conf + pv.pres + pv.p25;      /* hasta fin de año = los 3 pendientes */
-      const desvMes  = (emisReal + pendMes)  - presup;  /* desvío sumando lo de este mes */
-      const desvAnio = (emisReal + pendAnio) - presup;  /* desvío sumando todo lo pendiente */
+      /* Desvío contra el presupuesto hasta el corte. desvAnio = (emis + Σpendientes) − presup =
+         −dvAbs + Σpendientes = EXACTAMENTE el neto del donut "El desvío (hasta Dic)…". */
+      const desvMes  = (emisReal + pendMes)  - presup;
+      const desvAnio = (emisReal + pendAnio) - presup;
       const _mLast  = (S.lastEmis26>0) ? MESES[S.lastEmis26-1] : '—';
       const _mCorte = (S.mesCorteSet>0) ? MESES[S.mesCorteSet-1] : 'Dic';
       const fv = (v)=>FMTc(Math.abs(v));
@@ -4208,9 +4211,10 @@ function ejecJustificacion(S, useUSD, dual, useUSDprimary){
         <div style="font-size:11.5px;color:${fg};text-transform:uppercase;letter-spacing:.03em;font-weight:800">${lbl}${sub?` <span style="font-size:9.5px;color:var(--ink-3);font-weight:600;text-transform:none;letter-spacing:0">${sub}</span>`:''}</div>
         ${inner}</div>`;
       const valDiv = (color,txt)=>`<div style="font-size:20px;font-weight:800;color:${color};line-height:1;font-family:var(--font-mono);margin-top:3px">${txt}</div>`;
-      const cardBlue = (lbl,sub,val)=> card('rgba(30,111,217,.10)','var(--accent)',lbl,sub, valDiv('var(--accent-3)',FMTc(val)));
-      const cardGreen = (lbl,sub,val)=> card('rgba(45,155,106,.10)','var(--pos)',lbl,sub, valDiv('var(--pos)','+'+fv(val)));
-      const cardDesv = (lbl,sub,val)=>{ const neg=val<0; const c=neg?'var(--neg)':'var(--pos)';
+      const cardBlue  = (lbl,sub,val)=> card('rgba(30,111,217,.10)','var(--accent)',lbl,sub, valDiv('var(--accent-3)',FMTc(val)));
+      const cardEmis  = (lbl,sub,val)=> card('rgba(45,155,106,.12)','var(--pos)',lbl,sub, valDiv('var(--pos)',FMTc(val)));
+      const cardYellow= (lbl,sub,val)=> card('rgba(255,193,7,.16)','#b8860b',lbl,sub, valDiv('#b8860b','+'+fv(val)));
+      const cardDesv  = (lbl,sub,val)=>{ const neg=val<0; const c=neg?'var(--neg)':'var(--pos)';
         const pct = presup ? `(${neg?'−':'+'}${Math.round(Math.abs(val/presup*100))}%)` : '';
         const inner = `<div style="display:flex;align-items:baseline;gap:8px;margin-top:2px"><span style="font-size:20px;font-weight:800;color:${c};font-family:var(--font-mono)">${neg?'−':'+'}${fv(val)}</span><span style="font-size:13px;font-weight:800;color:${c};font-family:var(--font-mono)">${pct}</span></div>`;
         return card(neg?'rgba(217,71,71,.10)':'rgba(45,155,106,.10)', c, lbl, sub, inner); };
@@ -4220,15 +4224,16 @@ function ejecJustificacion(S, useUSD, dual, useUSDprimary){
         <div style="display:flex;align-items:stretch;gap:8px">
           <div style="flex:1.05;display:flex;flex-direction:column;gap:6px">
             ${cardBlue('Presupuesto Hasta '+_mCorte,'',presup)}
-            ${cardBlue('Emisión Real 2026','(hasta '+_mLast+')',emisReal)}
+            ${cardBlue('Presupuesto Hasta '+_mLast,'(mes con emisión real)',presupEmi)}
+            ${cardEmis('Emisión Real 2026','(hasta '+_mLast+')',emisReal)}
           </div>
           ${flecha('+')}
-          <div style="flex:1.15;display:flex;flex-direction:column;gap:6px">
-            ${cardGreen('Pendiente · se emite este mes','',pendMes)}
-            ${cardGreen('Pendiente · hasta fin de año','(confirmada + proyección + comp. 2025)',pendAnio)}
+          <div style="flex:1.15;display:flex;flex-direction:column;gap:6px;justify-content:center">
+            ${cardYellow('Pendiente · se emite este mes','',pendMes)}
+            ${cardYellow('Pendiente · hasta fin de año','(confirmada + proyección + comp. 2025)',pendAnio)}
           </div>
           ${flecha('=')}
-          <div style="flex:1.15;display:flex;flex-direction:column;gap:6px">
+          <div style="flex:1.15;display:flex;flex-direction:column;gap:6px;justify-content:center">
             ${cardDesv('Desvío · se emite este mes','',desvMes)}
             ${cardDesv('Desvío · hasta fin de año','',desvAnio)}
           </div>
