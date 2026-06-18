@@ -566,6 +566,9 @@ const state = {
      internas tengan acceso a "excluirAnualAnt" sin tener que pasarlo en cada llamada).
      Cada render de sección setea esto al inicio. */
   _activeCtx: {excluirAnualAnt: true},
+  /* Toggle "Estimación" (◦/pastilla): true = estimado OCULTO. Por defecto arranca OCULTO
+     (no se muestra Proyección Arg. / Estimación Inicial hasta que se active). */
+  _ejecHideEstim: true,
 };
 const charts = {};
 
