@@ -3963,7 +3963,7 @@ function ejecJustificacion(S, useUSD, dual, useUSDprimary){
     causas = [
       mk('pend_conf','Pendiente - Emisión Confirmada', _confV, _conf.n, '#ffd54a','pendiente'),
       mk('pend_presup','Pendiente - Proyección Arg.', _presV, _pres.n, APP_CONFIG.colores.pendiente,'pendiente'),
-      mk('pend_2025','Pendiente - Comparación 2025', _p25V, _p25.n, '#4fb0a8','pendiente'),
+      mk('pend_2025','Emisión Pendiente - Sin Fecha', _p25V, _p25.n, '#4fb0a8','pendiente'),
       mk('perdidas',APP_CONFIG.textos.perdidas, mkVal(cnt.perdidas), cnt.perdidas.n, APP_CONFIG.colores.perdidas),
       mk('menor',APP_CONFIG.textos.menor || 'Menor Emisión', menorSigned, menorN, APP_CONFIG.colores.abm),
     /* Los pendientes (amarillo/celeste) siempre figuran aunque su valor sea 0. */
@@ -4351,7 +4351,7 @@ function ejecJustificacion(S, useUSD, dual, useUSDprimary){
           ${flecha('+')}
           <div style="flex:1.15;display:flex;flex-direction:column;gap:6px;justify-content:center">
             ${cardYellow('Pendiente · se emite este mes','',pendMes)}
-            ${cardYellow('Estimaciones', state._ejecHideEstim?'(comp. 2025)':'(proyección + comp. 2025)', pendEstim)}
+            ${cardYellow('Estimaciones', state._ejecHideEstim?'(sin fecha)':'(proyección + sin fecha)', pendEstim)}
           </div>
           ${flecha('=')}
           <div style="flex:1.15;display:flex;flex-direction:column;gap:6px;justify-content:center">
@@ -6303,7 +6303,7 @@ window.toggleEjecCausa = function(id){
     </div>`;
   }
 
-  const titulos = {pendiente:'Pendiente de emisión', pend_conf:'Pendiente - Emisión Confirmada', pend_presup:'Pendiente - Proyección Arg.', pend_2025:'Pendiente - Comparación 2025', pend_prima:'Prima mínima pendiente', pend_ajuste:'Ajuste pendiente', pend_bono:'Bono pendiente', pend_malus:'Malus pendiente', perdidas:'Pólizas que se fueron', prima:'Prima mínima', ajuste:'Ajuste', bono:'Bono', malus:'Malus', menor:'Menor Emisión', sinjust:'Pólizas que no crecieron'};
+  const titulos = {pendiente:'Pendiente de emisión', pend_conf:'Pendiente - Emisión Confirmada', pend_presup:'Pendiente - Proyección Arg.', pend_2025:'Emisión Pendiente - Sin Fecha', pend_prima:'Prima mínima pendiente', pend_ajuste:'Ajuste pendiente', pend_bono:'Bono pendiente', pend_malus:'Malus pendiente', perdidas:'Pólizas que se fueron', prima:'Prima mínima', ajuste:'Ajuste', bono:'Bono', malus:'Malus', menor:'Menor Emisión', sinjust:'Pólizas que no crecieron'};
 
   /* Resumen pre-card de las pólizas involucradas en ESTA causa, antes del
      desglose por póliza. Mismo formato que en "Emisión 2026": Proyección $/US,
@@ -6691,7 +6691,7 @@ window.toggleEjecCausa = function(id){
     const on = _ejecContabOn(id,'mes');
     const tc = id==='pend_conf' ? '#d39a00' : id==='pend_presup' ? '#3a8fc0' : '#3a8a82';
     const tlbl = id==='pend_conf' ? 'Pendiente - Emisión Confirmada'
-               : id==='pend_presup' ? 'Pendiente - Proyección Arg.' : 'Pendiente - Comparación 2025';
+               : id==='pend_presup' ? 'Pendiente - Proyección Arg.' : 'Emisión Pendiente - Sin Fecha';
     const CN = {primaMin:'Prima Mínima', ajuste:'Ajuste', malus:'Malus', bono:'Bono'};
     const totAbs = ['primaMin','ajuste','malus','bono'].reduce((a,k)=>a+Math.abs(g.c[k]),0) || 1;
     const filas = ['primaMin','ajuste','malus','bono'].filter(k=>Math.abs(g.c[k])>0.5).map(k=>{
