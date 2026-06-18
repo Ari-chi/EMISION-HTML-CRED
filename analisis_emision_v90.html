@@ -3948,19 +3948,19 @@ function ejecJustificacion(S, useUSD, dual, useUSDprimary){
     const confFull = _ejecContabOn('pend_conf','mes') ? _conf.total : 0;
     const presFull = (!state._ejecHideEstim && _ejecContabOn('pend_presup','mes')) ? _pres.total : 0;
     const p25Full  = _ejecContabOn('pend_2025','mes') ? _p25.total : 0;
-    /* Para el DONUT: en vista "emisión real" (fecha) solo cuenta Confirmada; en "hasta corte" (Dic)
-       cuentan los 3 (salvo estimado oculto). */
+    /* Para el DONUT: la Proyección Arg. (estimado) NO cuenta en vista "emisión real" (fecha) ni con
+       el estimado oculto. Emisión Confirmada y "Sin Fecha" cuentan SIEMPRE (son pendientes reales). */
     const _confV = confFull;
-    const _presV = _proyOff ? 0 : presFull;
-    const _p25V  = _proyOff ? 0 : p25Full;
+    const _presV = (_proyOff || state._ejecHideEstim) ? 0 : presFull;
+    const _p25V  = p25Full;
     /* Comparación de desvíos: valores completos (independientes de la vista). */
     state._ejecPendVals = state._ejecPendVals || {};
     state._ejecPendVals[_sufp] = {conf:confFull, pres:presFull, p25:p25Full};
     /* NETO por vista (idéntico en tarjetas, donut y comparación):
-         Dic  = emisión real + confirmada + proyección + comp.2025 − presupuesto hasta corte.
-         May  = emisión real + confirmada − presupuesto hasta el mes con emisión (sin estimaciones). */
+         Dic = emisión real + confirmada + proyección + sin fecha − presupuesto hasta corte.
+         May = emisión real + confirmada + sin fecha − presupuesto hasta el mes con emisión (sin proyección). */
     const _netDic = (S.emis26||0) + confFull + presFull + p25Full - (S.presup26||0);
-    const _netMay = (S.emis26||0) + confFull - (S.presup26_emi||0);
+    const _netMay = (S.emis26||0) + confFull + p25Full - (S.presup26_emi||0);
     state._ejecNet = state._ejecNet || {};
     state._ejecNet[_sufp] = {dic:_netDic, may:_netMay};
     causas = [
@@ -4326,8 +4326,8 @@ function ejecJustificacion(S, useUSD, dual, useUSDprimary){
       const pv = (state._ejecPendVals && state._ejecPendVals[sufx]) || {conf:0,pres:0,p25:0};
       const pendMes   = pv.conf;                  /* se emite este mes = Emisión Confirmada */
       const pendEstim = pv.pres + pv.p25;         /* Estimaciones = Proyección Arg. + Comparación 2025 */
-      const desvAnio = (emisReal + pendMes + pendEstim) - presup;   /* vs presupuesto hasta corte */
-      const desvMes  = (emisReal + pendMes) - presupEmi;            /* vs presupuesto hasta mes con emisión, SIN estimaciones */
+      const desvAnio = (emisReal + pendMes + pendEstim) - presup;   /* vs presupuesto hasta corte (incluye proyección + sin fecha) */
+      const desvMes  = (emisReal + pendMes + pv.p25) - presupEmi;   /* vs presupuesto hasta mes con emisión: confirmada + sin fecha (sin proyección) */
       const _mLast  = (S.lastEmis26>0) ? MESES[S.lastEmis26-1] : '—';
       const _mCorte = (S.mesCorteSet>0) ? MESES[S.mesCorteSet-1] : 'Dic';
       const fv = (v)=>FMTc(Math.abs(v));
