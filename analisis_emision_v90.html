@@ -566,9 +566,6 @@ const state = {
      internas tengan acceso a "excluirAnualAnt" sin tener que pasarlo en cada llamada).
      Cada render de sección setea esto al inicio. */
   _activeCtx: {excluirAnualAnt: true},
-  /* Toggle "Estimación" (◦/pastilla): true = estimado OCULTO. Por defecto arranca OCULTO
-     (no se muestra Proyección Arg. / Estimación Inicial hasta que se active). */
-  _ejecHideEstim: true,
 };
 const charts = {};
 
@@ -3516,7 +3513,7 @@ function drawEjecutivo(){
         ` : `
           <div class="chart-box" style="height:470px"><canvas id="ejecChartMensual"></canvas></div>
         `}
-        <div style="margin-top:6px;text-align:right"><span id="ejecHideEstimBtn" onclick="window.toggleHideEstim(event)" title="Mostrar / ocultar el estimado (Proyección Arg. / Estimación Inicial) en todo el Resumen Ejecutivo" style="font-size:9.5px;color:${state._ejecHideEstim?'#d7deea':'#5a6b85'};cursor:pointer;user-select:none;font-weight:600;border:1px solid ${state._ejecHideEstim?'#eef1f6':'#c5cdd9'};border-radius:8px;padding:0 6px">Estimación</span></div>
+
       </div>
       <!-- Selector oculto del presupuesto: escribir "tina" muestra Argentina -->
       <div style="margin-top:14px;padding-top:10px;border-top:1px dashed var(--line)">
@@ -3573,12 +3570,11 @@ function drawEjecutivo(){
 
   /* Gráfico mensual con toggle 2025 */
   const drawMensualEjec = ()=>{
-    const showEstim = !state._ejecHideEstim;   /* el estimado se muestra salvo que el toggle "Estimación" lo oculte */
     if(dual){
-      drawEjecChartMensual('ejecChartMensual_u', polFiltradas, presArrU, mesCorte, true, showEstim);
-      drawEjecChartMensual('ejecChartMensual_a', polFiltradas, presArrA, mesCorte, false, showEstim);
+      drawEjecChartMensual('ejecChartMensual_u', polFiltradas, presArrU, mesCorte, true);
+      drawEjecChartMensual('ejecChartMensual_a', polFiltradas, presArrA, mesCorte, false);
     } else {
-      drawEjecChartMensual('ejecChartMensual', polFiltradas, primary.presArr, mesCorte, primary.useUSD, showEstim);
+      drawEjecChartMensual('ejecChartMensual', polFiltradas, primary.presArr, mesCorte, primary.useUSD);
     }
   };
   drawMensualEjec();
@@ -3951,9 +3947,8 @@ function ejecJustificacion(S, useUSD, dual, useUSDprimary){
        (confirmado en Presup Arg) y CELESTE = lo presupuestado sin confirmar (sin justificar).
        El sub-desglose por concepto (prima/ajuste/bono/malus) aparece al hacer click. */
     const _sufp = useUSD?'u':'a';
-    /* DEDUP por (póliza, concepto), prioridad: Confirmado > Proyección Arg > Comparación 2025.
-       Una misma póliza+concepto no se cuenta dos veces; gana el de mayor prioridad. */
-    const _lastE26 = S.lastEmis26 || 0;
+    /* Pendientes del desvío: Emisión Confirmada (prioridad) · Presupuesto (mensual, con toggles) ·
+       Emisión Pendiente - Sin Fecha (Comparación 2025, dedup por póliza+concepto contra Confirmada). */
     /* Los PENDIENTES (lo que se va a emitir) se cuentan SIEMPRE hasta el mes de corte completo
        (no se recortan por la vista "emisión real / hasta May"); si no, el Confirmado de Jun–Dic
        daría 0. En la vista "emisión real" (fecha) NO se cuenta Proyección Arg. (presupuesto sin
@@ -3962,41 +3957,46 @@ function ejecJustificacion(S, useUSD, dual, useUSDprimary){
     const _pendCut = S.mesCorteSet || 12;
     const _proyOff = (selMode==='fecha');
     const _conf = _presupArgGlobal(_sufp, 'confirmado', _pendCut);
-    /* Proyección Arg SOLO suma a partir del mes que NO tiene emisión real 2026 (minMes exclusivo). */
-    const _pres = _presupArgGlobal(_sufp, 'pendiente', _pendCut, _conf.keys, _lastE26);
-    const _excl25 = new Set([..._conf.keys, ..._pres.keys]);
-    /* Comparación 2025 SOLO suma hasta el último mes con emisión real 2026 (en adelante, no). */
+    /* Comparación 2025 ("Sin Fecha") SOLO hasta el último mes con emisión real 2026, y dedup contra
+       lo confirmado (por póliza+concepto). */
     const _cut25 = Math.min(_pendCut, S.lastEmis26 || _pendCut);
-    const _p25  = _pend2025Global(polPend, _cut25, _sufp, _excl25);
-    /* Valores COMPLETOS de los pendientes (no dependen de la vista corte/fecha): se usan para las
-       tarjetas de arriba, la Comparación de desvíos y el neto, así TODA la hoja da lo mismo. */
+    const _p25  = _pend2025Global(polPend, _cut25, _sufp, new Set([..._conf.keys]));
+    /* PRESUPUESTO de emisión: suma del presupuesto 2026 mensual de los meses "tildados". Cada mes
+       tiene un toggle en el desglose. Por defecto cuentan los meses ≤ corte SIN emisión confirmada
+       (los confirmados, ej. junio, van DESTILDADOS porque ya están en "Emisión Confirmada"). */
+    const _paMc = presupArgMensual(_sufp).conf;
+    const _presArr = S.presArr || Array(12).fill(0);
+    state._ejecPresArr = state._ejecPresArr || {}; state._ejecPresArr[_sufp] = _presArr;   /* para el drill por mes */
+    state._ejecPresCorte = _pendCut;
+    state._ejecPresMes = state._ejecPresMes || {};
+    const _presMesDefault = (m)=> (m <= _pendCut) && (m > (S.lastEmis26||0)) && !((_paMc[m-1]||0) > 0.5);   /* meses pendientes (futuros), sin confirmado */
+    const _presMesOn = (m)=>{ const v = state._ejecPresMes[m]; return (v!==undefined) ? !!v : _presMesDefault(m); };
+    let presFull = 0, _presMeses = 0;
+    if(_ejecContabOn('pend_presup','mes')){ for(let m=1;m<=12;m++){ if(_presMesOn(m)){ presFull += (_presArr[m-1]||0); _presMeses++; } } }
     const confFull = _ejecContabOn('pend_conf','mes') ? _conf.total : 0;
-    const presFull = (!state._ejecHideEstim && _ejecContabOn('pend_presup','mes')) ? _pres.total : 0;
     const p25Full  = _ejecContabOn('pend_2025','mes') ? _p25.total : 0;
-    /* Para el DONUT: la Proyección Arg. (estimado) NO cuenta en vista "emisión real" (fecha) ni con
-       el estimado oculto. Emisión Confirmada y "Sin Fecha" cuentan SIEMPRE (son pendientes reales). */
+    /* Para el DONUT: en vista "emisión real" (fecha/May) el presupuesto futuro no cuenta. */
     const _confV = confFull;
-    const _presV = (_proyOff || state._ejecHideEstim) ? 0 : presFull;
+    const _presV = _proyOff ? 0 : presFull;
     const _p25V  = p25Full;
     /* Comparación de desvíos: valores completos (independientes de la vista). */
     state._ejecPendVals = state._ejecPendVals || {};
     state._ejecPendVals[_sufp] = {conf:confFull, pres:presFull, p25:p25Full};
     /* NETO por vista (idéntico en tarjetas, donut y comparación):
-         Dic = emisión real + confirmada + proyección + sin fecha − presupuesto hasta corte.
-         May = emisión real + confirmada + sin fecha − presupuesto hasta el mes con emisión (sin proyección). */
+         Dic = emisión real + confirmada + presupuesto + sin fecha − presupuesto hasta corte.
+         May = emisión real + confirmada + sin fecha − presupuesto hasta el mes con emisión (sin presupuesto futuro). */
     const _netDic = (S.emis26||0) + confFull + presFull + p25Full - (S.presup26||0);
     const _netMay = (S.emis26||0) + confFull + p25Full - (S.presup26_emi||0);
     state._ejecNet = state._ejecNet || {};
     state._ejecNet[_sufp] = {dic:_netDic, may:_netMay};
     causas = [
       mk('pend_conf','Pendiente - Emisión Confirmada', _confV, _conf.n, '#ffd54a','pendiente'),
-      mk('pend_presup','Pendiente - Proyección Arg.', _presV, _pres.n, APP_CONFIG.colores.pendiente,'pendiente'),
+      mk('pend_presup','Presupuesto', _presV, _presMeses, APP_CONFIG.colores.pendiente,'pendiente'),
       mk('pend_2025','Emisión Pendiente - Sin Fecha', _p25V, _p25.n, '#4fb0a8','pendiente'),
       mk('perdidas',APP_CONFIG.textos.perdidas, mkVal(cnt.perdidas), cnt.perdidas.n, APP_CONFIG.colores.perdidas),
       mk('menor',APP_CONFIG.textos.menor || 'Menor Emisión', menorSigned, menorN, APP_CONFIG.colores.abm),
-    /* Los pendientes (amarillo/celeste) siempre figuran aunque su valor sea 0. */
-    /* Botón OCULTO del estimado: saca "Pendiente - Proyección Arg." de TODO el Resumen Ejecutivo. */
-    ].filter(c=>(c.val>1 || c.grupo==='pendiente') && !(state._ejecHideEstim && c.id==='pend_presup'))
+    /* Los pendientes siempre figuran aunque su valor sea 0. */
+    ].filter(c=>(c.val>1 || c.grupo==='pendiente'))
      /* Orden DESCENDENTE por magnitud (pedido del usuario). "Sin justificar" no está acá: se
         agrega siempre al final (en piePartes). */
      .sort((a,b)=>Math.abs(b.val)-Math.abs(a.val));
@@ -4183,7 +4183,7 @@ function ejecJustificacion(S, useUSD, dual, useUSDprimary){
         : (causa && causa.grupo==='pendiente' ? '+'
           : (clickable && (id==='pendiente'||id==='perdidas') ? '−'
             : (totSigned>=0?'+':'−'))));
-    const nPolStr = causa && causa.n>0 ? ` <span style="color:var(--ink-3);font-weight:500;font-size:12.5px">· ${causa.n} pól.</span>` : '';
+    const nPolStr = causa && causa.n>0 ? ` <span style="color:var(--ink-3);font-weight:500;font-size:12.5px">· ${causa.n} ${id==='pend_presup'?'meses':'pól.'}</span>` : '';
     /* Los 4 conceptos PENDIENTES son editables: el ▸ se reemplaza por ✎ y al clickear se
        abre el drill editable. "Sin justificar" ya NO es editable (no lleva ✎). */
     const esPendConcepto = !!(causa && causa.grupo==='pendiente');
@@ -4350,7 +4350,7 @@ function ejecJustificacion(S, useUSD, dual, useUSDprimary){
       const emisReal = S.emis26 || 0;
       const pv = (state._ejecPendVals && state._ejecPendVals[sufx]) || {conf:0,pres:0,p25:0};
       const pendMes   = pv.conf;                  /* se emite este mes = Emisión Confirmada */
-      const pendEstim = pv.pres + pv.p25;         /* Estimaciones = Proyección Arg. + Comparación 2025 */
+      const pendEstim = pv.pres + pv.p25;         /* Presupuesto + Sin Fecha */
       const desvAnio = (emisReal + pendMes + pendEstim) - presup;   /* vs presupuesto hasta corte (incluye proyección + sin fecha) */
       const desvMes  = (emisReal + pendMes + pv.p25) - presupEmi;   /* vs presupuesto hasta mes con emisión: confirmada + sin fecha (sin proyección) */
       const _mLast  = (S.lastEmis26>0) ? MESES[S.lastEmis26-1] : '—';
@@ -4381,7 +4381,7 @@ function ejecJustificacion(S, useUSD, dual, useUSDprimary){
           ${flecha('+')}
           <div style="flex:1.15;display:flex;flex-direction:column;gap:6px;justify-content:center">
             ${cardYellow('Pendiente · se emite este mes','',pendMes)}
-            ${cardYellow('Estimaciones', state._ejecHideEstim?'(sin fecha)':'(proyección + sin fecha)', pendEstim)}
+            ${cardYellow('Presupuesto + Sin Fecha','',pendEstim)}
           </div>
           ${flecha('=')}
           <div style="flex:1.15;display:flex;flex-direction:column;gap:6px;justify-content:center">
@@ -6332,7 +6332,7 @@ window.toggleEjecCausa = function(id){
     </div>`;
   }
 
-  const titulos = {pendiente:'Pendiente de emisión', pend_conf:'Pendiente - Emisión Confirmada', pend_presup:'Pendiente - Proyección Arg.', pend_2025:'Emisión Pendiente - Sin Fecha', pend_prima:'Prima mínima pendiente', pend_ajuste:'Ajuste pendiente', pend_bono:'Bono pendiente', pend_malus:'Malus pendiente', perdidas:'Pólizas que se fueron', prima:'Prima mínima', ajuste:'Ajuste', bono:'Bono', malus:'Malus', menor:'Menor Emisión', sinjust:'Pólizas que no crecieron'};
+  const titulos = {pendiente:'Pendiente de emisión', pend_conf:'Pendiente - Emisión Confirmada', pend_presup:'Presupuesto', pend_2025:'Emisión Pendiente - Sin Fecha', pend_prima:'Prima mínima pendiente', pend_ajuste:'Ajuste pendiente', pend_bono:'Bono pendiente', pend_malus:'Malus pendiente', perdidas:'Pólizas que se fueron', prima:'Prima mínima', ajuste:'Ajuste', bono:'Bono', malus:'Malus', menor:'Menor Emisión', sinjust:'Pólizas que no crecieron'};
 
   /* Resumen pre-card de las pólizas involucradas en ESTA causa, antes del
      desglose por póliza. Mismo formato que en "Emisión 2026": Proyección $/US,
@@ -6703,7 +6703,35 @@ window.toggleEjecCausa = function(id){
       <div id="ejecAbmCols" style="display:grid;grid-template-columns:1fr 1fr;gap:16px">${colAbm(false,'ajuste')}${colAbm(true,'ajuste')}</div>`;
   } else if(id==='sinjust'){
     contenido = `<div style="display:grid;grid-template-columns:1fr 1fr;gap:16px">${colNoCrecen(false)}${colNoCrecen(true)}</div>`;
-  } else if(id==='pend_conf' || id==='pend_presup' || id==='pend_2025'){
+  } else if(id==='pend_presup'){
+    /* PRESUPUESTO: desglose MES A MES con toggle por mes. Por defecto cuentan los meses ≤ corte
+       SIN emisión confirmada (los confirmados van destildados; se pueden tildar para sumarlos). */
+    const suf = btnUSD?'u':'a';
+    const presArr = (state._ejecPresArr && state._ejecPresArr[suf]) || Array(12).fill(0);
+    const confM = presupArgMensual(suf).conf;
+    const corte = state._ejecPresCorte || 12;
+    const on = _ejecContabOn('pend_presup','mes');
+    state._ejecPresMes = state._ejecPresMes || {};
+    const _le26 = state._ejecLastEmis26||0;
+    const onMes = (m)=>{ const v=state._ejecPresMes[m]; return (v!==undefined)?!!v:((m<=corte)&&(m>_le26)&&!((confM[m-1]||0)>0.5)); };
+    let total=0; for(let m=1;m<=12;m++){ if(onMes(m)) total+=(presArr[m-1]||0); }
+    const tc='#3a8fc0';
+    const filas = MESES.map((mn,idx)=>{ const m=idx+1; const pres=presArr[idx]||0; const conf=confM[idx]||0; const chk=onMes(m); const fut=(m<=corte);
+      if(pres<0.5 && conf<0.5 && !fut) return '';
+      return `<div onclick="window.ejecTogglePresMes(${m})" style="display:grid;grid-template-columns:18px 1fr auto;gap:10px;align-items:center;padding:8px 14px;border-bottom:1px solid var(--line);font-size:13px;cursor:pointer;${chk?'':'opacity:.5'}">
+        <span style="width:14px;height:14px;border:1.5px solid ${chk?tc:'var(--line-2)'};border-radius:3px;background:${chk?tc:'transparent'};display:inline-flex;align-items:center;justify-content:center;color:#fff;font-size:10px;font-weight:800">${chk?'✓':''}</span>
+        <span style="font-weight:700;color:var(--accent-3)">${mn}${conf>0.5?` <span style="color:#d39a00;font-weight:600;font-size:11px">· confirmado ${fmtCompact(conf,btnUSD)}</span>`:''}${m>corte?' <span style="color:var(--ink-3);font-size:10.5px">(fuera del corte)</span>':''}</span>
+        <span style="font-family:var(--font-mono);font-weight:800;color:var(--accent-3);min-width:84px;text-align:right">${fmtCompact(pres,btnUSD)}</span>
+      </div>`; }).join('');
+    contenido = `<div style="border:1px solid var(--line-2);border-radius:9px;overflow:hidden;max-width:560px;${on?'':'opacity:.6'}">
+      <div style="display:flex;justify-content:space-between;align-items:center;gap:10px;padding:11px 14px;background:${tc}22;border-bottom:1px solid var(--line)">
+        <span style="font-weight:800;color:${tc};text-transform:uppercase;letter-spacing:.03em;font-size:12px">Presupuesto <span style="color:var(--ink-3);font-weight:600;text-transform:none">· tildá los meses que cuentan</span></span>
+        <button onclick="ejecToggleContab('pend_presup','mes')" title="Contabilizar el presupuesto en el desvío" style="font-size:10px;font-weight:800;border-radius:5px;padding:4px 10px;cursor:pointer;white-space:nowrap;border:1.5px solid ${on?'var(--pos)':'var(--line-2)'};background:${on?'var(--pos)':'var(--panel)'};color:${on?'#fff':'var(--ink-2)'}">Contabilizar: ${on?'SÍ':'NO'}</button>
+      </div>
+      <div style="font-family:var(--font-mono);font-size:17px;font-weight:800;color:${tc};padding:9px 14px;border-bottom:1px solid var(--line)">Total: ${fmtCompact(total,btnUSD)}</div>
+      ${filas}
+    </div>`;
+  } else if(id==='pend_conf' || id==='pend_2025'){
     /* Sub-desglose por concepto (prima/ajuste/malus/bono) con total + % de ese total; cada
        concepto se puede expandir para ver el detalle por póliza. Toggle Contabilizar. */
     const suf = btnUSD?'u':'a';
@@ -6720,7 +6748,7 @@ window.toggleEjecCausa = function(id){
     const on = _ejecContabOn(id,'mes');
     const tc = id==='pend_conf' ? '#d39a00' : id==='pend_presup' ? '#3a8fc0' : '#3a8a82';
     const tlbl = id==='pend_conf' ? 'Pendiente - Emisión Confirmada'
-               : id==='pend_presup' ? 'Pendiente - Proyección Arg.' : 'Emisión Pendiente - Sin Fecha';
+               : id==='pend_presup' ? 'Presupuesto' : 'Emisión Pendiente - Sin Fecha';
     const CN = {primaMin:'Prima Mínima', ajuste:'Ajuste', malus:'Malus', bono:'Bono'};
     const totAbs = ['primaMin','ajuste','malus','bono'].reduce((a,k)=>a+Math.abs(g.c[k]),0) || 1;
     const filas = ['primaMin','ajuste','malus','bono'].filter(k=>Math.abs(g.c[k])>0.5).map(k=>{
@@ -6930,7 +6958,7 @@ function _stripeGray(){
   x.beginPath(); x.moveTo(-1,7); x.lineTo(7,-1); x.moveTo(3,9); x.lineTo(9,3); x.stroke();
   _stripeGrayCache=x.createPattern(c,'repeat'); return _stripeGrayCache;
 }
-function drawEjecChartMensual(canvasId, polArr, presArr, mesCorte, useUSD, showEstim){
+function drawEjecChartMensual(canvasId, polArr, presArr, mesCorte, useUSD){
   if(!document.getElementById(canvasId)) return;
   const md = computeMensual(polArr);
   const lim = mesCorte===0 ? 12 : mesCorte;
@@ -6939,41 +6967,25 @@ function drawEjecChartMensual(canvasId, polArr, presArr, mesCorte, useUSD, showE
   const r26full = (useUSD? md.real26.usd : md.real26.ars).slice(0,lim);
   const r26 = r26full.map((v,i)=> (i < corte26) ? v : null);
   const presup = (presArr||Array(12).fill(0)).slice(0,lim);
-  /* PROYECCIÓN (Presupuesto Argentina): AMARILLO = "Proyección Actualizada" (confirmado),
-     GRIS rayado = "Estimación Inicial" (presupuestado).
-     - Meses SIN emisión real: amarillo = confirmado, gris = estimación − confirmado.
-     - Meses CON emisión real: si el toggle "Estimaciones anteriores" está activo, se apila el gris
-       = max(0, estimación inicial − emitido) sobre lo emitido (si se estimó más que lo emitido el
-       gris sobresale; si se emitió más, la barra azul queda más alta). */
+  /* AMARILLO = "Proyección Actualizada" (Emisión Confirmada) en los meses SIN emisión real.
+     El presupuesto va como línea punteada. */
   const paM = presupArgMensual(useUSD?'u':'a');
-  /* Botón OCULTO (state._ejecHideEstim): si está activo, NO se muestra la Estimación Inicial (gris)
-     en ningún mes (Ene–Dic). */
-  const hideEstim = !!state._ejecHideEstim;
   const projConf=[], grayEstim=[];
   for(let i=0;i<lim;i++){
-    const actual=r26full[i]||0; const budget=paM.total[i]||0;
-    if(actual>0.5){
-      projConf[i]=null;
-      const g = (showEstim && !hideEstim) ? Math.max(0, budget-actual) : 0;
-      grayEstim[i] = g>0.5 ? g : null;
-    } else {
-      const conf=paM.conf[i]||0;
-      projConf[i]= conf>0.5?conf:null;
-      const rest=budget-conf; grayEstim[i]= (!hideEstim && rest>0.5)?rest:null;
-    }
+    const actual=r26full[i]||0;
+    if(actual>0.5){ projConf[i]=null; }
+    else { const conf=paM.conf[i]||0; projConf[i]= conf>0.5?conf:null; }
+    grayEstim[i]=null;
   }
   const hayAmar = projConf.some(v=>v!=null);
-  const hayGris = grayEstim.some(v=>v!=null);
-  const hayProj = hayAmar || hayGris;
+  const hayGris = false;
+  const hayProj = hayAmar;
   const datasets = [];
   datasets.push({label:'Presupuesto 2026', data:presup, type:'line', stack:'pl26', borderColor:'#0a3d7a', backgroundColor:'rgba(10,61,122,.08)', pointBackgroundColor:'#0a3d7a', pointBorderColor:'#fff', pointBorderWidth:1, borderWidth:1.8, borderDash:[2,3], pointRadius:2.4, pointHoverRadius:4, fill:false, tension:.25, spanGaps:true});
-  /* Emisión Real 2026 + proyección/estimación apiladas en el mismo stack 'y26'. */
+  /* Emisión Real 2026 + Proyección Actualizada apiladas en el mismo stack 'y26'. */
   datasets.push({label:'Emisión Real 2026', data:r26, stack:'y26', backgroundColor:'rgba(108,189,237,.88)', borderColor:'#4aa3e0', borderWidth:1.5, borderRadius:3, barPercentage:.7, categoryPercentage:.8});
   if(hayAmar){
     datasets.push({label:'Proyección Actualizada', data:projConf, stack:'y26', backgroundColor:'#ffe14d', borderColor:'#e0a800', borderWidth:1, borderRadius:3, barPercentage:.7, categoryPercentage:.8});
-  }
-  if(hayGris){
-    datasets.push({label:'Estimación Inicial', data:grayEstim, stack:'y26', backgroundColor:_stripeGray(), borderColor:'#aab4c2', borderWidth:1, borderRadius:3, barPercentage:.7, categoryPercentage:.8});
   }
   /* Opciones base + meses más grandes (pedido del usuario) + margen superior
      para que entren las etiquetas de valor arriba de las barras/puntos. */
@@ -12608,9 +12620,18 @@ function drawTop10(){
 
 /* Top Casos: abre/cierra el detalle de una fila de mejoras/caídas. */
 window.toggleTopDetalle = function(id){ const d=document.getElementById(id); if(d) d.style.display = (d.style.display==='none'||!d.style.display)?'block':'none'; };
+/* Toggle de un mes del Presupuesto (drill). Cambia el estado, re-dibuja el Resumen Ejecutivo y
+   re-abre el desglose de "Presupuesto" para seguir editando. */
+window.ejecTogglePresMes = function(m){
+  state._ejecPresMes = state._ejecPresMes || {};
+  const cur = state._ejecPresMes[m];
+  const def = (()=>{ const corte=state._ejecPresCorte||12; const le26=state._ejecLastEmis26||0; const suf=(state._ejecData&&state._ejecData.btnUSD)?'u':'a'; const confM=presupArgMensual(suf).conf; return (m<=corte)&&(m>le26)&&!((confM[m-1]||0)>0.5); })();
+  state._ejecPresMes[m] = (cur===undefined) ? !def : !cur;
+  if(typeof drawEjecutivo==='function') drawEjecutivo();
+  setTimeout(()=>{ if(typeof window.toggleEjecCausa==='function') window.toggleEjecCausa('pend_presup'); }, 0);
+};
 /* Botón OCULTO (◦ tenue al lado de "Estimaciones anteriores"): muestra/oculta la Estimación
    Inicial (gris) en TODO el año Ene–Dic. No togglea el checkbox. */
-window.toggleHideEstim = function(ev){ if(ev){ev.preventDefault(); ev.stopPropagation();} state._ejecHideEstim = !state._ejecHideEstim; if(typeof drawEjecutivo==='function') drawEjecutivo(); };
 /* Toggle entre moneda original y equivalente: click swap los valores principal
    y secundario; el "click" se pinta de azul cuando está en modo equivalente
    para dar señal visual. */
