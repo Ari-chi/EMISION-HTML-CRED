@@ -3488,7 +3488,7 @@ function drawEjecutivo(){
         ` : `
           <div class="chart-box" style="height:315px"><canvas id="ejecChartMensual"></canvas></div>
         `}
-        <label style="font-size:11.5px;color:var(--ink-2);cursor:pointer;display:flex;align-items:center;gap:5px;margin-top:8px"><input type="checkbox" id="ejecShowEstim" style="cursor:pointer"> Estimaciones anteriores</label>
+        <label style="font-size:11.5px;color:var(--ink-2);cursor:pointer;display:flex;align-items:center;gap:5px;margin-top:8px"><input type="checkbox" id="ejecShowEstim" style="cursor:pointer"> Estimaciones anteriores<span id="ejecHideEstimBtn" onclick="window.toggleHideEstim(event)" title="" style="margin-left:10px;font-size:11px;color:${state._ejecHideEstim?'#c0392b':'#e6eaf0'};cursor:pointer;user-select:none;font-weight:800">◦</span></label>
       </div>
       <!-- Selector oculto del presupuesto: escribir "tina" muestra Argentina -->
       <div style="margin-top:14px;padding-top:10px;border-top:1px dashed var(--line)">
@@ -6902,17 +6902,20 @@ function drawEjecChartMensual(canvasId, polArr, presArr, mesCorte, useUSD, showE
        = max(0, estimación inicial − emitido) sobre lo emitido (si se estimó más que lo emitido el
        gris sobresale; si se emitió más, la barra azul queda más alta). */
   const paM = presupArgMensual(useUSD?'u':'a');
+  /* Botón OCULTO (state._ejecHideEstim): si está activo, NO se muestra la Estimación Inicial (gris)
+     en ningún mes (Ene–Dic). */
+  const hideEstim = !!state._ejecHideEstim;
   const projConf=[], grayEstim=[];
   for(let i=0;i<lim;i++){
     const actual=r26full[i]||0; const budget=paM.total[i]||0;
     if(actual>0.5){
       projConf[i]=null;
-      const g = showEstim ? Math.max(0, budget-actual) : 0;
+      const g = (showEstim && !hideEstim) ? Math.max(0, budget-actual) : 0;
       grayEstim[i] = g>0.5 ? g : null;
     } else {
       const conf=paM.conf[i]||0;
       projConf[i]= conf>0.5?conf:null;
-      const rest=budget-conf; grayEstim[i]= rest>0.5?rest:null;
+      const rest=budget-conf; grayEstim[i]= (!hideEstim && rest>0.5)?rest:null;
     }
   }
   const hayAmar = projConf.some(v=>v!=null);
@@ -6954,7 +6957,7 @@ function drawEjecChartMensual(canvasId, polArr, presArr, mesCorte, useUSD, showE
   opts.scales.x.ticks.font = {family:'Calibri', size:13, weight:'700'};
   opts.scales.x.ticks.color = '#3d5475';
   /* Meses más abajo: deja un hueco entre las barras y los nombres para la fila de Emisión Real. */
-  opts.scales.x.ticks.padding = 22;
+  opts.scales.x.ticks.padding = 26;
   /* Apilado: la proyección (confirmado + presupuestado) se apila sobre Real 2026 en su mes.
      Las líneas de presupuesto tienen stack propio, así no se apilan con las barras. */
   opts.scales.x = opts.scales.x || {}; opts.scales.x.stacked = true;
@@ -6966,7 +6969,7 @@ function drawEjecChartMensual(canvasId, polArr, presArr, mesCorte, useUSD, showE
   const _allVals = [...presup, ..._stackTot].filter(v=>v!=null && isFinite(v));
   const _dataMax = _allVals.length ? Math.max(..._allVals.map(Math.abs)) : 0;
   if(_dataMax>0){ opts.scales.y = opts.scales.y || {}; opts.scales.y.suggestedMax = _dataMax*1.3; }
-  opts.layout = {padding:{top:30, bottom:98, left:86}};
+  opts.layout = {padding:{top:30, bottom:118, left:10}};
   /* Filas de valores DEBAJO del gráfico, con título a la izquierda y bien separadas:
        · Emisión Real (celeste) — en el hueco, ARRIBA de los nombres de mes.
        · Proy. Actualizada (ámbar) y Estim. Inicial (gris) — debajo de los nombres de mes. */
@@ -6974,13 +6977,13 @@ function drawEjecChartMensual(canvasId, polArr, presArr, mesCorte, useUSD, showE
     id:'projTotals',
     afterDraw(chart){
       const xs=chart.scales.x, ctx=chart.ctx, ca=chart.chartArea, yBase=ca.bottom;
-      const yEmis=yBase+11, yConf=yBase+52, yPres=yBase+74;
+      const yEmis=yBase+12, yConf=yBase+60, yPres=yBase+88;   /* bien separadas */
       ctx.save();
       ctx.strokeStyle='rgba(120,135,160,0.22)'; ctx.lineWidth=1;
-      [yBase+34, yConf+11, yPres+11].forEach(y=>{ ctx.beginPath(); ctx.moveTo(ca.left,y); ctx.lineTo(ca.right,y); ctx.stroke(); });
-      /* Títulos de fila a la izquierda. */
-      ctx.textAlign='right'; ctx.textBaseline='middle'; ctx.font='700 9.5px Calibri';
-      const lblX=ca.left-8;
+      [yBase+38, yConf+13, yPres+13].forEach(y=>{ ctx.beginPath(); ctx.moveTo(ca.left,y); ctx.lineTo(ca.right,y); ctx.stroke(); });
+      /* Títulos de fila a la izquierda (alineados al borde, margen chico). */
+      ctx.textAlign='left'; ctx.textBaseline='middle'; ctx.font='700 9px Calibri';
+      const lblX=2;
       ctx.fillStyle='#1565c0'; ctx.fillText('Emisión Real', lblX, yEmis);
       if(hayAmar){ ctx.fillStyle='#d39a00'; ctx.fillText('Proy. Actualizada', lblX, yConf); }
       if(hayGris){ ctx.fillStyle='#8894a6'; ctx.fillText('Estim. Inicial', lblX, yPres); }
@@ -12541,6 +12544,9 @@ function drawTop10(){
 
 /* Top Casos: abre/cierra el detalle de una fila de mejoras/caídas. */
 window.toggleTopDetalle = function(id){ const d=document.getElementById(id); if(d) d.style.display = (d.style.display==='none'||!d.style.display)?'block':'none'; };
+/* Botón OCULTO (◦ tenue al lado de "Estimaciones anteriores"): muestra/oculta la Estimación
+   Inicial (gris) en TODO el año Ene–Dic. No togglea el checkbox. */
+window.toggleHideEstim = function(ev){ if(ev){ev.preventDefault(); ev.stopPropagation();} state._ejecHideEstim = !state._ejecHideEstim; if(typeof drawEjecutivo==='function') drawEjecutivo(); };
 /* Toggle entre moneda original y equivalente: click swap los valores principal
    y secundario; el "click" se pinta de azul cuando está en modo equivalente
    para dar señal visual. */
