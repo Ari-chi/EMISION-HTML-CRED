@@ -3482,13 +3482,13 @@ function drawEjecutivo(){
       <div style="margin-top:10px">
         ${dual ? `
           <div style="font-size:11px;color:var(--ink-3);text-transform:uppercase;letter-spacing:.05em;font-weight:700;margin-bottom:4px">USD</div>
-          <div class="chart-box" style="height:260px"><canvas id="ejecChartMensual_u"></canvas></div>
+          <div class="chart-box" style="height:400px"><canvas id="ejecChartMensual_u"></canvas></div>
           <div style="font-size:11px;color:var(--ink-3);text-transform:uppercase;letter-spacing:.05em;font-weight:700;margin:10px 0 4px">ARS$</div>
-          <div class="chart-box" style="height:260px"><canvas id="ejecChartMensual_a"></canvas></div>
+          <div class="chart-box" style="height:400px"><canvas id="ejecChartMensual_a"></canvas></div>
         ` : `
-          <div class="chart-box" style="height:315px"><canvas id="ejecChartMensual"></canvas></div>
+          <div class="chart-box" style="height:470px"><canvas id="ejecChartMensual"></canvas></div>
         `}
-        <label style="font-size:11.5px;color:var(--ink-2);cursor:pointer;display:flex;align-items:center;gap:5px;margin-top:8px"><input type="checkbox" id="ejecShowEstim" style="cursor:pointer"> Estimaciones anteriores<span id="ejecHideEstimBtn" onclick="window.toggleHideEstim(event)" title="" style="margin-left:10px;font-size:11px;color:${state._ejecHideEstim?'#c0392b':'#e6eaf0'};cursor:pointer;user-select:none;font-weight:800">◦</span></label>
+        <label style="font-size:11.5px;color:var(--ink-2);cursor:pointer;display:flex;align-items:center;gap:5px;margin-top:8px"><input type="checkbox" id="ejecShowEstim" style="cursor:pointer"> Estimaciones anteriores<span id="ejecHideEstimBtn" onclick="window.toggleHideEstim(event)" title="Mostrar / ocultar el estimado (Proyección Arg. / Estimación Inicial) en todo el Resumen Ejecutivo" style="margin-left:12px;font-size:12px;color:${state._ejecHideEstim?'#c0392b':'#8894a6'};cursor:pointer;user-select:none;font-weight:800;border:1px solid ${state._ejecHideEstim?'#c0392b':'#cdd6e3'};border-radius:11px;padding:1px 8px">${state._ejecHideEstim?'estimado oculto':'estimado'}</span></label>
       </div>
       <!-- Selector oculto del presupuesto: escribir "tina" muestra Argentina -->
       <div style="margin-top:14px;padding-top:10px;border-top:1px dashed var(--line)">
@@ -6970,7 +6970,7 @@ function drawEjecChartMensual(canvasId, polArr, presArr, mesCorte, useUSD, showE
   const _allVals = [...presup, ..._stackTot].filter(v=>v!=null && isFinite(v));
   const _dataMax = _allVals.length ? Math.max(..._allVals.map(Math.abs)) : 0;
   if(_dataMax>0){ opts.scales.y = opts.scales.y || {}; opts.scales.y.suggestedMax = _dataMax*1.3; }
-  opts.layout = {padding:{top:30, bottom:118, left:10}};
+  opts.layout = {padding:{top:30, bottom:64, left:10}};
   /* Filas de valores DEBAJO del gráfico, con título a la izquierda y bien separadas:
        · Emisión Real (celeste) — en el hueco, ARRIBA de los nombres de mes.
        · Proy. Actualizada (ámbar) y Estim. Inicial (gris) — debajo de los nombres de mes. */
