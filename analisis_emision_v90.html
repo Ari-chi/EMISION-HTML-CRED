@@ -1215,10 +1215,10 @@ function _pend2025Global(polPend, mesCorte, suf, excludeSet){
    Aplica el mismo dedup por (póliza,concepto) que el donut: Confirmado > Proyección Arg > Comparación 2025. */
 function _pendConceptoPolizas(id, ck, suf, polPend, mesCorte, maxMes, minMes){
   const out=[];
-  /* Set de exclusión según prioridad. Proyección Arg solo cuenta meses > minMes (sin emisión 2026). */
+  /* Set de exclusión: "Sin Fecha" se deduplica solo contra Emisión Confirmada (completa), igual
+     que el donut. (Presupuesto ya no es por póliza, no aporta exclusiones.) */
   let excl=null;
-  if(id==='pend_presup'){ excl=_presupArgGlobal(suf,'confirmado',maxMes).keys; }
-  else if(id==='pend_2025'){ const cf=_presupArgGlobal(suf,'confirmado',maxMes).keys; const pr=_presupArgGlobal(suf,'pendiente',maxMes,cf,minMes).keys; excl=new Set([...cf,...pr]); }
+  if(id==='pend_2025'){ excl=_presupArgGlobal(suf,'confirmado',12).keys; }
   if(id==='pend_2025'){
     const NAME={primaMin:'Prima mínima',ajuste:'Ajuste',malus:'Malus',bono:'Bono'};
     for(const p of (polPend||[])){
@@ -5620,7 +5620,10 @@ window.toggleEjecCausa = function(id){
   /* Para pendientes usamos el universo que NO aplica el filtro "Emitidas 2026" (una póliza
      pendiente no emitió, así que emit26 la excluiría). El resto de causas usa el universo
      filtrado normal. */
-  const polFiltradas = esPend ? (d.polFiltradasPend || d.polFiltradas) : d.polFiltradas;
+  /* "Sin Fecha" (pend_2025) usa el MISMO universo pendiente que el donut, para que el total y el
+     conteo de pólizas coincidan. */
+  const _usePend = esPend || id==='pend_2025';
+  const polFiltradas = _usePend ? (d.polFiltradasPend || d.polFiltradas) : d.polFiltradas;
 
   /* Etiqueta corta del tipo de anualidad */
   function tipoCorto(p){
@@ -6738,14 +6741,12 @@ window.toggleEjecCausa = function(id){
     const suf = btnUSD?'u':'a';
     /* Pendientes: cutoff COMPLETO (no se recortan por la vista "emisión real / hasta May"). */
     const _pendCut = state._ejecPendCut || mesCorte;
-    /* Comparación 2025 se topa en el último mes con emisión real 2026. */
-    const _drillCut = (id==='pend_2025') ? Math.min(_pendCut, state._ejecLastEmis||_pendCut) : _pendCut;
-    const _minPres = state._ejecLastEmis26||0;   /* Proyección Arg: solo meses > última emisión 2026 */
-    /* Mismo dedup que el donut: Confirmado > Proyección Arg > Comparación 2025. */
+    /* Comparación 2025 / "Sin Fecha": SIEMPRE hasta el último mes con emisión real (fijo). */
+    const _drillCut = (id==='pend_2025') ? (state._ejecLastEmis26 || state._ejecLastEmis || _pendCut) : _pendCut;
+    /* Mismo dedup que el donut: Emisión Confirmada (completa) tiene prioridad sobre Sin Fecha. */
     let g;
     if(id==='pend_conf'){ g=_presupArgGlobal(suf,'confirmado',12); }
-    else if(id==='pend_presup'){ const _cf=_presupArgGlobal(suf,'confirmado',12).keys; g=_presupArgGlobal(suf,'pendiente',_pendCut,_cf,_minPres); }
-    else { const _cf=_presupArgGlobal(suf,'confirmado',12).keys; const _pr=_presupArgGlobal(suf,'pendiente',_pendCut,_cf,_minPres).keys; g=_pend2025Global(polFiltradas,_drillCut,suf,new Set([..._cf,..._pr])); }
+    else { const _cf=_presupArgGlobal(suf,'confirmado',12).keys; g=_pend2025Global(polFiltradas,_drillCut,suf,new Set([..._cf])); }
     const on = _ejecContabOn(id,'mes');
     const tc = id==='pend_conf' ? '#d39a00' : id==='pend_presup' ? '#3a8fc0' : '#3a8a82';
     const tlbl = id==='pend_conf' ? 'Pendiente - Emisión Confirmada'
@@ -6754,7 +6755,7 @@ window.toggleEjecCausa = function(id){
     const totAbs = ['primaMin','ajuste','malus','bono'].reduce((a,k)=>a+Math.abs(g.c[k]),0) || 1;
     const filas = ['primaMin','ajuste','malus','bono'].filter(k=>Math.abs(g.c[k])>0.5).map(k=>{
       const pct = Math.round(Math.abs(g.c[k])/totAbs*100);
-      const pols = _pendConceptoPolizas(id, k, suf, polFiltradas, _drillCut, _pendCut, _minPres);
+      const pols = _pendConceptoPolizas(id, k, suf, polFiltradas, _drillCut, _pendCut, 0);
       const det = pols.map(p=>`<div style="display:flex;justify-content:space-between;gap:10px;padding:5px 14px 5px 28px;border-top:1px dashed var(--line);font-size:12px">
         <span><span style="font-weight:800;color:var(--accent-3);background:var(--bg-2);padding:1px 6px;border-radius:4px">${fmtPoliza(p.poliza)}</span> <span style="color:var(--ink-1)">${(p.aseg||'').toString().substring(0,26)}</span></span>
         <span style="font-family:var(--font-mono);font-weight:700;color:${p.val<0?'var(--neg)':'var(--accent-3)'}">${p.val<0?'−':''}${fmtCompact(Math.abs(p.val),btnUSD)}</span></div>`).join('');
