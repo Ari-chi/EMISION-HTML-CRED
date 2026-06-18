@@ -3388,21 +3388,25 @@ function ejecFlujo(S, useUSD){
   return `<div style="margin-top:8px">
     <div style="font-size:11px;color:var(--ink-3);text-transform:uppercase;letter-spacing:.05em;font-weight:700;margin-bottom:5px">${mLbl}</div>
     <div style="display:flex;align-items:stretch;gap:8px">
-      <div style="flex:1;background:rgba(30,111,217,.08);border-radius:10px;padding:11px 13px;display:flex;flex-direction:column;justify-content:center;gap:10px">
-        <div>
-          <div style="font-size:11px;color:var(--accent);text-transform:uppercase;letter-spacing:.03em;font-weight:800">Presupuesto <span style="font-size:9.5px;color:var(--ink-3);font-weight:600;text-transform:none;letter-spacing:0">(hasta ${_mLast})</span></div>
-          <div style="font-size:20px;font-weight:800;color:var(--accent-3);line-height:1;font-family:var(--font-mono);margin-top:2px">${FMTc(S.presup26_emi)}</div>
+      <div style="flex:1;background:rgba(30,111,217,.08);border-radius:10px;padding:11px 13px;display:flex;flex-direction:column;justify-content:flex-start">
+        <div style="${tituloCardCss('var(--accent)')}">Presupuesto 2026</div>
+        <div style="margin-top:8px">
+          <div style="font-size:9.5px;color:var(--ink-3);font-weight:700;text-transform:uppercase;letter-spacing:.03em">Hasta emisión (${_mLast})</div>
+          <div style="font-size:20px;font-weight:800;color:var(--accent-3);line-height:1;font-family:var(--font-mono);margin-top:1px">${FMTc(S.presup26_emi)}</div>
         </div>
-        <div>
-          <div style="font-size:11px;color:var(--accent);text-transform:uppercase;letter-spacing:.03em;font-weight:800">Presupuesto <span style="font-size:9.5px;color:var(--ink-3);font-weight:600;text-transform:none;letter-spacing:0">(hasta ${_mCorte})</span></div>
-          <div style="font-size:20px;font-weight:800;color:var(--accent-3);line-height:1;font-family:var(--font-mono);margin-top:2px">${FMTc(S.presup26)}</div>
+        <div style="margin-top:8px">
+          <div style="font-size:9.5px;color:var(--ink-3);font-weight:700;text-transform:uppercase;letter-spacing:.03em">Acumulado (hasta ${_mCorte})</div>
+          <div style="font-size:20px;font-weight:800;color:var(--accent-3);line-height:1;font-family:var(--font-mono);margin-top:1px">${FMTc(S.presup26)}</div>
         </div>
       </div>
       <div style="display:flex;align-items:center;color:var(--ink-3);font-size:24px;font-weight:300">→</div>
       <div title="${_bubbleTitle.replace(/"/g,'&quot;')}" onclick="window.toggleEmisBubble('${sufijo}')" style="flex:1;position:relative;background:rgba(45,155,106,.10);border-radius:10px;padding:11px 13px;display:flex;flex-direction:column;justify-content:flex-start;cursor:pointer">
         <div style="${tituloCardCss('var(--pos)')}">Emisión Real 2026 <span style="font-size:11px;color:var(--pos)">▾</span></div>
         <div style="font-size:22px;font-weight:800;color:var(--pos);line-height:1;font-family:var(--font-mono);margin-top:4px">${FMTc(S.emis26)}</div>
-        <div style="font-size:18px;font-weight:800;color:var(--pos);margin-top:8px;font-family:var(--font-mono)">${S.cumpl!=null?(S.cumpl*100).toFixed(1)+'%':'—'}<span style="font-size:12px;font-weight:600;margin-left:4px">del objetivo</span></div>
+        ${(()=>{ const cumplEmi = S.presup26_emi>0 ? S.emis26/S.presup26_emi : null;
+          const linea = (pct,sub)=>`<div style="font-size:17px;font-weight:800;color:var(--pos);margin-top:7px;font-family:var(--font-mono)">${pct!=null?Math.round(pct*100)+'%':'—'}<span style="font-size:11px;font-weight:600;margin-left:4px">del objetivo <span style="color:var(--ink-3);font-size:9.5px">${sub}</span></span></div>`;
+          return linea(cumplEmi,'(hasta '+_mLast+')') + linea(S.cumpl,'(hasta '+_mCorte+')');
+        })()}
         ${_bubbleHTML}
       </div>
       <div style="display:flex;align-items:center;color:var(--ink-3);font-size:20px;font-weight:300">=</div>
