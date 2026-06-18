@@ -1146,7 +1146,7 @@ function _presupArgVal(p, ck, suf, modo){
     for(const mo of e.months){
       if(modo==='confirmado' && !mo.yellow) continue;
       if(modo==='pendiente' && mo.yellow) continue;
-      tot += (suf==='u') ? ((mo.usd!=null)?mo.usd:mo.orig) : mo.ars;
+      tot += (suf==='u') ? ((mo.usd!=null&&mo.usd!==0)?mo.usd:(mo.ars/(state._ejecTC||1400))) : mo.ars;
     }
   }
   return tot;
@@ -1165,7 +1165,7 @@ function _presupArgGlobal(suf, modo, maxMes, excludeSet, minMes){
     if(excludeSet && excludeSet.has(key)) continue;
     const sgn=(ck==='bono')?-1:1; let any=false;
     for(const mo of e.months){ if(maxMes && mo.m>maxMes) continue; if(minMes && mo.m<=minMes) continue; if(modo==='confirmado'&&!mo.yellow)continue; if(modo==='pendiente'&&mo.yellow)continue;
-      const v=(suf==='u')?((mo.usd!=null)?mo.usd:mo.orig):mo.ars; if(!isFinite(v)||!v)continue; c[ck]+=sgn*v; total+=sgn*v; any=true; }
+      const v=(suf==='u')?((mo.usd!=null&&mo.usd!==0)?mo.usd:(mo.ars/(state._ejecTC||1400))):mo.ars; if(!isFinite(v)||!v)continue; c[ck]+=sgn*v; total+=sgn*v; any=true; }
     if(any){ pol.add(String(e.poliza||e.aseg)); keys.add(key); } }
   return {total, c, n:pol.size, keys};
 }
@@ -1210,7 +1210,7 @@ function _pendConceptoPolizas(id, ck, suf, polPend, mesCorte, maxMes, minMes){
     const modo=id==='pend_conf'?'confirmado':'pendiente'; const pa=state._presupArg;
     if(pa&&pa.ok) for(const e of pa.rows){ if(_tipoToConcepto(e.tipo)!==ck) continue;
       if(excl && excl.has(_polKey(e.poliza)+'|'+ck)) continue;
-      let v=0; for(const mo of e.months){ if(maxMes && mo.m>maxMes) continue; if(minMes && modo==='pendiente' && mo.m<=minMes) continue; if(modo==='confirmado'&&!mo.yellow)continue; if(modo==='pendiente'&&mo.yellow)continue; const x=(suf==='u')?((mo.usd!=null)?mo.usd:mo.orig):mo.ars; if(isFinite(x))v+=x; }
+      let v=0; for(const mo of e.months){ if(maxMes && mo.m>maxMes) continue; if(minMes && modo==='pendiente' && mo.m<=minMes) continue; if(modo==='confirmado'&&!mo.yellow)continue; if(modo==='pendiente'&&mo.yellow)continue; const x=(suf==='u')?((mo.usd!=null&&mo.usd!==0)?mo.usd:(mo.ars/(state._ejecTC||1400))):mo.ars; if(isFinite(x))v+=x; }
       v*=(ck==='bono')?-1:1; if(Math.abs(v)>0.5) out.push({poliza:e.poliza,aseg:e.aseg,val:v}); }
   }
   out.sort((a,b)=>Math.abs(b.val)-Math.abs(a.val));
@@ -3112,6 +3112,7 @@ function fmtCompact(v, useUSD){
 function drawEjecutivo(){
   const f = getSectionFilters('ejecutivo');
   setActiveCtx(f);
+  state._ejecTC = (f.tc && f.tc>0) ? f.tc : 1400;   /* TC para convertir ARS→US cuando no hay columna US (ej. Confirmado) */
   const mesCorte = f.mes;
   const mon = efectivoMonedas(f);
   const showUSD = mon.showUSD, showARS = mon.showARS;
@@ -6889,7 +6890,7 @@ function presupArgMensual(suf){
     if(e.months.some(mo=>mo.yellow)) confKeys.add(_polKey(e.poliza)+'|'+ck); }
   for(const e of pa.rows){ const ck=_tipoToConcepto(e.tipo); if(!ck) continue; const sgn=(ck==='bono')?-1:1;
     const key=_polKey(e.poliza)+'|'+ck;
-    for(const mo of e.months){ const v=(suf==='u')?((mo.usd!=null)?mo.usd:mo.orig):mo.ars; if(!isFinite(v)||!v) continue; const mi=mo.m-1; if(mi<0||mi>11)continue;
+    for(const mo of e.months){ const v=(suf==='u')?((mo.usd!=null&&mo.usd!==0)?mo.usd:(mo.ars/(state._ejecTC||1400))):mo.ars; if(!isFinite(v)||!v) continue; const mi=mo.m-1; if(mi<0||mi>11)continue;
       if(mo.yellow){ out.conf[mi]+=sgn*v; out.total[mi]+=sgn*v; }
       else if(!confKeys.has(key)){ out.total[mi]+=sgn*v; }   /* gris solo si NO está confirmada esa póliza+concepto */
     } }
