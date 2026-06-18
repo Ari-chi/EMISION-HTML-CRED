@@ -3879,6 +3879,8 @@ function ejecJustificacion(S, useUSD, dual, useUSDprimary){
   const selMode = (state._ejecDesvioSel==='fecha') ? 'fecha' : 'corte';
   const _cutoff = (selMode==='fecha') ? (S.lastEmis26 || S.mesCorteSet || 12) : (S.mesCorteSet || 12);
   state._ejecDesvioCutoff = _cutoff;   /* lo lee el drill */
+  state._ejecPendCut = S.mesCorteSet || 12;          /* pendientes: cutoff completo (no se recortan por "hasta May") */
+  state._ejecProyOff = (selMode==='fecha');           /* en vista "emisión real" no se cuenta Proyección Arg */
   state._ejecLastEmis = S.lastEmis26 || _cutoff;   /* tope del pendiente Comparación 2025 */
   state._ejecLastEmis26 = S.lastEmis26 || 0;        /* piso (exclusivo) del pendiente Proyección Arg */
   const desvio = (selMode==='fecha') ? S.desvio_emi : S.desvio;
@@ -3929,15 +3931,22 @@ function ejecJustificacion(S, useUSD, dual, useUSDprimary){
     /* DEDUP por (póliza, concepto), prioridad: Confirmado > Proyección Arg > Comparación 2025.
        Una misma póliza+concepto no se cuenta dos veces; gana el de mayor prioridad. */
     const _lastE26 = S.lastEmis26 || 0;
-    const _conf = _presupArgGlobal(_sufp, 'confirmado', _cutoff);
+    /* Los PENDIENTES (lo que se va a emitir) se cuentan SIEMPRE hasta el mes de corte completo
+       (no se recortan por la vista "emisión real / hasta May"); si no, el Confirmado de Jun–Dic
+       daría 0. En la vista "emisión real" (fecha) NO se cuenta Proyección Arg. (presupuesto sin
+       confirmar); el resto (Confirmada, Comparación 2025, pérdidas, menor) sí, con los MISMOS
+       valores que la vista "hasta Dic". */
+    const _pendCut = S.mesCorteSet || 12;
+    const _proyOff = (selMode==='fecha');
+    const _conf = _presupArgGlobal(_sufp, 'confirmado', _pendCut);
     /* Proyección Arg SOLO suma a partir del mes que NO tiene emisión real 2026 (minMes exclusivo). */
-    const _pres = _presupArgGlobal(_sufp, 'pendiente', _cutoff, _conf.keys, _lastE26);
+    const _pres = _presupArgGlobal(_sufp, 'pendiente', _pendCut, _conf.keys, _lastE26);
     const _excl25 = new Set([..._conf.keys, ..._pres.keys]);
     /* Comparación 2025 SOLO suma hasta el último mes con emisión real 2026 (en adelante, no). */
-    const _cut25 = Math.min(_cutoff, S.lastEmis26 || _cutoff);
+    const _cut25 = Math.min(_pendCut, S.lastEmis26 || _pendCut);
     const _p25  = _pend2025Global(polPend, _cut25, _sufp, _excl25);
     const _confV = _ejecContabOn('pend_conf','mes') ? _conf.total : 0;   /* toggle Contabilizar */
-    const _presV = _ejecContabOn('pend_presup','mes') ? _pres.total : 0;
+    const _presV = (!_proyOff && _ejecContabOn('pend_presup','mes')) ? _pres.total : 0;   /* en "emisión real" no cuenta */
     const _p25V  = _ejecContabOn('pend_2025','mes') ? _p25.total : 0;
     /* Hoist para la "Comparación de desvíos": se emite este mes (Emisión Confirmada) y hasta fin
        de año (los 3 pendientes contabilizados). */
@@ -6654,14 +6663,16 @@ window.toggleEjecCausa = function(id){
     /* Sub-desglose por concepto (prima/ajuste/malus/bono) con total + % de ese total; cada
        concepto se puede expandir para ver el detalle por póliza. Toggle Contabilizar. */
     const suf = btnUSD?'u':'a';
+    /* Pendientes: cutoff COMPLETO (no se recortan por la vista "emisión real / hasta May"). */
+    const _pendCut = state._ejecPendCut || mesCorte;
     /* Comparación 2025 se topa en el último mes con emisión real 2026. */
-    const _drillCut = (id==='pend_2025') ? Math.min(mesCorte, state._ejecLastEmis||mesCorte) : mesCorte;
+    const _drillCut = (id==='pend_2025') ? Math.min(_pendCut, state._ejecLastEmis||_pendCut) : _pendCut;
     const _minPres = state._ejecLastEmis26||0;   /* Proyección Arg: solo meses > última emisión 2026 */
     /* Mismo dedup que el donut: Confirmado > Proyección Arg > Comparación 2025. */
     let g;
-    if(id==='pend_conf'){ g=_presupArgGlobal(suf,'confirmado',mesCorte); }
-    else if(id==='pend_presup'){ const _cf=_presupArgGlobal(suf,'confirmado',mesCorte).keys; g=_presupArgGlobal(suf,'pendiente',mesCorte,_cf,_minPres); }
-    else { const _cf=_presupArgGlobal(suf,'confirmado',mesCorte).keys; const _pr=_presupArgGlobal(suf,'pendiente',mesCorte,_cf,_minPres).keys; g=_pend2025Global(polFiltradas,_drillCut,suf,new Set([..._cf,..._pr])); }
+    if(id==='pend_conf'){ g=_presupArgGlobal(suf,'confirmado',_pendCut); }
+    else if(id==='pend_presup'){ const _cf=_presupArgGlobal(suf,'confirmado',_pendCut).keys; g=_presupArgGlobal(suf,'pendiente',_pendCut,_cf,_minPres); }
+    else { const _cf=_presupArgGlobal(suf,'confirmado',_pendCut).keys; const _pr=_presupArgGlobal(suf,'pendiente',_pendCut,_cf,_minPres).keys; g=_pend2025Global(polFiltradas,_drillCut,suf,new Set([..._cf,..._pr])); }
     const on = _ejecContabOn(id,'mes');
     const tc = id==='pend_conf' ? '#d39a00' : id==='pend_presup' ? '#3a8fc0' : '#3a8a82';
     const tlbl = id==='pend_conf' ? 'Pendiente - Emisión Confirmada'
@@ -6670,7 +6681,7 @@ window.toggleEjecCausa = function(id){
     const totAbs = ['primaMin','ajuste','malus','bono'].reduce((a,k)=>a+Math.abs(g.c[k]),0) || 1;
     const filas = ['primaMin','ajuste','malus','bono'].filter(k=>Math.abs(g.c[k])>0.5).map(k=>{
       const pct = Math.round(Math.abs(g.c[k])/totAbs*100);
-      const pols = _pendConceptoPolizas(id, k, suf, polFiltradas, _drillCut, mesCorte, _minPres);
+      const pols = _pendConceptoPolizas(id, k, suf, polFiltradas, _drillCut, _pendCut, _minPres);
       const det = pols.map(p=>`<div style="display:flex;justify-content:space-between;gap:10px;padding:5px 14px 5px 28px;border-top:1px dashed var(--line);font-size:12px">
         <span><span style="font-weight:800;color:var(--accent-3);background:var(--bg-2);padding:1px 6px;border-radius:4px">${fmtPoliza(p.poliza)}</span> <span style="color:var(--ink-1)">${(p.aseg||'').toString().substring(0,26)}</span></span>
         <span style="font-family:var(--font-mono);font-weight:700;color:${p.val<0?'var(--neg)':'var(--accent-3)'}">${p.val<0?'−':''}${fmtCompact(Math.abs(p.val),btnUSD)}</span></div>`).join('');
