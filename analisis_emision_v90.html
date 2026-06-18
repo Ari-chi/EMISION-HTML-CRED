@@ -3943,7 +3943,7 @@ function ejecJustificacion(S, useUSD, dual, useUSDprimary){
     const _cut25 = Math.min(_pendCut, S.lastEmis26 || _pendCut);
     const _p25  = _pend2025Global(polPend, _cut25, _sufp, _excl25);
     const _confV = _ejecContabOn('pend_conf','mes') ? _conf.total : 0;   /* toggle Contabilizar */
-    const _presV = (!_proyOff && _ejecContabOn('pend_presup','mes')) ? _pres.total : 0;   /* en "emisión real" no cuenta */
+    const _presV = (!_proyOff && !state._ejecHideEstim && _ejecContabOn('pend_presup','mes')) ? _pres.total : 0;   /* en "emisión real" o con estimado oculto no cuenta */
     const _p25V  = _ejecContabOn('pend_2025','mes') ? _p25.total : 0;
     /* Hoist para la "Comparación de desvíos": se emite este mes (Emisión Confirmada) y hasta fin
        de año (los 3 pendientes contabilizados). */
@@ -3956,7 +3956,8 @@ function ejecJustificacion(S, useUSD, dual, useUSDprimary){
       mk('perdidas',APP_CONFIG.textos.perdidas, mkVal(cnt.perdidas), cnt.perdidas.n, APP_CONFIG.colores.perdidas),
       mk('menor',APP_CONFIG.textos.menor || 'Menor Emisión', menorSigned, menorN, APP_CONFIG.colores.abm),
     /* Los pendientes (amarillo/celeste) siempre figuran aunque su valor sea 0. */
-    ].filter(c=>c.val>1 || c.grupo==='pendiente')
+    /* Botón OCULTO del estimado: saca "Pendiente - Proyección Arg." de TODO el Resumen Ejecutivo. */
+    ].filter(c=>(c.val>1 || c.grupo==='pendiente') && !(state._ejecHideEstim && c.id==='pend_presup'))
      /* Orden DESCENDENTE por magnitud (pedido del usuario). "Sin justificar" no está acá: se
         agrega siempre al final (en piePartes). */
      .sort((a,b)=>Math.abs(b.val)-Math.abs(a.val));
@@ -4336,7 +4337,7 @@ function ejecJustificacion(S, useUSD, dual, useUSDprimary){
           ${flecha('+')}
           <div style="flex:1.15;display:flex;flex-direction:column;gap:6px;justify-content:center">
             ${cardYellow('Pendiente · se emite este mes','',pendMes)}
-            ${cardYellow('Estimaciones','(proyección + comp. 2025)',pendEstim)}
+            ${cardYellow('Estimaciones', state._ejecHideEstim?'(comp. 2025)':'(proyección + comp. 2025)', pendEstim)}
           </div>
           ${flecha('=')}
           <div style="flex:1.15;display:flex;flex-direction:column;gap:6px;justify-content:center">
