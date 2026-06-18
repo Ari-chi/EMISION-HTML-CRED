@@ -3907,24 +3907,23 @@ function ejecJustificacion(S, useUSD, dual, useUSDprimary){
   const _sinCubrirBase = Math.max(0, dvAbs - _sumaBase);
   const estimEff = Math.min(estimRaw, _sinCubrirBase);
 
-  /* NUEVO modelo de composición (pedido del usuario): el desvío de la composición se ARMA con
-     los componentes — los PENDIENTES suman a favor (+) y MENOR EMISIÓN / PÓLIZAS QUE SE FUERON
-     restan (−). El neto puede dar POSITIVO o NEGATIVO según qué pendientes se contabilicen.
-     Los porcentajes del donut son share sobre la suma de magnitudes (suman 100%, sin "gris"). */
-  const _contribNet = (c)=>{
-    if(c.grupo==='pendiente') return Math.abs(c.val);              /* pendientes suman + */
-    if(c.id==='perdidas')     return -Math.abs(c.val);             /* pólizas que se fueron − */
-    const v=(c.vSigned!=null)?c.vSigned:c.val; return v;           /* menor: signo real (a favor + / menor −) */
-  };
-  const _netDesvio = causas.reduce((a,c)=>a+_contribNet(c), 0);
-  const baseTotal = (causas.reduce((a,c)=>a+c.val,0)) || 1;
+  /* MODELO DE COMPOSICIÓN (pedido del usuario):
+       El desvío real (déficit) es −dvAbs (ej. −$21.7MM). Los PENDIENTES que se van a emitir
+       lo RECUPERAN (+). El neto = desvío real + lo que recuperan los pendientes:
+         neto = −dvAbs + Σ(pendientes contabilizados)
+       Como normalmente los pendientes NO alcanzan a cubrir todo el déficit, el neto sigue siendo
+       NEGATIVO; si los pendientes superaran el déficit, el neto sería positivo.
+     Menor emisión / pólizas que se fueron / "sin justificar" son las partes NO recuperables del
+     déficit (rojo −). Los % del donut son share del déficit total (dvAbs) → suman 100%. */
+  const _sumPend = causas.filter(c=>c.grupo==='pendiente').reduce((a,c)=>a+((c.vSigned!=null)?c.vSigned:c.val), 0);
+  const _netDesvio = -dvAbs + _sumPend;
+  const baseTotal = dvAbs || 1;
   const sumaCausas = causas.reduce((a,c)=>a+c.val, 0);
-  /* % de cada causa sobre la suma total de magnitudes (suman 100%). */
+  /* % de cada causa sobre el déficit total (dvAbs). Lo no explicado queda como "sin justificar". */
   const pctDe = (v)=> baseTotal>0 ? (v/baseTotal*100) : 0;
   const pctTxt = (v)=> Math.round(pctDe(v))+'%';
-  /* Ya no hay porción "sin justificar": la composición es exactamente la suma de componentes. */
-  const sinCubrir = 0;
-  const pctSinCubrir = 0;
+  const sinCubrir = Math.max(0, baseTotal - sumaCausas);
+  const pctSinCubrir = pctDe(sinCubrir);
   /* Factor de escala de anchos: si las causas + gris exceden 100% (causas sobre-explican),
      comprimimos proporcionalmente para que el dibujo quepa en la barra (los % de texto
      siguen siendo share-del-total reales). */
@@ -4028,9 +4027,10 @@ function ejecJustificacion(S, useUSD, dual, useUSDprimary){
           : (totSigned>0?'var(--pos)':'var(--neg)'))
       : 'var(--ink-3)';
     const sgnLeg = id==='pend_bono' ? ''
-      : (causa && causa.grupo==='pendiente' ? '+'
-        : (clickable && (id==='pendiente'||id==='perdidas') ? '−'
-          : (totSigned>=0?'+':'−')));
+      : (p.lbl==='Sin justificar' ? '−'
+        : (causa && causa.grupo==='pendiente' ? '+'
+          : (clickable && (id==='pendiente'||id==='perdidas') ? '−'
+            : (totSigned>=0?'+':'−'))));
     const nPolStr = causa && causa.n>0 ? ` <span style="color:var(--ink-3);font-weight:500;font-size:12.5px">· ${causa.n} pól.</span>` : '';
     /* Los 4 conceptos PENDIENTES son editables: el ▸ se reemplaza por ✎ y al clickear se
        abre el drill editable. "Sin justificar" ya NO es editable (no lleva ✎). */
