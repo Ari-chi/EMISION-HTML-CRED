@@ -842,6 +842,9 @@ function _excelEstimVal(p, suf){
    póliza, en la moneda pedida. Así cada concepto del pendiente toma SOLO su propio dato y no se
    mezcla con los demás (p. ej. la prima de Toyota no se reparte al malus). */
 function _excelEstimConcepto(p, ck, suf){
+  /* Fuente nueva (hoja "Presup Arg HTML"): "se emite este mes" = meses CONFIRMADOS (amarillo). */
+  if(state._presupArg && state._presupArg.ok) return _presupArgVal(p, ck, suf, 'confirmado');
+  /* Fallback: bloque viejo AF–AH. */
   if(!p || !state._ejecProyEmis) return 0;
   const tk = [_normProyKey(p.poliza), _digitsKey(p.poliza), _normProyKey(p.asegurado)];
   for(const k of tk){ if(k && state._ejecProyEmis[k]){ const o = state._ejecProyEmis[k]; const c = o.c && o.c[ck]; if(!c) return 0; const v = (suf==='u') ? c.usd : c.ars; return isFinite(v) ? v : 0; } }
@@ -851,6 +854,15 @@ function _excelEstimConcepto(p, ck, suf){
    las pólizas proyectadas (deduplicando, porque cada póliza se indexa por varias claves). Es
    el número "Emisión estimada Junio" del Excel. Dinámico: cambia con el Excel cargado. */
 function _excelEstimTotal(suf){
+  /* Fuente nueva: suma de TODOS los meses CONFIRMADOS (amarillo) por concepto (bono resta). */
+  if(state._presupArg && state._presupArg.ok){
+    let tot = 0;
+    for(const e of state._presupArg.rows){
+      const ck = _tipoToConcepto(e.tipo); if(!ck) continue;
+      for(const mo of e.months){ if(!mo.yellow) continue; const v=(suf==='u')?mo.orig:mo.ars; if(!isFinite(v)) continue; tot += (ck==='bono')?-Math.abs(v):v; }
+    }
+    return tot;
+  }
   if(!state._ejecProyEmis) return 0;
   const seen = new Set(); let tot = 0;
   for(const k in state._ejecProyEmis){
@@ -874,6 +886,16 @@ function _ejecContabOn(ck, which){
    que tienen su toggle 'mes' en SÍ (el bono resta). Así apagar un concepto lo descuenta solo a él
    también en "Comparación de desvíos". */
 function _excelEstimContab(suf){
+  /* Fuente nueva: meses confirmados (amarillo) por concepto, solo los que tienen su toggle
+     'mes' en SÍ (bono resta). */
+  if(state._presupArg && state._presupArg.ok){
+    let tot = 0;
+    for(const e of state._presupArg.rows){
+      const ck = _tipoToConcepto(e.tipo); if(!ck || !_ejecContabOn(ck,'mes')) continue;
+      for(const mo of e.months){ if(!mo.yellow) continue; const v=(suf==='u')?mo.orig:mo.ars; if(!isFinite(v)) continue; tot += (ck==='bono')?-Math.abs(v):v; }
+    }
+    return tot;
+  }
   if(!state._ejecProyEmis) return 0;
   const seen = new Set(); let tot = 0;
   for(const k in state._ejecProyEmis){
