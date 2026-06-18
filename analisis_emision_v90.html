@@ -4343,12 +4343,14 @@ function ejecJustificacion(S, useUSD, dual, useUSDprimary){
         const inner = `<div style="display:flex;align-items:baseline;gap:8px;margin-top:2px"><span style="font-size:20px;font-weight:800;color:${c};font-family:var(--font-mono)">${neg?'−':'+'}${fv(val)}</span><span style="font-size:13px;font-weight:800;color:${c};font-family:var(--font-mono)">${pct}</span></div>`;
         return card(neg?'rgba(217,71,71,.10)':'rgba(45,155,106,.10)', c, lbl, sub, inner); };
       const flecha = (s)=>`<div style="display:flex;align-items:center;color:var(--ink-3);font-size:24px;font-weight:300">${s}</div>`;
+      /* Según el mes seleccionado arriba (Dic = 'corte' / May = 'fecha'): se muestra solo el
+         Presupuesto y el Desvío de ESE mes; el resto (Emisión Real, pendientes) igual para ambos. */
+      const esCorte = (selMode!=='fecha');
       return `<div style="margin-top:4px;border-top:1px solid var(--line);padding-top:6px">
         <div style="font-size:11.5px;font-weight:800;color:var(--accent-3);text-transform:uppercase;letter-spacing:.04em;margin-bottom:6px">Comparación de desvíos</div>
         <div style="display:flex;align-items:stretch;gap:8px">
-          <div style="flex:1.05;display:flex;flex-direction:column;gap:6px">
-            ${cardBlue('Presupuesto Acumulado',_mCorte,presup)}
-            ${cardBlue('Presupuesto Acumulado',_mLast,presupEmi)}
+          <div style="flex:1.05;display:flex;flex-direction:column;gap:6px;justify-content:center">
+            ${esCorte ? cardBlue('Presupuesto Acumulado',_mCorte,presup) : cardBlue('Presupuesto Acumulado',_mLast,presupEmi)}
             ${cardEmis('Emisión Real 2026',_mLast,emisReal)}
           </div>
           ${flecha('+')}
@@ -4358,8 +4360,7 @@ function ejecJustificacion(S, useUSD, dual, useUSDprimary){
           </div>
           ${flecha('=')}
           <div style="flex:1.15;display:flex;flex-direction:column;gap:6px;justify-content:center">
-            ${cardDesv('Desvío Acumulado',_mCorte,desvAnio, presup)}
-            ${cardDesv('Desvío Acumulado',_mLast,desvMes, presupEmi)}
+            ${esCorte ? cardDesv('Desvío Acumulado',_mCorte,desvAnio, presup) : cardDesv('Desvío Acumulado',_mLast,desvMes, presupEmi)}
           </div>
         </div>
       </div>`;
