@@ -891,8 +891,7 @@ function _ejecContabOn(ck, which){
   state._ejecContab = state._ejecContab || {};
   const v = state._ejecContab[ck+'_'+which];
   if(v!==undefined) return !!v;
-  if(ck==='pend_2025') return false;   /* "Comparación 2025" NO contabiliza por defecto (no duplicar) */
-  return (which==='mes');
+  return (which==='mes');   /* todos los pendientes contabilizan por defecto (el dedup evita duplicar) */
 }
 /* "Emisión pendiente (se emite este mes)" del Excel CONTABILIZADA: suma, por concepto, solo los
    que tienen su toggle 'mes' en SÍ (el bono resta). Así apagar un concepto lo descuenta solo a él
@@ -3884,20 +3883,24 @@ function ejecJustificacion(S, useUSD, dual, useUSDprimary){
   const _sinCubrirBase = Math.max(0, dvAbs - _sumaBase);
   const estimEff = Math.min(estimRaw, _sinCubrirBase);
 
-  /* Base para los porcentajes de la barra: el DESVÍO TOTAL (dvAbs), NO la suma de causas.
-     Pedido del usuario: la barra representa el desvío total (ej. 4.9M = 100%) y las causas
-     lo van RELLENANDO. Lo que no llega a cubrirse queda en GRIS (muestra el % pero no
-     justifica nada). TODOS los % se muestran SIN decimales (redondeados). */
-  const baseTotal = dvAbs > 0 ? dvAbs : (causas.reduce((a,c)=>a+c.val,0) || 1);
+  /* NUEVO modelo de composición (pedido del usuario): el desvío de la composición se ARMA con
+     los componentes — los PENDIENTES suman a favor (+) y MENOR EMISIÓN / PÓLIZAS QUE SE FUERON
+     restan (−). El neto puede dar POSITIVO o NEGATIVO según qué pendientes se contabilicen.
+     Los porcentajes del donut son share sobre la suma de magnitudes (suman 100%, sin "gris"). */
+  const _contribNet = (c)=>{
+    if(c.grupo==='pendiente') return Math.abs(c.val);              /* pendientes suman + */
+    if(c.id==='perdidas')     return -Math.abs(c.val);             /* pólizas que se fueron − */
+    const v=(c.vSigned!=null)?c.vSigned:c.val; return v;           /* menor: signo real (a favor + / menor −) */
+  };
+  const _netDesvio = causas.reduce((a,c)=>a+_contribNet(c), 0);
+  const baseTotal = (causas.reduce((a,c)=>a+c.val,0)) || 1;
   const sumaCausas = causas.reduce((a,c)=>a+c.val, 0);
-  /* % de cada causa SOBRE EL DESVÍO TOTAL. Puede sumar <100 (queda gris) o, si las causas
-     sobre-explican el total, >100 (se escala para que entre en la barra). */
+  /* % de cada causa sobre la suma total de magnitudes (suman 100%). */
   const pctDe = (v)=> baseTotal>0 ? (v/baseTotal*100) : 0;
   const pctTxt = (v)=> Math.round(pctDe(v))+'%';
-  /* Porción del desvío NO cubierta por las causas (gris). Si las causas exceden el total,
-     no hay gris y se escalan los anchos para que la suma entre justo en la barra. */
-  const sinCubrir = Math.max(0, baseTotal - sumaCausas);
-  const pctSinCubrir = pctDe(sinCubrir);
+  /* Ya no hay porción "sin justificar": la composición es exactamente la suma de componentes. */
+  const sinCubrir = 0;
+  const pctSinCubrir = 0;
   /* Factor de escala de anchos: si las causas + gris exceden 100% (causas sobre-explican),
      comprimimos proporcionalmente para que el dibujo quepa en la barra (los % de texto
      siguen siendo share-del-total reales). */
@@ -3943,21 +3946,16 @@ function ejecJustificacion(S, useUSD, dual, useUSDprimary){
   /* Tarjeta de causa */
   const tarjeta = (c)=>{
     const clickable = esPrimaria;
-    /* Pendiente de prima/ajuste/malus y "pólizas que se fueron" son desvío (restan, rojo).
-       El BONO pendiente, en cambio, SUMA (verde +): el bono es una devolución que RESTA
-       emisión; si está pendiente, esa devolución todavía no se aplicó, así que no debe
-       volver a restarse del total. Prima/ABM (no pendientes) llevan su signo neto. */
+    /* NUEVO modelo: los PENDIENTES suman a favor (verde +) — es emisión por venir que recupera
+       el desvío. MENOR EMISIÓN y PÓLIZAS QUE SE FUERON restan (rojo −). "Menor Emisión" lleva su
+       signo neto (si en realidad emitió de más, juega a favor +). */
     const esBonoPend = (c.id==='pend_bono');
     const esPendGrupo = (c.grupo==='pendiente');   /* los 3 pendientes nuevos */
     const esDesvioFijo = !esBonoPend && (c.id==='pendiente' || c.id==='perdidas');
     const vS = (c.vSigned!=null)?c.vSigned:c.val;
     let sgn, valColor;
     if(esBonoPend){ sgn='+'; valColor='var(--pos)'; }
-    else if(esPendGrupo){
-      /* Un pendiente normal (neto positivo) RESTA del desvío (rojo −). Pero si su neto es
-         NEGATIVO (el Bono/Profit a devolver supera a prima/ajuste/malus), juega A FAVOR (verde +). */
-      const aFavor = vS<0; sgn = aFavor?'+':'−'; valColor = aFavor?'var(--pos)':'var(--neg)';
-    }
+    else if(esPendGrupo){ sgn='+'; valColor='var(--pos)'; }   /* pendientes suman + */
     else if(esDesvioFijo){ sgn='−'; valColor='var(--neg)'; }
     else { const aFavor = vS>0; sgn = aFavor?'+':'−'; valColor = aFavor?'var(--pos)':'var(--neg)'; }
     return `<div style="background:var(--bg-2);border-radius:8px;padding:12px 14px;border-left:5px solid ${c.col};${clickable?'cursor:pointer':''}" ${clickable?`onclick="toggleEjecCausa('${c.id}')"`:''}>
@@ -3998,15 +3996,16 @@ function ejecJustificacion(S, useUSD, dual, useUSDprimary){
     const clickable = !!causa;
     const id = causa ? causa.id : null;
     const totSigned = causa ? (causa.vSigned!=null?causa.vSigned:causa.val) : p.val;
+    /* NUEVO modelo: pendientes suman a favor (verde +); pérdidas restan (rojo −); menor lleva su
+       signo neto. */
     const totColor = clickable
-      ? ((causa.grupo==='pendiente'||id==='pendiente'||id==='perdidas') ? 'var(--neg)'
+      ? (causa.grupo==='pendiente' ? 'var(--pos)'
+          : (id==='pendiente'||id==='perdidas') ? 'var(--neg)'
           : (totSigned>0?'var(--pos)':'var(--neg)'))
       : 'var(--ink-3)';
-    /* El BONO es el único concepto INVERSO (nota de crédito): se pinta en rojo pero SIN el "−"
-       (sacarlo sube la emisión pendiente, ponerlo la baja). El resto de pendientes van con "−". */
     const sgnLeg = id==='pend_bono' ? ''
-      : (p.lbl==='Sin justificar' ? '−'
-        : (clickable && (causa.grupo==='pendiente'||id==='pendiente'||id==='perdidas') ? '−'
+      : (causa && causa.grupo==='pendiente' ? '+'
+        : (clickable && (id==='pendiente'||id==='perdidas') ? '−'
           : (totSigned>=0?'+':'−')));
     const nPolStr = causa && causa.n>0 ? ` <span style="color:var(--ink-3);font-weight:500;font-size:12.5px">· ${causa.n} pól.</span>` : '';
     /* Los 4 conceptos PENDIENTES son editables: el ▸ se reemplaza por ✎ y al clickear se
@@ -4158,7 +4157,7 @@ function ejecJustificacion(S, useUSD, dual, useUSDprimary){
   return `<div style="margin-top:${dual?8:2}px">
     ${dual?`<div style="font-size:11px;color:var(--ink-3);text-transform:uppercase;letter-spacing:.05em;font-weight:700;margin-bottom:6px">${mLbl}</div>`:''}
     ${_selectorCards}
-    <div style="font-size:14px;color:var(--ink-2);margin-bottom:6px;font-weight:600">El desvío <span style="font-size:11px;color:var(--ink-3)">(${selMode==='fecha'?'hasta '+_mLastD:'hasta '+_mCorteD})</span> de <span style="font-size:21px;color:var(--neg);font-weight:700;font-family:var(--font-mono)">−${FMTc(dvAbs)}</span> se compone así:</div>
+    <div style="font-size:14px;color:var(--ink-2);margin-bottom:6px;font-weight:600">El desvío <span style="font-size:11px;color:var(--ink-3)">(${selMode==='fecha'?'hasta '+_mLastD:'hasta '+_mCorteD})</span> de <span style="font-size:21px;color:${_netDesvio>=0?'var(--pos)':'var(--neg)'};font-weight:700;font-family:var(--font-mono)">${_netDesvio>=0?'+':'−'}${FMTc(Math.abs(_netDesvio))}</span> se compone así:</div>
 
     ${causas.length>0 ? `
     <div style="display:grid;grid-template-columns:minmax(330px,400px) 1fr;gap:48px;align-items:center;margin-bottom:8px">
