@@ -3490,7 +3490,7 @@ function drawEjecutivo(){
         ` : `
           <div class="chart-box" style="height:315px"><canvas id="ejecChartMensual"></canvas></div>
         `}
-        <label style="font-size:11.5px;color:var(--ink-2);cursor:pointer;display:flex;align-items:center;gap:5px;margin-top:8px"><input type="checkbox" id="ejecShow2025" style="cursor:pointer"> Mostrar 2025</label>
+        <label style="font-size:11.5px;color:var(--ink-2);cursor:pointer;display:flex;align-items:center;gap:5px;margin-top:8px"><input type="checkbox" id="ejecShowEstim" style="cursor:pointer"> Estimaciones anteriores</label>
       </div>
       <!-- Selector oculto del presupuesto: escribir "tina" muestra Argentina -->
       <div style="margin-top:14px;padding-top:10px;border-top:1px dashed var(--line)">
@@ -3547,16 +3547,15 @@ function drawEjecutivo(){
 
   /* Gráfico mensual con toggle 2025 */
   const drawMensualEjec = ()=>{
-    const show2025 = document.getElementById('ejecShow2025') && document.getElementById('ejecShow2025').checked;
+    const showEstim = document.getElementById('ejecShowEstim') && document.getElementById('ejecShowEstim').checked;
     if(dual){
-      drawEjecChartMensual('ejecChartMensual_u', polFiltradas, presArrU, mesCorte, true, show2025, presArrU25);
-      drawEjecChartMensual('ejecChartMensual_a', polFiltradas, presArrA, mesCorte, false, show2025, presArrA25);
+      drawEjecChartMensual('ejecChartMensual_u', polFiltradas, presArrU, mesCorte, true, showEstim);
+      drawEjecChartMensual('ejecChartMensual_a', polFiltradas, presArrA, mesCorte, false, showEstim);
     } else {
-      const pres25 = primary.useUSD ? presArrU25 : presArrA25;
-      drawEjecChartMensual('ejecChartMensual', polFiltradas, primary.presArr, mesCorte, primary.useUSD, show2025, pres25);
+      drawEjecChartMensual('ejecChartMensual', polFiltradas, primary.presArr, mesCorte, primary.useUSD, showEstim);
     }
   };
-  const cb = document.getElementById('ejecShow2025');
+  const cb = document.getElementById('ejecShowEstim');
   if(cb) cb.addEventListener('change', drawMensualEjec);
   drawMensualEjec();
 
@@ -6854,7 +6853,9 @@ function drawEjecChartConcepto(canvasId, c25, c26, useUSD){
     plugins:[barTopLabelPlugin(useUSD)]});
 }
 
-/* Gráfico mensual Real 2025/2026 vs Presupuesto. 2025 oculto por defecto. */
+/* Gráfico mensual: Emisión Real 2026 vs Presupuesto, con Proyección Actualizada (amarillo) y
+   Estimación Inicial (gris). Toggle "Estimaciones anteriores" agrega el gris en los meses con
+   emisión real para comparar lo estimado vs lo emitido. */
 /* Agregado mensual de "Presup Arg HTML": total y confirmado (amarillo) por mes, en la moneda
    pedida ('u'=MON.ORIG / 'a'=ARS). El bono resta. */
 function presupArgMensual(suf){
@@ -6884,41 +6885,47 @@ function _stripeGray(){
   x.beginPath(); x.moveTo(-1,7); x.lineTo(7,-1); x.moveTo(3,9); x.lineTo(9,3); x.stroke();
   _stripeGrayCache=x.createPattern(c,'repeat'); return _stripeGrayCache;
 }
-function drawEjecChartMensual(canvasId, polArr, presArr, mesCorte, useUSD, show2025, presArr25){
+function drawEjecChartMensual(canvasId, polArr, presArr, mesCorte, useUSD, showEstim){
   if(!document.getElementById(canvasId)) return;
   const md = computeMensual(polArr);
   const lim = mesCorte===0 ? 12 : mesCorte;
   const corte26 = (state.globalMes2026 && state.globalMes2026>0) ? Math.min(state.globalMes2026, lim) : lim;
   const labels = MESES.slice(0, lim);
-  const r25 = (useUSD? md.real25.usd : md.real25.ars).slice(0,lim);
   const r26full = (useUSD? md.real26.usd : md.real26.ars).slice(0,lim);
   const r26 = r26full.map((v,i)=> (i < corte26) ? v : null);
   const presup = (presArr||Array(12).fill(0)).slice(0,lim);
-  const presup25 = (presArr25||Array(12).fill(0)).slice(0,lim);
-  /* PROYECCIÓN (hoja Presup Arg HTML): en los meses SIN emisión real 2026 se completan barras
-     con lo presupuestado, partido en CONFIRMADO (amarillo) y resto PRESUPUESTADO (gris rayado). */
+  /* PROYECCIÓN (Presupuesto Argentina): AMARILLO = "Proyección Actualizada" (confirmado),
+     GRIS rayado = "Estimación Inicial" (presupuestado).
+     - Meses SIN emisión real: amarillo = confirmado, gris = estimación − confirmado.
+     - Meses CON emisión real: si el toggle "Estimaciones anteriores" está activo, se apila el gris
+       = max(0, estimación inicial − emitido) sobre lo emitido (si se estimó más que lo emitido el
+       gris sobresale; si se emitió más, la barra azul queda más alta). */
   const paM = presupArgMensual(useUSD?'u':'a');
-  const projConf=[], projBudget=[];
+  const projConf=[], grayEstim=[];
   for(let i=0;i<lim;i++){
-    const actual=r26full[i]||0;
-    if(actual>0.5){ projConf[i]=null; projBudget[i]=null; }
-    else { const conf=paM.conf[i]||0, tot=paM.total[i]||0;
-      projConf[i]= conf>0.5?conf:null; const rest=tot-conf; projBudget[i]= rest>0.5?rest:null; }
+    const actual=r26full[i]||0; const budget=paM.total[i]||0;
+    if(actual>0.5){
+      projConf[i]=null;
+      const g = showEstim ? Math.max(0, budget-actual) : 0;
+      grayEstim[i] = g>0.5 ? g : null;
+    } else {
+      const conf=paM.conf[i]||0;
+      projConf[i]= conf>0.5?conf:null;
+      const rest=budget-conf; grayEstim[i]= rest>0.5?rest:null;
+    }
   }
-  const hayProj = projConf.some(v=>v!=null)||projBudget.some(v=>v!=null);
+  const hayAmar = projConf.some(v=>v!=null);
+  const hayGris = grayEstim.some(v=>v!=null);
+  const hayProj = hayAmar || hayGris;
   const datasets = [];
-  /* Líneas de presupuesto (2025 solo si se tilda). stack único → no se apilan con las barras. */
-  if(show2025){
-    datasets.push({label:'Presupuesto 2025', data:presup25, type:'line', stack:'pl25', borderColor:'#9ab0c8', backgroundColor:'rgba(154,176,200,.10)', borderWidth:2, borderDash:[3,3], pointRadius:2, fill:false, tension:.2, spanGaps:true});
-  }
   datasets.push({label:'Presupuesto 2026', data:presup, type:'line', stack:'pl26', borderColor:'#0a3d7a', backgroundColor:'rgba(10,61,122,.08)', pointBackgroundColor:'#0a3d7a', pointBorderColor:'#fff', pointBorderWidth:1, borderWidth:1.8, borderDash:[2,3], pointRadius:2.4, pointHoverRadius:4, fill:false, tension:.25, spanGaps:true});
-  /* Barras 2025 (stack propio → al lado de 2026). */
-  if(show2025) datasets.push({label:'Real 2025', data:r25, stack:'y25', backgroundColor:'rgba(150,170,195,.6)', borderColor:'#9fb2c9', borderWidth:1.5, borderRadius:3, barPercentage:.7, categoryPercentage:.8});
-  /* Emisión Real 2026 + proyección apiladas en el mismo stack 'y26'. */
-  datasets.push({label:'Real 2026', data:r26, stack:'y26', backgroundColor:'rgba(108,189,237,.88)', borderColor:'#4aa3e0', borderWidth:1.5, borderRadius:3, barPercentage:.7, categoryPercentage:.8});
-  if(hayProj){
-    datasets.push({label:'Confirmado (proyección)', data:projConf, stack:'y26', backgroundColor:'#ffe14d', borderColor:'#e0a800', borderWidth:1, borderRadius:3, barPercentage:.7, categoryPercentage:.8});
-    datasets.push({label:'Presupuestado (sin confirmar)', data:projBudget, stack:'y26', backgroundColor:_stripeGray(), borderColor:'#aab4c2', borderWidth:1, borderRadius:3, barPercentage:.7, categoryPercentage:.8});
+  /* Emisión Real 2026 + proyección/estimación apiladas en el mismo stack 'y26'. */
+  datasets.push({label:'Emisión Real 2026', data:r26, stack:'y26', backgroundColor:'rgba(108,189,237,.88)', borderColor:'#4aa3e0', borderWidth:1.5, borderRadius:3, barPercentage:.7, categoryPercentage:.8});
+  if(hayAmar){
+    datasets.push({label:'Proyección Actualizada', data:projConf, stack:'y26', backgroundColor:'#ffe14d', borderColor:'#e0a800', borderWidth:1, borderRadius:3, barPercentage:.7, categoryPercentage:.8});
+  }
+  if(hayGris){
+    datasets.push({label:'Estimación Inicial', data:grayEstim, stack:'y26', backgroundColor:_stripeGray(), borderColor:'#aab4c2', borderWidth:1, borderRadius:3, barPercentage:.7, categoryPercentage:.8});
   }
   /* Opciones base + meses más grandes (pedido del usuario) + margen superior
      para que entren las etiquetas de valor arriba de las barras/puntos. */
@@ -6933,7 +6940,7 @@ function drawEjecChartMensual(canvasId, polArr, presArr, mesCorte, useUSD, show2
   opts.plugins.tooltip = Object.assign({}, opts.plugins.tooltip, {
     callbacks: Object.assign({}, (opts.plugins.tooltip||{}).callbacks, {
       afterBody: (its)=>{
-        const it = (its||[]).find(x=>x.dataset && x.dataset.label==='Real 2026');
+        const it = (its||[]).find(x=>x.dataset && x.dataset.label==='Emisión Real 2026');
         if(!it) return '';
         const m = it.dataIndex;
         const out = ['', 'Emitido este mes:'];
@@ -6952,8 +6959,8 @@ function drawEjecChartMensual(canvasId, polArr, presArr, mesCorte, useUSD, show2
   /* Headroom arriba: el eje Y llega ~30% por encima del valor más alto (barras o puntos de
      presupuesto) para que las etiquetas de valor NO se peguen al borde ni se superpongan con
      el gráfico/leyenda. */
-  const _projTot = projConf.map((v,i)=>(v||0)+(projBudget[i]||0));
-  const _allVals = [...presup, ...presup25, ...r25, ...r26, ..._projTot].filter(v=>v!=null && isFinite(v));
+  const _stackTot = r26.map((v,i)=>(v||0)+(projConf[i]||0)+(grayEstim[i]||0));
+  const _allVals = [...presup, ..._stackTot].filter(v=>v!=null && isFinite(v));
   const _dataMax = _allVals.length ? Math.max(..._allVals.map(Math.abs)) : 0;
   if(_dataMax>0){ opts.scales.y = opts.scales.y || {}; opts.scales.y.suggestedMax = _dataMax*1.3; }
   opts.layout = {padding:{top:30, bottom:hayProj?80:6}};
@@ -6970,12 +6977,12 @@ function drawEjecChartMensual(canvasId, polArr, presArr, mesCorte, useUSD, show2
       ctx.strokeStyle='rgba(120,135,160,0.28)'; ctx.lineWidth=1;
       [yBase+34, yConf+10, yPres+10].forEach(y=>{ ctx.beginPath(); ctx.moveTo(ca.left,y); ctx.lineTo(ca.right,y); ctx.stroke(); });
       ctx.textAlign='center'; ctx.textBaseline='middle'; ctx.font='800 11px Calibri';
-      for(let i=0;i<projConf.length;i++){
+      for(let i=0;i<grayEstim.length;i++){
         const x=xs.getPixelForValue(i);
         if(projConf[i]!=null && Math.abs(projConf[i])>0.5){ ctx.fillStyle='#d39a00';
           ctx.fillText(fmtCompact(projConf[i],useUSD), x, yConf); }
-        if(projBudget[i]!=null && Math.abs(projBudget[i])>0.5){ ctx.fillStyle='#8894a6';
-          ctx.fillText(fmtCompact(projBudget[i],useUSD), x, yPres); }
+        if(grayEstim[i]!=null && Math.abs(grayEstim[i])>0.5){ ctx.fillStyle='#8894a6';
+          ctx.fillText(fmtCompact(grayEstim[i],useUSD), x, yPres); }
       }
       ctx.restore();
     }
@@ -6989,9 +6996,9 @@ function drawEjecChartMensual(canvasId, polArr, presArr, mesCorte, useUSD, show2
     afterDatasetsDraw(chart){
       const {ctx} = chart;
       const colTop = (chart.chartArea ? chart.chartArea.top : 0) + 7;
-      const wantBar  = (lbl)=> lbl==='Real 2026' || (show2025 && lbl==='Real 2025');
-      const wantLine = (lbl)=> lbl==='Presupuesto 2026' || (show2025 && lbl==='Presupuesto 2025');
-      const colorOf = (lbl)=> lbl==='Real 2026' ? '#1565c0' : lbl==='Real 2025' ? '#7a8ca8'
+      const wantBar  = (lbl)=> lbl==='Emisión Real 2026';
+      const wantLine = (lbl)=> lbl==='Presupuesto 2026';
+      const colorOf = (lbl)=> lbl==='Emisión Real 2026' ? '#1565c0'
                             : lbl==='Presupuesto 2026' ? '#0a3d7a' : '#94a8c2';
       const items = [];
       chart.data.datasets.forEach((ds, di)=>{
