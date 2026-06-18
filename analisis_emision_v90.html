@@ -4295,13 +4295,6 @@ function ejecJustificacion(S, useUSD, dual, useUSDprimary){
   return `<div style="margin-top:${dual?8:2}px">
     ${dual?`<div style="font-size:11px;color:var(--ink-3);text-transform:uppercase;letter-spacing:.05em;font-weight:700;margin-bottom:4px">${mLbl}</div>`:''}
     ${_selectorCards}
-    <div style="font-size:13px;color:var(--ink-2);margin-bottom:2px;font-weight:600">El desvío <span style="font-size:11px;color:var(--ink-3)">(${selMode==='fecha'?'hasta '+_mLastD:'hasta '+_mCorteD})</span> de <span style="font-size:19px;color:${_netDesvio>=0?'var(--pos)':'var(--neg)'};font-weight:700;font-family:var(--font-mono)">${_netDesvio>=0?'+':'−'}${FMTc(Math.abs(_netDesvio))}</span> se compone así:</div>
-
-    ${causas.length>0 ? `
-    <div style="display:grid;grid-template-columns:minmax(220px,280px) 1fr;gap:26px;align-items:center;margin-bottom:4px">
-      <div style="width:100%;max-width:260px;justify-self:center"><canvas id="${pieIdDes}" style="max-height:215px"></canvas></div>
-      <div>${leyendaDes}</div>
-    </div>` : ''}
     ${(()=>{
       /* COMPARACIÓN DE DESVÍOS: IZQUIERDA = presupuesto (hasta corte y hasta mes con emisión) +
          emisión real; MEDIO (amarillo) = "se emite este mes" (Emisión Confirmada) y "Estimaciones"
@@ -4353,6 +4346,12 @@ function ejecJustificacion(S, useUSD, dual, useUSDprimary){
         </div>
       </div>`;
     })()}
+    <div style="margin-top:10px;border-top:1px solid var(--line);padding-top:8px;font-size:13px;color:var(--ink-2);margin-bottom:2px;font-weight:600">El desvío <span style="font-size:11px;color:var(--ink-3)">(${selMode==='fecha'?'hasta '+_mLastD:'hasta '+_mCorteD})</span> de <span style="font-size:19px;color:${_netDesvio>=0?'var(--pos)':'var(--neg)'};font-weight:700;font-family:var(--font-mono)">${_netDesvio>=0?'+':'−'}${FMTc(Math.abs(_netDesvio))}</span> se compone así:</div>
+    ${causas.length>0 ? `
+    <div style="display:grid;grid-template-columns:minmax(220px,280px) 1fr;gap:26px;align-items:center;margin-bottom:4px">
+      <div style="width:100%;max-width:260px;justify-self:center"><canvas id="${pieIdDes}" style="max-height:215px"></canvas></div>
+      <div>${leyendaDes}</div>
+    </div>` : ''}
   </div>`;
 }
 
