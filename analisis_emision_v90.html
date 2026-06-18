@@ -2996,19 +2996,9 @@ function drawEjecutivo(){
   /* Contexto para los drills de "Emisión 2026" (comparación 2025 vs 2026 por concepto,
      cada año desde su propio conjunto de pólizas). */
   state._ejecDrillCtx = {pol: polFiltradas, mesCorte};
-  /* La COMPARACIÓN 2025 vs 2026 se cuenta hasta el ÚLTIMO mes con emisión real 2026,
-     independientemente del botón "Mes de corte" (pedido del usuario). Así se comparan
-     períodos equivalentes (ej. 2025 también solo hasta mayo si 2026 emitió hasta mayo). */
-  let _lastEmis26G = 0;
-  try { const _md = computeMensual(polFiltradas);
-    for(let i=0;i<12;i++){ if(((_md.real26.ars[i]||0)>0.5)||((_md.real26.usd[i]||0)>0.5)) _lastEmis26G=i+1; }
-  } catch(e){}
-  const _cmpCut = _lastEmis26G || mesCorte;
-  state._ejecCmpCut = _cmpCut;
   /* Conjunto 2025 por concepto (tipo2025 / concepto / AA), reutilizado por la leyenda
-     (totales y conteo 2025) y por el drill, para que TODO coincida. Cortado al mes de
-     comparación (último con emisión 2026), no al botón de corte. */
-  state._ejecCS25 = buildEmiConceptos(polFiltradas, 2025, _cmpCut);
+     (totales y conteo 2025) y por el drill. Cortado al MES DE CORTE del botón (dinámico). */
+  state._ejecCS25 = buildEmiConceptos(polFiltradas, 2025, mesCorte);
   document.getElementById('ejecutivo-nlabel').innerHTML = '';
 
   /* Selección oculta del presupuesto: por defecto, Continental. Si el usuario
@@ -3030,13 +3020,6 @@ function drawEjecutivo(){
     const emis25 = useUSD ? t.totUSD25 : t.totARS25;
     const conc26 = useUSD ? t.concUSD26 : t.concARS26;
     const conc25 = useUSD ? t.concUSD25 : t.concARS25;
-    /* Totales para la COMPARACIÓN 2025 vs 2026, cortados al último mes con emisión 2026
-       (_cmpCut), no al botón de corte. */
-    const _tcmp = totalesGlobales(_cmpCut, polFiltradas);
-    const emis26cmp = useUSD ? _tcmp.totUSD26 : _tcmp.totARS26;
-    const emis25cmp = useUSD ? _tcmp.totUSD25 : _tcmp.totARS25;
-    const conc26cmp = useUSD ? _tcmp.concUSD26 : _tcmp.concARS26;
-    const conc25cmp = useUSD ? _tcmp.concUSD25 : _tcmp.concARS25;
     const desvio = presup26 - emis26;
     const cumpl  = presup26>0 ? emis26/presup26 : null;
     const sinPresup = !(presup26 > 0);
@@ -3340,7 +3323,6 @@ function drawEjecutivo(){
     const presup26_emi = presupAcumulado(presArr, lastEmis26 || 12);
     const desvio_emi   = presup26_emi - emis26;     /* emis26 ya es lo emitido (no hay emisión tras lastEmis26) */
     return {useUSD, presArr, presup26, emis26, emis25, conc26, conc25, desvio, cumpl, sinPresup,
-      emis26cmp, emis25cmp, conc26cmp, conc25cmp, cmpCut:_cmpCut,
       lastEmis26, presup26_emi, desvio_emi, mesCorteSet:mesCorte,
       emiSeg,nSeg, emiRen,nRen, emiTer,nTer, pmSeg, pmRen, subaProy, nSubaProy, emitidoCats, otrosConceptos,
       cPerdidas,nPerdidas, cPend,nPend, cPrimaMin,nPrimaMin, cProy,nProy, cTasa,nTasa,
@@ -3546,26 +3528,24 @@ function ejecFlujo(S, useUSD){
 }
 
 /* Comparación emisión 2025 vs 2026 (gráficos + cuadros) para una moneda.
-   Usa los totales cortados al último mes con emisión 2026 (S.*cmp), no al botón de corte. */
+   Dinámica al botón "1° Mes de corte" (usa S.emis25/26 y S.conc25/26 al mes de corte). */
 function ejecComparacion(S, useUSD, dual){
   const mLbl = useUSD?'USD':'ARS$';
   const FMT = useUSD?FMT_USD_FULL:FMT_ARS_FULL;
   const idT = useUSD?'ejecChartTotal_u':'ejecChartTotal_a';
   const idC = useUSD?'ejecChartConcepto_u':'ejecChartConcepto_a';
-  const _e25 = (S.emis25cmp!=null)?S.emis25cmp:S.emis25, _e26 = (S.emis26cmp!=null)?S.emis26cmp:S.emis26;
-  const _c25 = S.conc25cmp||S.conc25, _c26 = S.conc26cmp||S.conc26;
   setTimeout(()=>{
-    drawEjecChartTotal(idT, _e25, _e26, useUSD);
-    drawEjecChartConcepto(idC, _c25, _c26, useUSD);
+    drawEjecChartTotal(idT, S.emis25, S.emis26, useUSD);
+    drawEjecChartConcepto(idC, S.conc25, S.conc26, useUSD);
   }, 10);
   /* Variación total bajo el gráfico de total */
-  const dTot = _e26 - _e25;
-  const dTotPct = _e25 ? dTot/Math.abs(_e25) : null;
+  const dTot = S.emis26 - S.emis25;
+  const dTotPct = S.emis25 ? dTot/Math.abs(S.emis25) : null;
   const cTot = dTot>=0?'var(--pos)':'var(--neg)';
   /* Variación por concepto bajo el gráfico de conceptos */
   const conceptosVar = CONCEPTOS_EMISIBLES.map(c=>{
     const k = KEYMAP[c];
-    const v25 = _c25[k]||0, v26 = _c26[k]||0;
+    const v25 = S.conc25[k]||0, v26 = S.conc26[k]||0;
     const dd = v26 - v25; const pp = v25 ? dd/Math.abs(v25) : null;
     return {c, dd, pp};
   });
