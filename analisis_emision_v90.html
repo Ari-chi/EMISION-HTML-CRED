@@ -4393,7 +4393,7 @@ function ejecJustificacion(S, useUSD, dual, useUSDprimary){
           </div>
           ${flecha('=')}
           <div style="flex:1.15;display:flex;flex-direction:column;gap:6px;justify-content:center">
-            ${card('rgba(30,111,217,.10)','var(--accent)','Emisión total', esCorte?_mCorte:_mLast, valDiv('var(--accent-3)', FMTc(emisReal + pendMes + (esCorte?pendEstim:pv.p25))))}
+            ${card('rgba(30,111,217,.10)','var(--accent)','Emisión estimada', esCorte?_mCorte:_mLast, valDiv('var(--accent-3)', FMTc(emisReal + pendMes + (esCorte?pendEstim:pv.p25))))}
             ${esCorte ? cardDesv('Desvío Acumulado',_mCorte,desvAnio, presup) : cardDesv('Desvío Acumulado',_mLast,desvMes, presupEmi)}
           </div>
         </div>
