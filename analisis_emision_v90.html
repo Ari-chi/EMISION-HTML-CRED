@@ -1032,6 +1032,17 @@ function _presupArgVal(p, ck, suf, modo){
   }
   return tot;
 }
+/* Total GLOBAL de "Presup Arg HTML" por modo (confirmado=amarillo / pendiente=presupuesto), con
+   desglose por concepto (primaMin/ajuste/malus/bono; el bono resta) y conteo de pólizas. */
+function _presupArgGlobal(suf, modo){
+  const c={primaMin:0,ajuste:0,malus:0,bono:0}; let total=0; const pol=new Set();
+  const pa=state._presupArg; if(!pa||!pa.ok) return {total:0,c,n:0};
+  for(const e of pa.rows){ const ck=_tipoToConcepto(e.tipo); if(!ck) continue; const sgn=(ck==='bono')?-1:1; let any=false;
+    for(const mo of e.months){ if(modo==='confirmado'&&!mo.yellow)continue; if(modo==='pendiente'&&mo.yellow)continue;
+      const v=(suf==='u')?mo.orig:mo.ars; if(!isFinite(v)||!v)continue; c[ck]+=sgn*v; total+=sgn*v; any=true; }
+    if(any) pol.add(String(e.poliza||e.aseg)); }
+  return {total, c, n:pol.size};
+}
 
 /* Si es true, el presupuesto se fuerza a 0. El reporte sigue funcionando: los bloques de
    presupuesto muestran 0 y todo lo demás (emisión real, desvíos, pendientes) no depende del
@@ -3635,15 +3646,20 @@ function ejecJustificacion(S, useUSD, dual, useUSDprimary){
        4 subbotones en el drill). El total = suma firmada de las 4 magnitudes. */
     const menorSigned = mkVal(cnt.prima) + abmSigned;
     const menorN = cnt.prima.n + cnt.ajuste.n + cnt.bono.n + cnt.malus.n;
+    /* PENDIENTES ahora en 2 segmentos (pedido del usuario): AMARILLO = lo que se va a emitir
+       (confirmado en Presup Arg) y CELESTE = lo presupuestado sin confirmar (sin justificar).
+       El sub-desglose por concepto (prima/ajuste/bono/malus) aparece al hacer click. */
+    const _sufp = useUSD?'u':'a';
+    const _conf = _presupArgGlobal(_sufp, 'confirmado');
+    const _pres = _presupArgGlobal(_sufp, 'pendiente');
+    const _confV = _ejecContabOn('pend_conf','mes') ? _conf.total : 0;   /* toggle Contabilizar */
+    const _presV = _ejecContabOn('pend_presup','mes') ? _pres.total : 0;
     causas = [
-      mk('pend_prima',APP_CONFIG.textos.pend_prima, pv(dp&&dp.primaMin), dp?dp.primaMin.n:0, APP_CONFIG.colores.pendiente,'pendiente'),
-      mk('pend_ajuste',APP_CONFIG.textos.pend_ajuste, pv(dp&&dp.ajuste), dp?dp.ajuste.n:0, APP_CONFIG.colores.pendiente,'pendiente'),
-      mk('pend_malus',APP_CONFIG.textos.pend_malus, pv(dp&&dp.malus), dp?dp.malus.n:0, APP_CONFIG.colores.pendiente,'pendiente'),
-      mk('pend_bono',APP_CONFIG.textos.pend_bono || 'Bono pendiente', pv(dp&&dp.bono), dp?dp.bono.n:0, APP_CONFIG.colores.pendiente,'pendiente'),
+      mk('pend_conf','Se va a emitir (confirmado)', _confV, _conf.n, '#ffd54a','pendiente'),
+      mk('pend_presup','Presupuestado (sin justificar)', _presV, _pres.n, APP_CONFIG.colores.pendiente,'pendiente'),
       mk('perdidas',APP_CONFIG.textos.perdidas, mkVal(cnt.perdidas), cnt.perdidas.n, APP_CONFIG.colores.perdidas),
       mk('menor',APP_CONFIG.textos.menor || 'Menor Emisión', menorSigned, menorN, APP_CONFIG.colores.abm),
-    /* Los 4 conceptos PENDIENTES siempre figuran (aunque su valor contabilizado sea 0 porque
-       "Pendiente sin fecha" está en NO): así se ve la estructura y el ✎ para editarlos. */
+    /* Los pendientes (amarillo/celeste) siempre figuran aunque su valor sea 0. */
     ].filter(c=>c.val>1 || c.grupo==='pendiente');
   } else {
     const mk = (id,lbl,vSigned,n,col)=>({id,lbl,val:Math.abs(vSigned),vSigned,n,col});
@@ -5941,7 +5957,7 @@ window.toggleEjecCausa = function(id){
     </div>`;
   }
 
-  const titulos = {pendiente:'Pendiente de emisión', pend_prima:'Prima mínima pendiente', pend_ajuste:'Ajuste pendiente', pend_bono:'Bono pendiente', pend_malus:'Malus pendiente', perdidas:'Pólizas que se fueron', prima:'Prima mínima', ajuste:'Ajuste', bono:'Bono', malus:'Malus', menor:'Menor Emisión', sinjust:'Pólizas que no crecieron'};
+  const titulos = {pendiente:'Pendiente de emisión', pend_conf:'Se va a emitir (confirmado)', pend_presup:'Presupuestado (sin justificar)', pend_prima:'Prima mínima pendiente', pend_ajuste:'Ajuste pendiente', pend_bono:'Bono pendiente', pend_malus:'Malus pendiente', perdidas:'Pólizas que se fueron', prima:'Prima mínima', ajuste:'Ajuste', bono:'Bono', malus:'Malus', menor:'Menor Emisión', sinjust:'Pólizas que no crecieron'};
 
   /* Resumen pre-card de las pólizas involucradas en ESTA causa, antes del
      desglose por póliza. Mismo formato que en "Emisión 2026": Proyección $/US,
@@ -6312,6 +6328,29 @@ window.toggleEjecCausa = function(id){
       <div id="ejecAbmCols" style="display:grid;grid-template-columns:1fr 1fr;gap:16px">${colAbm(false,'ajuste')}${colAbm(true,'ajuste')}</div>`;
   } else if(id==='sinjust'){
     contenido = `<div style="display:grid;grid-template-columns:1fr 1fr;gap:16px">${colNoCrecen(false)}${colNoCrecen(true)}</div>`;
+  } else if(id==='pend_conf' || id==='pend_presup'){
+    /* Sub-desglose por concepto del pendiente AMARILLO (confirmado) o CELESTE (presupuestado),
+       desde Presup Arg HTML, con su toggle Contabilizar. */
+    const modo = id==='pend_conf' ? 'confirmado' : 'pendiente';
+    const suf = btnUSD?'u':'a';
+    const g = _presupArgGlobal(suf, modo);
+    const on = _ejecContabOn(id,'mes');
+    const tc = id==='pend_conf' ? '#e0a800' : '#3a8fc0';
+    const tlbl = id==='pend_conf' ? 'Se va a emitir (confirmado)' : 'Presupuestado (sin justificar)';
+    const CN = {primaMin:'Prima Mínima', ajuste:'Ajuste', malus:'Malus', bono:'Bono'};
+    const filas = ['primaMin','ajuste','malus','bono'].filter(k=>Math.abs(g.c[k])>0.5).map(k=>
+      `<div style="display:flex;justify-content:space-between;align-items:center;padding:9px 14px;border-bottom:1px solid var(--line);font-size:13.5px">
+        <span style="font-weight:700;color:var(--accent-3)">${CN[k]}</span>
+        <span style="font-family:var(--font-mono);font-weight:800;color:${k==='bono'?'var(--neg)':'var(--accent-3)'}">${k==='bono'?'−':''}${fmtCompact(Math.abs(g.c[k]),btnUSD)}</span>
+      </div>`).join('');
+    contenido = `<div style="border:1px solid var(--line-2);border-radius:9px;overflow:hidden;max-width:560px;${on?'':'opacity:.6'}">
+      <div style="display:flex;justify-content:space-between;align-items:center;gap:10px;padding:11px 14px;background:${tc}22;border-bottom:1px solid var(--line)">
+        <span style="font-weight:800;color:${tc};text-transform:uppercase;letter-spacing:.03em;font-size:12px">${tlbl} <span style="color:var(--ink-3);font-weight:600;text-transform:none">· ${g.n} pól.</span></span>
+        <button onclick="ejecToggleContab('${id}','mes')" title="Contabilizar este grupo en el desvío" style="font-size:10px;font-weight:800;border-radius:5px;padding:4px 10px;cursor:pointer;white-space:nowrap;border:1.5px solid ${on?'var(--pos)':'var(--line-2)'};background:${on?'var(--pos)':'var(--panel)'};color:${on?'#fff':'var(--ink-2)'}">Contabilizar: ${on?'SÍ':'NO'}</button>
+      </div>
+      <div style="font-family:var(--font-mono);font-size:17px;font-weight:800;color:${tc};padding:9px 14px;border-bottom:1px solid var(--line)">Total: ${fmtCompact(g.total,btnUSD)}</div>
+      ${filas || '<div style="padding:12px 14px;color:var(--ink-3);font-style:italic;font-size:12.5px">— sin datos en Presup Arg HTML —</div>'}
+    </div>`;
   } else if(esPend){
     /* Drill de pendiente: dos columnas por DATO DEL EXCEL (no por moneda), editable. */
     contenido = `<div style="display:grid;grid-template-columns:1fr 1fr;gap:16px">${colPendData(true)}${colPendData(false)}</div>`;
