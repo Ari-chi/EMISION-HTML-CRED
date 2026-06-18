@@ -4278,16 +4278,18 @@ function ejecJustificacion(S, useUSD, dual, useUSDprimary){
   const _pctEmi = S.presup26_emi>0 ? S.desvio_emi/S.presup26_emi*100 : null;
   const _pctCorte = S.presup26>0 ? S.desvio/S.presup26*100 : null;
   const _selCard = (mode,titulo,sub,dv,pct)=>{ const sel=(selMode===mode);
-    return `<div onclick="window.ejecSelDesvio('${mode}')" style="flex:1;cursor:pointer;background:${sel?'rgba(217,71,71,.13)':'rgba(120,135,160,.07)'};border:2px solid ${sel?'var(--neg)':'transparent'};border-radius:10px;padding:8px 13px;transition:all .12s">
-      <div style="font-size:11px;color:${sel?'var(--neg)':'var(--ink-2)'};text-transform:uppercase;letter-spacing:.03em;font-weight:800">${titulo} <span style="font-size:9px;color:var(--ink-3);font-weight:600;text-transform:none;letter-spacing:0">${sub}</span></div>
-      <div style="display:flex;align-items:baseline;gap:8px;margin-top:2px">
-        <span style="font-size:19px;font-weight:800;color:var(--neg);font-family:var(--font-mono)">${dv>0?'−':'+'}${FMTc(Math.abs(dv))}</span>
-        <span style="font-size:12px;font-weight:800;color:var(--neg);font-family:var(--font-mono)">${pct!=null?'('+(pct>0?'−':'+')+Math.abs(Math.round(pct))+'%)':''}</span>
+    return `<div onclick="window.ejecSelDesvio('${mode}')" style="flex:1;cursor:pointer;background:${sel?'rgba(217,71,71,.13)':'rgba(120,135,160,.07)'};border:1.5px solid ${sel?'var(--neg)':'var(--line-2)'};border-radius:9px;padding:6px 11px;transition:all .12s">
+      <div style="font-size:10px;color:${sel?'var(--neg)':'var(--ink-2)'};text-transform:uppercase;letter-spacing:.03em;font-weight:800">${titulo} <span style="font-size:8.5px;color:var(--ink-3);font-weight:600;text-transform:none;letter-spacing:0">${sub}</span></div>
+      <div style="display:flex;align-items:baseline;gap:7px;margin-top:1px">
+        <span style="font-size:16px;font-weight:800;color:var(--neg);font-family:var(--font-mono)">${dv>0?'−':'+'}${FMTc(Math.abs(dv))}</span>
+        <span style="font-size:11px;font-weight:800;color:var(--neg);font-family:var(--font-mono)">${pct!=null?'('+(pct>0?'−':'+')+Math.abs(Math.round(pct))+'%)':''}</span>
       </div>
     </div>`; };
-  const _selectorCards = `<div style="display:flex;gap:10px;margin-bottom:10px;max-width:620px">
-    ${_selCard('fecha','Desvío Acumulado','(hasta '+_mLastD+')', S.desvio_emi, _pctEmi)}
+  /* Primero HASTA DIC (corte del botón 1°), después emisión real. Achicadas y separadas para
+     diferenciarlas del total. */
+  const _selectorCards = `<div style="display:flex;gap:18px;margin-bottom:10px;max-width:540px">
     ${_selCard('corte','Desvío Acumulado','(hasta '+_mCorteD+')', S.desvio, _pctCorte)}
+    ${_selCard('fecha','Desvío Acumulado','(hasta '+_mLastD+')', S.desvio_emi, _pctEmi)}
   </div>`;
   return `<div style="margin-top:${dual?8:2}px">
     ${dual?`<div style="font-size:11px;color:var(--ink-3);text-transform:uppercase;letter-spacing:.05em;font-weight:700;margin-bottom:4px">${mLbl}</div>`:''}
@@ -4300,21 +4302,20 @@ function ejecJustificacion(S, useUSD, dual, useUSDprimary){
       <div>${leyendaDes}</div>
     </div>` : ''}
     ${(()=>{
-      /* COMPARACIÓN DE DESVÍOS (formato tipo "Resumen"): IZQUIERDA = presupuesto + emisión real;
-         MEDIO (verde) = pendiente que SE EMITE ESTE MES (Emisión Confirmada) y pendiente HASTA FIN
-         DE AÑO (Emisión Confirmada + Proyección Arg. + Comparación 2025); DERECHA = desvío resultante
-         de sumar cada pendiente a la emisión real. */
+      /* COMPARACIÓN DE DESVÍOS: IZQUIERDA = presupuesto (hasta corte y hasta mes con emisión) +
+         emisión real; MEDIO (amarillo) = "se emite este mes" (Emisión Confirmada) y "Estimaciones"
+         (Proyección Arg. + Comparación 2025); DERECHA = desvío resultante:
+           · hasta fin de año = (emisión real + confirmada + estimaciones) − presupuesto hasta corte.
+           · se emite este mes = (emisión real + confirmada) − presupuesto hasta el mes con emisión. */
       const sufx = useUSD?'u':'a';
       const presup = S.presup26 || 0;             /* presupuesto acumulado hasta el botón de corte */
       const presupEmi = S.presup26_emi || 0;      /* presupuesto hasta el último mes con emisión real 2026 */
       const emisReal = S.emis26 || 0;
       const pv = (state._ejecPendVals && state._ejecPendVals[sufx]) || {conf:0,pres:0,p25:0};
-      const pendMes  = pv.conf;                         /* se emite este mes = Emisión Confirmada */
-      const pendAnio = pv.conf + pv.pres + pv.p25;      /* hasta fin de año = los 3 pendientes */
-      /* Desvío contra el presupuesto hasta el corte. desvAnio = (emis + Σpendientes) − presup =
-         −dvAbs + Σpendientes = EXACTAMENTE el neto del donut "El desvío (hasta Dic)…". */
-      const desvMes  = (emisReal + pendMes)  - presup;
-      const desvAnio = (emisReal + pendAnio) - presup;
+      const pendMes   = pv.conf;                  /* se emite este mes = Emisión Confirmada */
+      const pendEstim = pv.pres + pv.p25;         /* Estimaciones = Proyección Arg. + Comparación 2025 */
+      const desvAnio = (emisReal + pendMes + pendEstim) - presup;   /* vs presupuesto hasta corte */
+      const desvMes  = (emisReal + pendMes) - presupEmi;            /* vs presupuesto hasta mes con emisión, SIN estimaciones */
       const _mLast  = (S.lastEmis26>0) ? MESES[S.lastEmis26-1] : '—';
       const _mCorte = (S.mesCorteSet>0) ? MESES[S.mesCorteSet-1] : 'Dic';
       const fv = (v)=>FMTc(Math.abs(v));
@@ -4325,8 +4326,8 @@ function ejecJustificacion(S, useUSD, dual, useUSDprimary){
       const cardBlue  = (lbl,sub,val)=> card('rgba(30,111,217,.10)','var(--accent)',lbl,sub, valDiv('var(--accent-3)',FMTc(val)));
       const cardEmis  = (lbl,sub,val)=> card('rgba(45,155,106,.12)','var(--pos)',lbl,sub, valDiv('var(--pos)',FMTc(val)));
       const cardYellow= (lbl,sub,val)=> card('rgba(255,193,7,.16)','#b8860b',lbl,sub, valDiv('#b8860b','+'+fv(val)));
-      const cardDesv  = (lbl,sub,val)=>{ const neg=val<0; const c=neg?'var(--neg)':'var(--pos)';
-        const pct = presup ? `(${neg?'−':'+'}${Math.round(Math.abs(val/presup*100))}%)` : '';
+      const cardDesv  = (lbl,sub,val,base)=>{ const neg=val<0; const c=neg?'var(--neg)':'var(--pos)';
+        const pct = base ? `(${neg?'−':'+'}${Math.round(Math.abs(val/base*100))}%)` : '';
         const inner = `<div style="display:flex;align-items:baseline;gap:8px;margin-top:2px"><span style="font-size:20px;font-weight:800;color:${c};font-family:var(--font-mono)">${neg?'−':'+'}${fv(val)}</span><span style="font-size:13px;font-weight:800;color:${c};font-family:var(--font-mono)">${pct}</span></div>`;
         return card(neg?'rgba(217,71,71,.10)':'rgba(45,155,106,.10)', c, lbl, sub, inner); };
       const flecha = (s)=>`<div style="display:flex;align-items:center;color:var(--ink-3);font-size:24px;font-weight:300">${s}</div>`;
@@ -4334,19 +4335,19 @@ function ejecJustificacion(S, useUSD, dual, useUSDprimary){
         <div style="font-size:11.5px;font-weight:800;color:var(--accent-3);text-transform:uppercase;letter-spacing:.04em;margin-bottom:6px">Comparación de desvíos</div>
         <div style="display:flex;align-items:stretch;gap:8px">
           <div style="flex:1.05;display:flex;flex-direction:column;gap:6px">
-            ${cardBlue('Presupuesto Hasta '+_mCorte,'',presup)}
-            ${cardBlue('Presupuesto Hasta '+_mLast,'(mes con emisión real)',presupEmi)}
+            ${cardBlue('Presupuesto Acumulado','(hasta '+_mCorte+')',presup)}
+            ${cardBlue('Presupuesto Acumulado','(hasta '+_mLast+', mes con emisión real)',presupEmi)}
             ${cardEmis('Emisión Real 2026','(hasta '+_mLast+')',emisReal)}
           </div>
           ${flecha('+')}
           <div style="flex:1.15;display:flex;flex-direction:column;gap:6px;justify-content:center">
             ${cardYellow('Pendiente · se emite este mes','',pendMes)}
-            ${cardYellow('Pendiente · hasta fin de año','(confirmada + proyección + comp. 2025)',pendAnio)}
+            ${cardYellow('Estimaciones','(proyección + comp. 2025)',pendEstim)}
           </div>
           ${flecha('=')}
           <div style="flex:1.15;display:flex;flex-direction:column;gap:6px;justify-content:center">
-            ${cardDesv('Desvío · se emite este mes','',desvMes)}
-            ${cardDesv('Desvío · hasta fin de año','',desvAnio)}
+            ${cardDesv('Desvío Acumulado','(hasta '+_mCorte+')',desvAnio, presup)}
+            ${cardDesv('Desvío Acumulado','(hasta '+_mLast+')',desvMes, presupEmi)}
           </div>
         </div>
       </div>`;
