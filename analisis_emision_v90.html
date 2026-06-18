@@ -533,6 +533,7 @@ h4.section-title{margin:14px 0 8px 0;font-size:13px;color:var(--accent-3);font-w
     <button class="tab active" data-tab="ejecutivo"><span class="num">01</span>Resumen Ejecutivo</button>
     <button class="tab" data-tab="top10"><span class="num">02</span>Top 5 Casos</button>
     <button class="tab" data-tab="polizas"><span class="num">03</span>Justificación por Póliza</button>
+    <button class="tab" data-tab="insur"><span class="num">04</span>INSUR Análisis</button>
   </nav>
 </div>
 
@@ -803,6 +804,7 @@ function readExcel(file){
     parseRows(rows);
     parsePresupuestos(rows);
     parseProyEmis(rows);
+    parseInsur(rows);   /* bloque AF19:AR24 "INSUR ANÁLISIS" (Mantención + Costos de estudio) */
     /* Presupuesto/proyección 2026 desde 2 hojas nuevas:
          "Confirmado Proyeccion" = confirmado que se emite (antes: celdas amarillas).
          "Presupuesto Argentina" = presupuestado sin confirmar (antes: sin amarillo).
@@ -1047,6 +1049,28 @@ function parsePresupArgBudget(ws){
     }
   }
 }
+/* Hoja "Emision 2026 HTML", bloque AF19:AR24 → "INSUR ANÁLISIS": Mantención y Costos de estudio,
+   cada uno PRESUPUESTADO vs EMITIDO, por mes (ARS). Alimenta la pestaña INSUR Análisis.
+   rows = sheet_to_json(header:1). AF = col 32 (índice 31); meses AG..AR = índices 32..43. */
+function parseInsur(rows){
+  state._insur = {mantPres:Array(12).fill(0), mantEmi:Array(12).fill(0), costPres:Array(12).fill(0), costEmi:Array(12).fill(0), ok:false};
+  if(!rows || !rows.length) return;
+  const AF=31, AG=32;
+  const num=v=>{ if(v==null||v==='') return 0; if(typeof v==='number') return v; const n=parseFloat(String(v).replace(/[^0-9.\-]/g,'')); return isFinite(n)?n:0; };
+  for(const r of rows){
+    if(!r) continue;
+    const lbl = _accent(r[AF]);
+    let key=null;
+    if(lbl==='mantencion presupuestado') key='mantPres';
+    else if(lbl==='mantencion emitido') key='mantEmi';
+    else if(lbl==='costos de estudio presupuestado') key='costPres';
+    else if(lbl==='costos de estudio emitido') key='costEmi';
+    if(!key) continue;
+    for(let m=0;m<12;m++) state._insur[key][m]=num(r[AG+m]);
+    state._insur.ok=true;
+  }
+}
+
 /* Parser ANTIGUO (hoja única "Presup Arg HTML" con amarillo). Se mantiene como respaldo. */
 function parsePresupArg(ws){
   if(!ws || !ws['!ref']) return;
@@ -2764,7 +2788,7 @@ function renderAll(){
   document.getElementById('emptyState')?.remove();
   const content = document.getElementById('content');
   content.innerHTML='';
-  ['ejecutivo','polizas','top10'].forEach(id=>{
+  ['ejecutivo','polizas','top10','insur'].forEach(id=>{
     const sec = document.createElement('section');
     sec.className = 'section' + (id==='ejecutivo'?' active':'');
     sec.dataset.section = id;
@@ -2776,6 +2800,7 @@ function renderAll(){
   renderEjecutivo();
   renderPolizas();
   renderTop10();
+  renderInsur();
   setupTabs();
 }
 
@@ -2949,6 +2974,92 @@ function renderEjecutivo(){
     <div id="ejecutivo-body"></div>`;
   bindSectionFilters('ejecutivo', ()=>drawEjecutivo());
   drawEjecutivo();
+}
+
+/* ============================================================
+   04 INSUR ANÁLISIS — Presupuesto vs Emisión Real 2026 para
+   Mantención + Costos de estudio (bloque AF19:AR24 del Excel, ARS).
+   Misma vista que "Presupuesto vs Emisión Real" del Resumen Ejecutivo.
+============================================================ */
+function renderInsur(){
+  const sec = document.getElementById('sec-insur');
+  if(!sec) return;
+  const I = state._insur;
+  if(!I || !I.ok){
+    sec.innerHTML = `<div class="section-head"><h2>INSUR <em>Análisis</em></h2></div>
+      <div class="card"><div style="font-size:13px;color:var(--ink-3);padding:16px">No se encontró el bloque <strong>INSUR ANÁLISIS</strong> en la hoja «Emisión 2026 HTML» (AF19:AR24).</div></div>`;
+    return;
+  }
+  const presup = Array.from({length:12},(_,m)=> (I.mantPres[m]||0)+(I.costPres[m]||0));
+  const real   = Array.from({length:12},(_,m)=> (I.mantEmi[m]||0)+(I.costEmi[m]||0));
+  let lastEmis=0; for(let m=0;m<12;m++) if(real[m]>0.5) lastEmis=m+1;
+  const sum=(a,n)=>a.slice(0,n).reduce((s,v)=>s+(v||0),0);
+  const presupDic = sum(presup,12);
+  const presupEmi = sum(presup, lastEmis||12);
+  const emisReal  = real.reduce((s,v)=>s+(v||0),0);
+  const desvioDic = presupDic - emisReal;     /* >0 = no se alcanzó el presupuesto */
+  const desvioEmi = presupEmi - emisReal;
+  const cumplDic  = presupDic>0 ? emisReal/presupDic : null;
+  const cumplEmi  = presupEmi>0 ? emisReal/presupEmi : null;
+  const _mLast = lastEmis>0 ? MESES[lastEmis-1] : '—';
+  const FMTc=(v)=>fmtCompact(v,false);
+  const tituloCardCss = (col)=>`font-size:14px;color:${col};text-transform:uppercase;letter-spacing:.04em;font-weight:800;margin-bottom:5px;padding-bottom:4px;border-bottom:1px solid ${col};display:inline-block`;
+  const cardBlue = (titulo,sub,val)=>`<div style="flex:1;background:rgba(30,111,217,.10);border-radius:10px;padding:8px 13px;display:flex;flex-direction:column;justify-content:center">
+      <div style="font-size:11.5px;color:var(--accent);text-transform:uppercase;letter-spacing:.03em;font-weight:800">${titulo}${sub?` <span style="font-size:9.5px;color:var(--ink-3);font-weight:600;text-transform:none;letter-spacing:0">${sub}</span>`:''}</div>
+      <div style="font-size:20px;font-weight:800;color:var(--accent-3);line-height:1;font-family:var(--font-mono);margin-top:3px">${FMTc(val)}</div></div>`;
+  const subCard = (titulo, sub, val, base)=>{ const neg=val>0; const c=neg?'var(--neg)':'var(--pos)'; const pct = base>0?(val/base*100):null;
+    return `<div style="flex:1;background:${neg?'rgba(217,71,71,.10)':'rgba(45,155,106,.10)'};border-radius:10px;padding:8px 13px;display:flex;flex-direction:column;justify-content:center">
+      <div style="font-size:11.5px;color:${c};text-transform:uppercase;letter-spacing:.03em;font-weight:800">${titulo}${sub?` <span style="font-size:9.5px;color:var(--ink-3);font-weight:600;text-transform:none;letter-spacing:0">${sub}</span>`:''}</div>
+      <div style="display:flex;align-items:baseline;gap:8px;margin-top:2px"><span style="font-size:20px;font-weight:800;color:${c};font-family:var(--font-mono)">${neg?'−':'+'}${FMTc(Math.abs(val))}</span>${pct!=null?`<span style="font-size:13px;font-weight:800;color:${c};font-family:var(--font-mono)">(${pct>0?'−':'+'}${Math.abs(pct).toFixed(0)}%)</span>`:''}</div>
+    </div>`; };
+  const lineaObj = (pct,sub)=>`<div style="font-size:17px;font-weight:800;color:var(--pos);margin-top:7px;font-family:var(--font-mono)">${pct!=null?Math.round(pct*100)+'%':'—'}<span style="font-size:11px;font-weight:600;margin-left:4px">del objetivo <span style="color:var(--ink-3);font-size:9.5px">${sub}</span></span></div>`;
+  sec.innerHTML = `
+    <div class="section-head"><h2>INSUR <em>Análisis</em></h2></div>
+    <div class="card">
+      <div class="ejec-block-title ejec-block-title--lg"><span>Presupuesto</span><span class="ejb-sep">vs</span><span>Emisión&nbsp;Real</span><span class="ejb-year">2026</span></div>
+      <div style="font-size:11px;color:var(--ink-3);margin-top:2px;margin-bottom:8px">Mantención + Costos de estudio · ARS$</div>
+      <div style="display:flex;align-items:stretch;gap:8px">
+        <div style="flex:1;display:flex;flex-direction:column;gap:6px;justify-content:center">
+          ${cardBlue('Presupuesto Emisión Real','(hasta '+_mLast+')',presupEmi)}
+          ${cardBlue('Presupuesto Hasta Dic','',presupDic)}
+        </div>
+        <div style="display:flex;align-items:center;color:var(--ink-3);font-size:24px;font-weight:300">→</div>
+        <div style="flex:1;background:rgba(45,155,106,.10);border-radius:10px;padding:11px 13px;display:flex;flex-direction:column;justify-content:flex-start">
+          <div style="${tituloCardCss('var(--pos)')}">Emisión Real 2026</div>
+          <div style="font-size:22px;font-weight:800;color:var(--pos);line-height:1;font-family:var(--font-mono);margin-top:4px">${FMTc(emisReal)}</div>
+          ${lineaObj(cumplEmi,'(hasta '+_mLast+')')}${lineaObj(cumplDic,'(hasta Dic)')}
+        </div>
+        <div style="display:flex;align-items:center;color:var(--ink-3);font-size:20px;font-weight:300">=</div>
+        <div style="flex:1.15;display:flex;flex-direction:column;gap:6px">
+          ${subCard('Desvío Emisión Real','(hasta '+_mLast+')',desvioEmi, presupEmi)}
+          ${subCard('Desvío Hasta Dic','',desvioDic, presupDic)}
+        </div>
+      </div>
+      <div style="margin-top:10px"><div class="chart-box" style="height:315px"><canvas id="insurChartMensual"></canvas></div></div>
+    </div>`;
+  drawInsurChart('insurChartMensual', presup, real, lastEmis);
+}
+/* Gráfico mensual de INSUR: presupuesto (línea) vs emitido (barras azules);
+   meses sin emisión = presupuestado (gris rayado). */
+function drawInsurChart(canvasId, presup, real, lastEmis){
+  if(!document.getElementById(canvasId)) return;
+  const labels = MESES.slice(0,12);
+  const realBars = real.map(v=> (v>0.5)?v:null);
+  const projBudget = presup.map((v,i)=> (real[i]>0.5)?null:(v>0.5?v:null));
+  const datasets = [
+    {label:'Presupuesto 2026', data:presup, type:'line', stack:'pl26', borderColor:'#0a3d7a', backgroundColor:'rgba(10,61,122,.08)', pointBackgroundColor:'#0a3d7a', pointBorderColor:'#fff', pointBorderWidth:1, borderWidth:1.8, borderDash:[2,3], pointRadius:2.4, pointHoverRadius:4, fill:false, tension:.25, spanGaps:true},
+    {label:'Real 2026', data:realBars, stack:'y26', backgroundColor:'rgba(108,189,237,.88)', borderColor:'#4aa3e0', borderWidth:1.5, borderRadius:3, barPercentage:.7, categoryPercentage:.8},
+    {label:'Presupuestado (sin emitir)', data:projBudget, stack:'y26', backgroundColor:_stripeGray(), borderColor:'#aab4c2', borderWidth:1, borderRadius:3, barPercentage:.7, categoryPercentage:.8},
+  ];
+  const opts = chartOpts({yMoney:'ars',legend:true});
+  opts.scales.x = opts.scales.x||{}; opts.scales.x.stacked=true;
+  opts.scales.y = opts.scales.y||{}; opts.scales.y.stacked=true;
+  opts.scales.x.ticks = opts.scales.x.ticks||{}; opts.scales.x.ticks.font={family:'Calibri',size:13,weight:'700'}; opts.scales.x.ticks.color='#3d5475';
+  const _all = [...presup, ...real].filter(v=>v!=null&&isFinite(v));
+  const _max = _all.length?Math.max(..._all.map(Math.abs)):0;
+  if(_max>0) opts.scales.y.suggestedMax = _max*1.3;
+  opts.layout = {padding:{top:30,bottom:6}};
+  drawChart(canvasId, {type:'bar', data:{labels, datasets}, options:opts, plugins:[barTopLabelPlugin(false)]});
 }
 
 /* Acumula un array mensual de presupuesto hasta el mes de corte (inclusive).
