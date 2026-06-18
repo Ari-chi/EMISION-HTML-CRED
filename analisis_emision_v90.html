@@ -1035,11 +1035,11 @@ function _presupArgVal(p, ck, suf, modo){
 }
 /* Total GLOBAL de "Presup Arg HTML" por modo (confirmado=amarillo / pendiente=presupuesto), con
    desglose por concepto (primaMin/ajuste/malus/bono; el bono resta) y conteo de pólizas. */
-function _presupArgGlobal(suf, modo){
+function _presupArgGlobal(suf, modo, maxMes){
   const c={primaMin:0,ajuste:0,malus:0,bono:0}; let total=0; const pol=new Set();
   const pa=state._presupArg; if(!pa||!pa.ok) return {total:0,c,n:0};
   for(const e of pa.rows){ const ck=_tipoToConcepto(e.tipo); if(!ck) continue; const sgn=(ck==='bono')?-1:1; let any=false;
-    for(const mo of e.months){ if(modo==='confirmado'&&!mo.yellow)continue; if(modo==='pendiente'&&mo.yellow)continue;
+    for(const mo of e.months){ if(maxMes && mo.m>maxMes) continue; if(modo==='confirmado'&&!mo.yellow)continue; if(modo==='pendiente'&&mo.yellow)continue;
       const v=(suf==='u')?mo.orig:mo.ars; if(!isFinite(v)||!v)continue; c[ck]+=sgn*v; total+=sgn*v; any=true; }
     if(any) pol.add(String(e.poliza||e.aseg)); }
   return {total, c, n:pol.size};
@@ -1062,7 +1062,7 @@ function _pend2025Global(polPend, mesCorte, suf){
   return {total, c, n:pol.size};
 }
 /* Pólizas de un pendiente (pend_conf/pend_presup/pend_2025) para UN concepto, ordenadas por valor. */
-function _pendConceptoPolizas(id, ck, suf, polPend, mesCorte){
+function _pendConceptoPolizas(id, ck, suf, polPend, mesCorte, maxMes){
   const out=[];
   if(id==='pend_2025'){
     const NAME={primaMin:'Prima mínima',ajuste:'Ajuste',malus:'Malus',bono:'Bono'};
@@ -1076,7 +1076,7 @@ function _pendConceptoPolizas(id, ck, suf, polPend, mesCorte){
   } else {
     const modo=id==='pend_conf'?'confirmado':'pendiente'; const pa=state._presupArg;
     if(pa&&pa.ok) for(const e of pa.rows){ if(_tipoToConcepto(e.tipo)!==ck) continue;
-      let v=0; for(const mo of e.months){ if(modo==='confirmado'&&!mo.yellow)continue; if(modo==='pendiente'&&mo.yellow)continue; const x=(suf==='u')?mo.orig:mo.ars; if(isFinite(x))v+=x; }
+      let v=0; for(const mo of e.months){ if(maxMes && mo.m>maxMes) continue; if(modo==='confirmado'&&!mo.yellow)continue; if(modo==='pendiente'&&mo.yellow)continue; const x=(suf==='u')?mo.orig:mo.ars; if(isFinite(x))v+=x; }
       v*=(ck==='bono')?-1:1; if(Math.abs(v)>0.5) out.push({poliza:e.poliza,aseg:e.aseg,val:v}); }
   }
   out.sort((a,b)=>Math.abs(b.val)-Math.abs(a.val));
@@ -3655,7 +3655,13 @@ function ejecJustificacion(S, useUSD, dual, useUSDprimary){
   const FMTc=(v)=>fmtCompact(v,useUSD);
   const FMT = useUSD?FMT_USD_FULL:FMT_ARS_FULL;
   const mLbl=useUSD?'USD':'ARS$';
-  const desvio=S.desvio, dvAbs=Math.abs(desvio);
+  /* Selector de los DOS desvíos: 'corte' (hasta el mes del botón 1°) o 'fecha' (hasta el último
+     mes con emisión real 2026). Cambia el desvío total y el corte con el que se calculan las causas. */
+  const selMode = (state._ejecDesvioSel==='fecha') ? 'fecha' : 'corte';
+  const _cutoff = (selMode==='fecha') ? (S.lastEmis26 || S.mesCorteSet || 12) : (S.mesCorteSet || 12);
+  state._ejecDesvioCutoff = _cutoff;   /* lo lee el drill */
+  const desvio = (selMode==='fecha') ? S.desvio_emi : S.desvio;
+  const dvAbs=Math.abs(desvio);
   /* Guardar el desvío total por moneda para que el drill calcule el % de cada columna. */
   state._ejecDesvioAbs = state._ejecDesvioAbs || {};
   state._ejecDesvioAbs[useUSD?'u':'a'] = dvAbs;
@@ -3671,13 +3677,13 @@ function ejecJustificacion(S, useUSD, dual, useUSDprimary){
   const mkVal = (r)=> useUSD ? r.totUSD : r.totARS;
   const polPend = (dd && dd.polFiltradasPend) ? dd.polFiltradasPend : (dd?dd.polFiltradas:null);
   const cnt = (dd && dd.polFiltradas) ? {
-    pendiente: contarPolizasCausa('pendiente', polPend, dd.mesCorte),
-    perdidas: contarPolizasCausa('perdidas', dd.polFiltradas, dd.mesCorte),
-    prima: contarPolizasCausa('prima', dd.polFiltradas, dd.mesCorte),
-    ajuste: contarPolizasCausa('ajuste', dd.polFiltradas, dd.mesCorte),
-    bono: contarPolizasCausa('bono', dd.polFiltradas, dd.mesCorte),
-    malus: contarPolizasCausa('malus', dd.polFiltradas, dd.mesCorte),
-    sinjust: contarPolizasCausa('sinjust', dd.polFiltradas, dd.mesCorte),
+    pendiente: contarPolizasCausa('pendiente', polPend, _cutoff),
+    perdidas: contarPolizasCausa('perdidas', dd.polFiltradas, _cutoff),
+    prima: contarPolizasCausa('prima', dd.polFiltradas, _cutoff),
+    ajuste: contarPolizasCausa('ajuste', dd.polFiltradas, _cutoff),
+    bono: contarPolizasCausa('bono', dd.polFiltradas, _cutoff),
+    malus: contarPolizasCausa('malus', dd.polFiltradas, _cutoff),
+    sinjust: contarPolizasCausa('sinjust', dd.polFiltradas, _cutoff),
   } : null;
   /* Cache para el mini-gráfico del drill "menor" (magnitud por concepto). */
   if(cnt) state._ejecCausasCnt = cnt;
@@ -3699,9 +3705,9 @@ function ejecJustificacion(S, useUSD, dual, useUSDprimary){
        (confirmado en Presup Arg) y CELESTE = lo presupuestado sin confirmar (sin justificar).
        El sub-desglose por concepto (prima/ajuste/bono/malus) aparece al hacer click. */
     const _sufp = useUSD?'u':'a';
-    const _conf = _presupArgGlobal(_sufp, 'confirmado');
-    const _pres = _presupArgGlobal(_sufp, 'pendiente');
-    const _p25  = _pend2025Global(polPend, dd.mesCorte, _sufp);
+    const _conf = _presupArgGlobal(_sufp, 'confirmado', _cutoff);
+    const _pres = _presupArgGlobal(_sufp, 'pendiente', _cutoff);
+    const _p25  = _pend2025Global(polPend, _cutoff, _sufp);
     const _confV = _ejecContabOn('pend_conf','mes') ? _conf.total : 0;   /* toggle Contabilizar */
     const _presV = _ejecContabOn('pend_presup','mes') ? _pres.total : 0;
     const _p25V  = _ejecContabOn('pend_2025','mes') ? _p25.total : 0;
@@ -4019,9 +4025,28 @@ function ejecJustificacion(S, useUSD, dual, useUSDprimary){
     </div>`;
   }
 
+  /* Selector de los DOS desvíos (cards arriba del donut). Al tocar uno, el donut se recalcula
+     para ese corte. */
+  const _MES3=['Ene','Feb','Mar','Abr','May','Jun','Jul','Ago','Sep','Oct','Nov','Dic'];
+  const _mLastD=_MES3[(S.lastEmis26||1)-1]||'—', _mCorteD=_MES3[(S.mesCorteSet||12)-1]||'Dic';
+  const _pctEmi = S.presup26_emi>0 ? S.desvio_emi/S.presup26_emi*100 : null;
+  const _pctCorte = S.presup26>0 ? S.desvio/S.presup26*100 : null;
+  const _selCard = (mode,titulo,sub,dv,pct)=>{ const sel=(selMode===mode);
+    return `<div onclick="window.ejecSelDesvio('${mode}')" style="flex:1;cursor:pointer;background:${sel?'rgba(217,71,71,.13)':'rgba(120,135,160,.07)'};border:2px solid ${sel?'var(--neg)':'transparent'};border-radius:10px;padding:8px 13px;transition:all .12s">
+      <div style="font-size:11px;color:${sel?'var(--neg)':'var(--ink-2)'};text-transform:uppercase;letter-spacing:.03em;font-weight:800">${titulo} <span style="font-size:9px;color:var(--ink-3);font-weight:600;text-transform:none;letter-spacing:0">${sub}</span></div>
+      <div style="display:flex;align-items:baseline;gap:8px;margin-top:2px">
+        <span style="font-size:19px;font-weight:800;color:var(--neg);font-family:var(--font-mono)">${dv>0?'−':'+'}${FMTc(Math.abs(dv))}</span>
+        <span style="font-size:12px;font-weight:800;color:var(--neg);font-family:var(--font-mono)">${pct!=null?'('+(pct>0?'−':'+')+Math.abs(Math.round(pct))+'%)':''}</span>
+      </div>
+    </div>`; };
+  const _selectorCards = `<div style="display:flex;gap:10px;margin-bottom:14px;max-width:620px">
+    ${_selCard('fecha','Desvío Emisión Real','(hasta '+_mLastD+')', S.desvio_emi, _pctEmi)}
+    ${_selCard('corte','Desvío Hasta '+_mCorteD,'', S.desvio, _pctCorte)}
+  </div>`;
   return `<div style="margin-top:${dual?8:2}px">
     ${dual?`<div style="font-size:11px;color:var(--ink-3);text-transform:uppercase;letter-spacing:.05em;font-weight:700;margin-bottom:6px">${mLbl}</div>`:''}
-    <div style="font-size:14px;color:var(--ink-2);margin-bottom:6px;font-weight:600">El desvío de <span style="font-size:21px;color:var(--neg);font-weight:700;font-family:var(--font-mono)">−${FMTc(dvAbs)}</span> se compone así:</div>
+    ${_selectorCards}
+    <div style="font-size:14px;color:var(--ink-2);margin-bottom:6px;font-weight:600">El desvío <span style="font-size:11px;color:var(--ink-3)">(${selMode==='fecha'?'hasta '+_mLastD:'hasta '+_mCorteD})</span> de <span style="font-size:21px;color:var(--neg);font-weight:700;font-family:var(--font-mono)">−${FMTc(dvAbs)}</span> se compone así:</div>
 
     ${causas.length>0 ? `
     <div style="display:grid;grid-template-columns:minmax(330px,400px) 1fr;gap:48px;align-items:center;margin-bottom:8px">
@@ -4155,6 +4180,11 @@ window.setEjecEstim = function(suf, clave, raw){
 };
 /* Redibuja todo el ejecutivo (donut + leyenda + totales) y vuelve a abrir el drill que
    estuviera abierto, sin perder el contexto del usuario. */
+/* Selector de los dos desvíos: cambia el corte del donut y re-renderiza la sección. */
+window.ejecSelDesvio = function(mode){
+  state._ejecDesvioSel = (mode==='fecha') ? 'fecha' : 'corte';
+  if(typeof renderEjecutivo==='function') renderEjecutivo();
+};
 function _ejecRerenderConDrill(){
   const panel = document.getElementById('ejecCausaDetalle');
   const openId = panel ? panel.dataset.open : '';
@@ -5289,7 +5319,7 @@ window.toggleEjecCausa = function(id){
   if(!panel) return;
   if(panel.dataset.open === id){ panel.style.display='none'; panel.dataset.open=''; return; }
   const d = state._ejecData; if(!d) return;
-  const {mesCorte} = d;
+  const mesCorte = state._ejecDesvioCutoff || d.mesCorte;
   const FMT_U = FMT_USD_FULL, FMT_A = FMT_ARS_FULL;
   /* ¿Es el item de pendiente (total) o uno de sus 4 sub-conceptos? */
   const esPend = (id==='pendiente' || id==='pend_prima' || id==='pend_ajuste' || id==='pend_bono' || id==='pend_malus');
@@ -6385,7 +6415,7 @@ window.toggleEjecCausa = function(id){
        concepto se puede expandir para ver el detalle por póliza. Toggle Contabilizar. */
     const suf = btnUSD?'u':'a';
     const g = id==='pend_2025' ? _pend2025Global(polFiltradas, mesCorte, suf)
-            : _presupArgGlobal(suf, id==='pend_conf'?'confirmado':'pendiente');
+            : _presupArgGlobal(suf, id==='pend_conf'?'confirmado':'pendiente', mesCorte);
     const on = _ejecContabOn(id,'mes');
     const tc = id==='pend_conf' ? '#d39a00' : id==='pend_presup' ? '#3a8fc0' : '#3a8a82';
     const tlbl = id==='pend_conf' ? 'Pendiente - Confirmado que se emite'
@@ -6394,7 +6424,7 @@ window.toggleEjecCausa = function(id){
     const totAbs = ['primaMin','ajuste','malus','bono'].reduce((a,k)=>a+Math.abs(g.c[k]),0) || 1;
     const filas = ['primaMin','ajuste','malus','bono'].filter(k=>Math.abs(g.c[k])>0.5).map(k=>{
       const pct = Math.round(Math.abs(g.c[k])/totAbs*100);
-      const pols = _pendConceptoPolizas(id, k, suf, polFiltradas, mesCorte);
+      const pols = _pendConceptoPolizas(id, k, suf, polFiltradas, mesCorte, mesCorte);
       const det = pols.map(p=>`<div style="display:flex;justify-content:space-between;gap:10px;padding:5px 14px 5px 28px;border-top:1px dashed var(--line);font-size:12px">
         <span><span style="font-weight:800;color:var(--accent-3);background:var(--bg-2);padding:1px 6px;border-radius:4px">${fmtPoliza(p.poliza)}</span> <span style="color:var(--ink-1)">${(p.aseg||'').toString().substring(0,26)}</span></span>
         <span style="font-family:var(--font-mono);font-weight:700;color:${p.val<0?'var(--neg)':'var(--accent-3)'}">${p.val<0?'−':''}${fmtCompact(Math.abs(p.val),btnUSD)}</span></div>`).join('');
