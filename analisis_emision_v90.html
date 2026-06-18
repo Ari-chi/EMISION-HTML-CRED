@@ -6553,7 +6553,21 @@ function drawEjecChartMensual(canvasId, polArr, presArr, mesCorte, useUSD, show2
   const _allVals = [...presup, ...presup25, ...r25, ...r26, ..._projTot].filter(v=>v!=null && isFinite(v));
   const _dataMax = _allVals.length ? Math.max(..._allVals.map(Math.abs)) : 0;
   if(_dataMax>0){ opts.scales.y = opts.scales.y || {}; opts.scales.y.suggestedMax = _dataMax*1.3; }
-  opts.layout = {padding:{top:30}};
+  opts.layout = {padding:{top:30, bottom:hayProj?26:6}};
+  /* Totales de la PROYECCIÓN: debajo del nombre del mes (sin recuadro), resumidos. */
+  const projTot = projConf.map((v,i)=> (v!=null||projBudget[i]!=null) ? (v||0)+(projBudget[i]||0) : null);
+  const projTotalPlugin = {
+    id:'projTotals',
+    afterDraw(chart){
+      if(!hayProj) return;
+      const xs=chart.scales.x, ctx=chart.ctx, yBase=chart.chartArea.bottom;
+      ctx.save(); ctx.textAlign='center'; ctx.textBaseline='middle';
+      ctx.font='800 11px Calibri'; ctx.fillStyle='#b9760f';
+      for(let i=0;i<projTot.length;i++){ if(projTot[i]==null) continue;
+        ctx.fillText(fmtCompact(projTot[i],useUSD), xs.getPixelForValue(i), yBase+32); }
+      ctx.restore();
+    }
+  };
   /* Plugin inline: valores en formato compacto (K/M/MM) sobre barras Real y puntos
      Presupuesto. Cuando 'Mostrar 2025' está activo también etiqueta el 2025. Resuelve
      colisiones verticales de forma dinámica (apila hacia arriba) para que los números
@@ -6615,7 +6629,7 @@ function drawEjecChartMensual(canvasId, polArr, presArr, mesCorte, useUSD, show2
       ctx.restore();
     }
   };
-  drawChart(canvasId,{type:'bar', data:{labels,datasets}, options:opts, plugins:[valueLabelPlugin]});
+  drawChart(canvasId,{type:'bar', data:{labels,datasets}, options:opts, plugins:[valueLabelPlugin, projTotalPlugin]});
 }
 
 /* Cascada waterfall */
