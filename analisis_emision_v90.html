@@ -531,9 +531,8 @@ h4.section-title{margin:14px 0 8px 0;font-size:13px;color:var(--accent-3);font-w
 <div class="tabs-wrap" id="tabsWrap" style="display:none">
   <nav class="tabs" id="tabs">
     <button class="tab active" data-tab="ejecutivo"><span class="num">01</span>Resumen Ejecutivo</button>
-    <button class="tab" data-tab="top10"><span class="num">02</span>Top 5 Casos</button>
-    <button class="tab" data-tab="polizas"><span class="num">03</span>Justificación por Póliza</button>
-    <button class="tab" data-tab="insur"><span class="num">04</span>INSUR Análisis</button>
+    <button class="tab" data-tab="polizas"><span class="num">02</span>Justificación por Póliza</button>
+    <button class="tab" data-tab="top10"><span class="num">03</span>Top Casos</button>
   </nav>
 </div>
 
@@ -2800,7 +2799,7 @@ function renderAll(){
   document.getElementById('emptyState')?.remove();
   const content = document.getElementById('content');
   content.innerHTML='';
-  ['ejecutivo','polizas','top10','insur'].forEach(id=>{
+  ['ejecutivo','polizas','top10'].forEach(id=>{
     const sec = document.createElement('section');
     sec.className = 'section' + (id==='ejecutivo'?' active':'');
     sec.dataset.section = id;
@@ -2812,7 +2811,6 @@ function renderAll(){
   renderEjecutivo();
   renderPolizas();
   renderTop10();
-  renderInsur();
   setupTabs();
 }
 
@@ -12310,8 +12308,9 @@ function renderConclBroker(){ renderConclByField('broker','conclbroker','Broker'
 function renderTop10(){
   const sec = document.getElementById('sec-top10');
   sec.innerHTML = `
-    <div class="section-head"><h2>Top 5 <em>· mejoras y caídas por emisión total 2025 → 2026</em></h2></div>
+    <div class="section-head"><h2>Top <em>Casos</em></h2></div>
     ${sectionFiltersBarHTML('top10', {dualLabel:'Moneda Original'})}
+    <div class="card"><h3 style="margin-bottom:10px">Top 10 — Mayor emisión 2025 <span style="font-size:12px;color:var(--ink-3);font-weight:500">(prima mínima + ajuste + bono + malus)</span></h3><div id="top2025"></div></div>
     <div class="filters" style="margin-top:6px">
       <span class="label">Filtrar por motivo</span>
       <select id="fTop10Motivo">
@@ -12326,8 +12325,8 @@ function renderTop10(){
         <option>Póliza nueva 2026</option>
       </select>
     </div>
-    <div class="card"><h3 style="color:var(--pos);margin-bottom:14px">Top 5 — Mejoras <span style="font-size:12px;color:var(--ink-3);font-weight:500">(mayor aumento de emisión total)</span></h3><div id="topMejoras"></div></div>
-    <div class="card"><h3 style="color:var(--neg);margin-bottom:14px">Top 5 — Caídas <span style="font-size:12px;color:var(--ink-3);font-weight:500">(mayor baja de emisión total)</span></h3><div id="topCaidas"></div></div>`;
+    <div class="card"><h3 style="color:var(--pos);margin-bottom:10px">Top 5 — Mejoras 2026 <span style="font-size:12px;color:var(--ink-3);font-weight:500">(mayor aumento de emisión)</span> <span style="font-size:10.5px;color:var(--ink-3);font-weight:500">· tocá una fila para ver el detalle</span></h3><div id="topMejoras"></div></div>
+    <div class="card"><h3 style="color:var(--neg);margin-bottom:10px">Top 5 — Caídas 2026 <span style="font-size:12px;color:var(--ink-3);font-weight:500">(mayor baja de emisión)</span> <span style="font-size:10.5px;color:var(--ink-3);font-weight:500">· tocá una fila para ver el detalle</span></h3><div id="topCaidas"></div></div>`;
   bindSectionFilters('top10',()=>drawTop10());
   document.getElementById('fTop10Motivo').addEventListener('change',()=>drawTop10());
   drawTop10();
@@ -12383,6 +12382,34 @@ function drawTop10(){
      y convirtiéndola con el TC del 7° (f.tc). El botón 4° de moneda SOLO cambia la conversión
      visual de los valores, no qué pólizas entran al Top. */
   const TC = (f.tc && f.tc>0) ? f.tc : 1400;
+  /* TOP 10 — mayor emisión 2025 (prima mínima + ajuste + bono + malus), con desglose por concepto.
+     Ranking por base común USD; se muestra en la moneda elegida (o la original de cada póliza). */
+  (()=>{
+    const wrap = document.getElementById('top2025'); if(!wrap) return;
+    const base25 = (x)=> (x.p.moneda==='US') ? x.f25.totUSD : (TC>0 ? x.f25.totARS/TC : x.f25.totARS);
+    const arr25 = polFiltradas.map(p=>({p, f25:calcEmisionFiltrada(p,2025,0)}))
+      .filter(x=> (x.f25.totUSD>0 || x.f25.totARS>0))
+      .sort((a,b)=>base25(b)-base25(a)).slice(0,10);
+    const cell=(esUS,v)=>`<td style="text-align:right;font-family:var(--font-mono);font-size:11.5px;color:var(--ink-2);padding:5px 8px">${Math.abs(v)>0.5?fmtCompact(v,esUS):'<span style="color:var(--line-2)">—</span>'}</td>`;
+    const rows = arr25.map((x,i)=>{
+      const esUS = modoUnico?unicoUSD:(x.p.moneda==='US');
+      const bd = esUS? x.f25.breakdownUSD : x.f25.breakdownARS;
+      const tot = esUS? x.f25.totUSD : x.f25.totARS;
+      return `<tr style="border-top:1px solid var(--line)">
+        <td style="color:var(--ink-3);font-family:var(--font-mono);font-size:11px;padding:5px 8px">${String(i+1).padStart(2,'0')}</td>
+        <td style="padding:5px 8px"><div style="font-weight:700;color:var(--accent-3);font-size:12.5px">${x.p.asegurado||'—'}</div><div style="font-size:10px;color:var(--ink-3)">${x.p.rubro||'—'} · ${x.p.moneda||'—'}</div></td>
+        <td style="text-align:right;font-family:var(--font-mono);font-weight:800;color:var(--accent-3);font-size:12.5px;padding:5px 8px">${fmtCompact(tot,esUS)}</td>
+        ${cell(esUS,bd.primaMin)}${cell(esUS,bd.ajuste)}${cell(esUS,bd.bono)}${cell(esUS,bd.malus)}
+      </tr>`;
+    }).join('');
+    wrap.innerHTML = arr25.length ? `<table style="width:100%;border-collapse:collapse">
+      <thead><tr style="font-size:9.5px;text-transform:uppercase;letter-spacing:.03em;color:var(--ink-3);font-weight:700">
+        <th style="text-align:left;padding:4px 8px">#</th><th style="text-align:left;padding:4px 8px">Asegurado</th>
+        <th style="text-align:right;padding:4px 8px">Emisión 2025</th><th style="text-align:right;padding:4px 8px">Prima mín.</th>
+        <th style="text-align:right;padding:4px 8px">Ajuste</th><th style="text-align:right;padding:4px 8px">Bono</th><th style="text-align:right;padding:4px 8px">Malus</th>
+      </tr></thead><tbody>${rows}</tbody></table>`
+      : '<span style="color:var(--ink-3);font-style:italic">— sin emisión 2025 —</span>';
+  })();
   const calcVar = (x)=>{
     const varU = x._just.f26.totUSD - x._just.f25.totUSD;
     const varA = x._just.f26.totARS - x._just.f25.totARS;
@@ -12451,29 +12478,23 @@ function drawTop10(){
     const vEquiv = esUS ? vAr : v;
     const pctEquiv = esUS ? pctA : pctU;
     const fmtEquiv = esUS ? FMT_ARS : FMT_USD;
-    return `<div id="${cardId}" data-pol-clave="${item.p.clave}" data-pol-idx="${esPos?'mej':'cai'}_${idx}" data-cur-mode="orig" style="display:grid;grid-template-columns:44px 1fr;gap:16px;margin-bottom:14px;padding:16px;border:1px solid var(--line);border-radius:8px;background:var(--panel);box-shadow:0 1px 3px rgba(10,31,58,.04)">
-      <div class="top-rank">${String(idx+1).padStart(2,'0')}</div>
-      <div>
-        <!-- Header: asegurado + chips destacados a la derecha -->
-        <div style="display:flex;justify-content:space-between;align-items:flex-start;gap:18px;flex-wrap:wrap;margin-bottom:10px">
-          <div style="min-width:0;flex:1">
-            <div style="font-size:16px;font-weight:700;color:var(--accent-3);margin-bottom:6px">${item.p.asegurado||'—'}</div>
-            <div style="margin-bottom:4px">
-              ${chipBig('Rubro · '+item.p.rubro, item.p.rubro, 'var(--accent)', 'rgba(30,111,217,.10)')}
-              ${chipBig('Producto · '+item.p.producto, item.p.producto, 'var(--accent-3)', 'rgba(10,31,58,.06)')}
-              ${chipBig(item.p.moneda||'—', item.p.moneda, item.p.moneda==='US'?'var(--pos)':'var(--accent)', item.p.moneda==='US'?'rgba(45,155,106,.10)':'rgba(30,111,217,.10)')}
-              ${t26?`<span style="display:inline-flex;align-items:center;background:${t26Bg};color:${t26Color};font-size:11.5px;font-weight:800;padding:4px 10px;border-radius:14px;margin-right:6px;margin-bottom:4px">${t26Abrev}</span>`:''}
-            </div>
-            <div style="font-family:var(--font-mono);font-size:11px;color:var(--ink-3);margin-top:6px">Vig: ${item.p.vigDesde?item.p.vigDesde.toLocaleDateString('es-AR'):'—'} → ${item.p.vigHasta?item.p.vigHasta.toLocaleDateString('es-AR'):'—'} · Broker: ${item.p.broker||'—'}</div>
-          </div>
-          <!-- Valor principal en moneda original + equivalente clickeable -->
-          <div style="font-family:var(--font-mono);text-align:right;min-width:170px">
-            <div style="font-size:20px;font-weight:800;color:${colorPrincipal}" data-role="topVal">${esPos?'+':''}${fmtPrim(vPrim)} <span style="font-size:13px;font-weight:700">(${pctPrim})</span></div>
-            ${modoUnico ? '' : `<div data-role="topEquiv" style="font-size:12px;font-weight:600;color:var(--ink-3);margin-top:4px;cursor:pointer;user-select:none" onclick="cambiarMonedaTop10('${cardId}')" data-cur-equiv-base="${esUS?'ars':'usd'}">
-              <span style="font-size:9.5px;text-transform:uppercase;letter-spacing:.07em;margin-right:5px" data-role="clickLbl">click</span>${esPos?'+':''}${fmtEquiv(vEquiv)} <span style="font-size:11px">(${pctEquiv})</span>
-            </div>`}
-          </div>
+    const detId = `${cardId}_det`;
+    /* COMPACTO: fila clickeable (rank · asegurado · chips · valor); el detalle (polizaRowDetalle +
+       motivos) queda colapsado y se abre al tocar la fila. */
+    return `<div id="${cardId}" data-pol-clave="${item.p.clave}" data-pol-idx="${esPos?'mej':'cai'}_${idx}" style="margin-bottom:8px;border:1px solid var(--line);border-radius:8px;background:var(--panel)">
+      <div onclick="toggleTopDetalle('${detId}')" style="display:grid;grid-template-columns:34px 1fr auto;gap:12px;align-items:center;padding:9px 13px;cursor:pointer">
+        <div class="top-rank" style="font-size:17px">${String(idx+1).padStart(2,'0')}</div>
+        <div style="min-width:0">
+          <div style="font-size:13.5px;font-weight:700;color:var(--accent-3);white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${item.p.asegurado||'—'}</div>
+          <div style="font-size:10.5px;color:var(--ink-3)">${item.p.rubro||'—'} · ${item.p.moneda||'—'}${t26Abrev?` · <span style="color:${t26Color};font-weight:700">${t26Abrev}</span>`:''}</div>
         </div>
+        <div style="font-family:var(--font-mono);text-align:right;white-space:nowrap">
+          <div style="font-size:16px;font-weight:800;color:${colorPrincipal}">${esPos?'+':''}${fmtPrim(vPrim)} <span style="font-size:12px;font-weight:700">(${pctPrim})</span></div>
+          ${modoUnico ? '' : `<div style="font-size:11px;font-weight:600;color:var(--ink-3)">${esPos?'+':''}${fmtEquiv(vEquiv)} (${pctEquiv})</div>`}
+        </div>
+      </div>
+      <div id="${detId}" style="display:none;padding:0 13px 13px 13px;border-top:1px solid var(--line)">
+        <div style="font-family:var(--font-mono);font-size:10.5px;color:var(--ink-3);margin:8px 0 4px">Vig: ${item.p.vigDesde?item.p.vigDesde.toLocaleDateString('es-AR'):'—'} → ${item.p.vigHasta?item.p.vigHasta.toLocaleDateString('es-AR'):'—'} · Broker: ${item.p.broker||'—'} · Producto: ${item.p.producto||'—'}</div>
         <div class="top10-detalle" data-moneda="${esUS?'usd':'ars'}">${polizaRowDetalle(item.p, item._just, {...f, cur:(esUS?'usd':'ars')})}</div>
         ${(()=>{
           const conceptoLabel = {'Proyeccion de Ventas':'Proyección','Prima Minima':'Prima Mínima','Ajuste':'Ajuste','Bono':'Bono','Malus':'Malus','Tasa aplicable':'Tasa','Siniestralidad H':'Sin. H','Siniestralidad UV':'Sin. UV'};
@@ -12507,6 +12528,8 @@ function drawTop10(){
   state._top10Caidas = caidas;
 }
 
+/* Top Casos: abre/cierra el detalle de una fila de mejoras/caídas. */
+window.toggleTopDetalle = function(id){ const d=document.getElementById(id); if(d) d.style.display = (d.style.display==='none'||!d.style.display)?'block':'none'; };
 /* Toggle entre moneda original y equivalente: click swap los valores principal
    y secundario; el "click" se pinta de azul cuando está en modo equivalente
    para dar señal visual. */
