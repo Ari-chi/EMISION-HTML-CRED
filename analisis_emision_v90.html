@@ -12399,7 +12399,7 @@ function renderTop10(){
   sec.innerHTML = `
     <div class="section-head"><h2>Top <em>Casos</em></h2></div>
     ${sectionFiltersBarHTML('top10', {dualLabel:'Moneda Original'})}
-    <div class="card"><h3 style="margin-bottom:10px">Top 10 — Mayor emisión 2025 por grupo económico <span style="font-size:12px;color:var(--ink-3);font-weight:500">(prima mínima + ajuste + bono + malus · en pesos, US convertido al TC)</span></h3><div id="top2025"></div></div>
+    <div class="card"><h3 style="margin-bottom:10px">Top 10 — Mayor emisión 2025 por grupo económico <span style="font-size:12px;color:var(--ink-3);font-weight:500">(prima mínima + ajuste + bono + malus · en pesos, US convertido al TC · el recuadro azul muestra lo emitido en 2026 hasta el corte)</span></h3><div id="top2025"></div></div>
     <div class="filters" style="margin-top:6px">
       <span class="label">Filtrar por motivo</span>
       <select id="fTop10Motivo">
@@ -12479,17 +12479,20 @@ function drawTop10(){
     const grupos = state._grupos || {};
     const gruposAseg = state._gruposByAseg || {};
     const TCv = (TC>0)?TC:1400;
-    const acc = {};   /* grupo → {tot, primaMin, ajuste, bono, malus, n} en ARS */
+    const acc = {};   /* grupo → {tot, tot26, primaMin, ajuste, bono, malus, n} en ARS */
     for(const p of polFiltradas){
       const f25 = calcEmisionFiltrada(p,2025,0);
+      const f26 = calcEmisionFiltrada(p,2026,mesCorte);   /* emisión 2026 acumulada hasta el corte (botón 1°) */
       const esUS = (p.moneda==='US');
       const conv = esUS ? TCv : 1;
       const bd = esUS ? f25.breakdownUSD : f25.breakdownARS;
       const tot = (esUS ? f25.totUSD : f25.totARS) * conv;
+      const tot26 = (esUS ? f26.totUSD : f26.totARS) * conv;
       if(!(tot>0.5)) continue;
       const gk = grupos[_digitsKey(p.poliza)] || gruposAseg[_normProyKey(p.asegurado)] || p.asegurado || '—';
-      const g = acc[gk] || (acc[gk]={nombre:gk, tot:0, primaMin:0, ajuste:0, bono:0, malus:0, n:0});
+      const g = acc[gk] || (acc[gk]={nombre:gk, tot:0, tot26:0, primaMin:0, ajuste:0, bono:0, malus:0, n:0});
       g.tot += tot;
+      g.tot26 += tot26;
       g.primaMin += (bd.primaMin||0)*conv;
       g.ajuste   += (bd.ajuste||0)*conv;
       g.bono     += (bd.bono||0)*conv;
@@ -12501,7 +12504,12 @@ function drawTop10(){
     const rows = arr.map((g,i)=>`<tr style="border-top:1px solid var(--line)">
         <td style="color:var(--ink-3);font-family:var(--font-mono);font-size:11px;padding:5px 8px">${String(i+1).padStart(2,'0')}</td>
         <td style="padding:5px 8px"><div style="font-weight:700;color:var(--accent-3);font-size:12.5px">${g.nombre}</div><div style="font-size:10px;color:var(--ink-3)">${g.n} pól.</div></td>
-        <td style="text-align:right;font-family:var(--font-mono);font-weight:800;color:var(--accent-3);font-size:12.5px;padding:5px 8px">${fmtCompact(g.tot,false)}</td>
+        <td style="text-align:right;padding:5px 8px">
+          <div style="display:flex;align-items:center;justify-content:flex-end;gap:8px">
+            ${g.tot26>0.5 ? `<span title="Emisión 2026 acumulada hasta el corte" style="font-size:10.5px;font-weight:800;color:var(--accent);background:rgba(30,111,217,.10);border:1px solid var(--accent);border-radius:6px;padding:2px 7px;white-space:nowrap">2026: ${fmtCompact(g.tot26,false)}</span>` : ''}
+            <span style="font-family:var(--font-mono);font-weight:800;color:var(--accent-3);font-size:15.5px">${fmtCompact(g.tot,false)}</span>
+          </div>
+        </td>
         ${cell(g.primaMin)}${cell(g.ajuste)}${cell(g.bono)}${cell(g.malus)}
       </tr>`).join('');
     const _sinGrupos = (Object.keys(grupos).length===0 && Object.keys(gruposAseg).length===0);
