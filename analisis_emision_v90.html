@@ -1184,6 +1184,17 @@ function _presupArgVal(p, ck, suf, modo){
 }
 /* Clave de póliza para deduplicar entre pendientes (dígitos; fallback nombre normalizado). */
 function _polKey(x){ const d=(typeof _digitsKey==='function')?_digitsKey(x):''; return d || ((typeof _normProyKey==='function'?_normProyKey(x):'')||String(x||'')).toString(); }
+/* Overrides manuales del detalle por póliza (el usuario edita un valor en el drill y se actualiza
+   todo: total del concepto, donut y desvío). Clave: `${id}|${polKey}|${concepto}` → {ov,orig}.
+   El delta (ov−orig) se suma a los totales para que el cambio se propague sin re-derivar. */
+function _confOvDelta(id, suf, ck){
+  const m = (state._ejecConfOv && state._ejecConfOv[suf]) || {}; let d=0;
+  for(const key in m){ const o=m[key]; if(!o||!isFinite(o.ov)) continue;
+    if(key.indexOf(id+'|')!==0) continue;
+    if(ck && key.slice(-(ck.length+1))!=='|'+ck) continue;
+    d += (o.ov - (o.orig||0)); }
+  return d;
+}
 /* Total GLOBAL de "Presup Arg HTML" por modo (confirmado=amarillo / pendiente=presupuesto), con
    desglose por concepto (primaMin/ajuste/malus/bono; el bono resta) y conteo de pólizas.
    excludeSet: claves "polKey|concepto" a NO sumar (dedup entre pendientes).
@@ -1198,6 +1209,8 @@ function _presupArgGlobal(suf, modo, maxMes, excludeSet, minMes){
     for(const mo of e.months){ if(maxMes && mo.m>maxMes) continue; if(minMes && mo.m<=minMes) continue; if(modo==='confirmado'&&!mo.yellow)continue; if(modo==='pendiente'&&mo.yellow)continue;
       const v=(suf==='u')?((mo.usd!=null&&mo.usd!==0)?mo.usd:(mo.ars/(state._ejecTC||1400))):mo.ars; if(!isFinite(v)||!v)continue; c[ck]+=sgn*v; total+=sgn*v; any=true; }
     if(any){ pol.add(String(e.poliza||e.aseg)); keys.add(key); } }
+  /* Overrides manuales del detalle (solo "Emisión Confirmada"): aplican el delta por concepto. */
+  if(modo==='confirmado'){ for(const ck of ['primaMin','ajuste','malus','bono']){ const dd=_confOvDelta('pend_conf',suf,ck); if(dd){ c[ck]+=dd; total+=dd; } } }
   return {total, c, n:pol.size, keys};
 }
 /* Pendiente "Comparación 2025": lo de antes — por póliza pendiente, los conceptos pendientes
@@ -1217,6 +1230,8 @@ function _pend2025Global(polPend, mesCorte, suf, excludeSet){
       const cv=convertirPendienteTC(it.ars,it.usd,p.moneda); const v=Math.abs((suf==='u')?cv.usd:cv.ars); const sgn=(k==='bono')?-1:1; c[k]+=sgn*v; total+=sgn*v; any=true; }
     if(any) pol.add(p.clave);
   }
+  /* Overrides manuales del detalle ("Emisión Pendiente"): aplican el delta por concepto. */
+  for(const ck of ['primaMin','ajuste','malus','bono']){ const dd=_confOvDelta('pend_2025',suf,ck); if(dd){ c[ck]+=dd; total+=dd; } }
   return {total, c, n:pol.size};
 }
 /* Pólizas de un pendiente (pend_conf/pend_presup/pend_2025) para UN concepto, ordenadas por valor.
@@ -1239,10 +1254,20 @@ function _pendConceptoPolizas(id, ck, suf, polPend, mesCorte, maxMes, minMes){
     }
   } else {
     const modo=id==='pend_conf'?'confirmado':'pendiente'; const pa=state._presupArg;
+    /* Agregamos por póliza (puede haber varias filas para la misma póliza+concepto) para que
+       cada póliza aparezca UNA vez; así el override por póliza es estable. */
+    const agg=new Map();
     if(pa&&pa.ok) for(const e of pa.rows){ if(_tipoToConcepto(e.tipo)!==ck) continue;
       if(excl && excl.has(_polKey(e.poliza)+'|'+ck)) continue;
       let v=0; for(const mo of e.months){ if(maxMes && mo.m>maxMes) continue; if(minMes && modo==='pendiente' && mo.m<=minMes) continue; if(modo==='confirmado'&&!mo.yellow)continue; if(modo==='pendiente'&&mo.yellow)continue; const x=(suf==='u')?((mo.usd!=null&&mo.usd!==0)?mo.usd:(mo.ars/(state._ejecTC||1400))):mo.ars; if(isFinite(x))v+=x; }
-      v*=(ck==='bono')?-1:1; if(Math.abs(v)>0.5) out.push({poliza:e.poliza,aseg:e.aseg,val:v}); }
+      v*=(ck==='bono')?-1:1; const pk=_polKey(e.poliza); const cur=agg.get(pk)||{poliza:e.poliza,aseg:e.aseg,val:0}; cur.val+=v; agg.set(pk,cur); }
+    for(const it of agg.values()){ if(Math.abs(it.val)>0.5) out.push(it); }
+  }
+  /* Overrides manuales: si el usuario editó el valor de una póliza en el drill, mostramos el
+     override (guardando el original para calcular el delta en los totales). */
+  if(id==='pend_conf' || id==='pend_2025'){
+    const ovs=(state._ejecConfOv && state._ejecConfOv[suf])||{};
+    for(const it of out){ it._orig=it.val; const o=ovs[id+'|'+_polKey(it.poliza)+'|'+ck]; if(o&&isFinite(o.ov)) it.val=o.ov; }
   }
   out.sort((a,b)=>Math.abs(b.val)-Math.abs(a.val));
   return out;
@@ -4481,6 +4506,30 @@ window.setEjecEstim = function(suf, clave, raw){
      drill): redibujamos el ejecutivo completo y re-abrimos el mismo drill. */
   _ejecRerenderConDrill();
 };
+/* Override manual del detalle por póliza de "Emisión Confirmada" / "Emisión Pendiente":
+   guarda el valor editado (y el original para el delta) y re-renderiza todo. */
+window.setEjecConfOv = function(id, suf, pkey, ck, orig, raw){
+  state._ejecConfOv = state._ejecConfOv || {u:{}, a:{}};
+  if(!state._ejecConfOv[suf]) state._ejecConfOv[suf] = {};
+  const key = id+'|'+pkey+'|'+ck;
+  const limpio = String(raw==null?'':raw).replace(/\./g,'').replace(',','.').replace(/[^0-9.\-]/g,'');
+  const v = parseFloat(limpio);
+  const o = Number(orig)||0;
+  if(isFinite(v) && Math.abs(v-o)>0.5){ state._ejecConfOv[suf][key] = {ov:v, orig:o}; }
+  else { delete state._ejecConfOv[suf][key]; }
+  _ejecRerenderConDrill();
+};
+/* Abre/cierra un concepto del drill y RECUERDA el estado, para que al editar un valor (que
+   re-renderiza todo) el concepto que estaba abierto siga abierto. */
+window.ejecToggleConc = function(rid){
+  state._ejecConcOpen = state._ejecConcOpen || {};
+  const d=document.getElementById(rid); if(!d) return;
+  const open = (d.style.display==='none');
+  d.style.display = open?'block':'none';
+  state._ejecConcOpen[rid] = open;
+  const arrow = d.previousElementSibling && d.previousElementSibling.querySelector('span');
+  if(arrow) arrow.textContent = open?'▾':'▸';
+};
 /* Redibuja todo el ejecutivo (donut + leyenda + totales) y vuelve a abrir el drill que
    estuviera abierto, sin perder el contexto del usuario. */
 /* Selector de los dos desvíos: cambia el corte del donut y re-renderiza la sección. */
@@ -6765,18 +6814,23 @@ window.toggleEjecCausa = function(id){
     const filas = ['primaMin','ajuste','malus','bono'].filter(k=>Math.abs(g.c[k])>0.5).map(k=>{
       const pct = Math.round(Math.abs(g.c[k])/totAbs*100);
       const pols = _pendConceptoPolizas(id, k, suf, polFiltradas, _drillCut, _pendCut, 0);
-      const det = pols.map(p=>`<div style="display:flex;justify-content:space-between;gap:10px;padding:5px 14px 5px 28px;border-top:1px dashed var(--line);font-size:12px">
-        <span><span style="font-weight:800;color:var(--accent-3);background:var(--bg-2);padding:1px 6px;border-radius:4px">${fmtPoliza(p.poliza)}</span> <span style="color:var(--ink-1)">${(p.aseg||'').toString().substring(0,26)}</span></span>
-        <span style="font-family:var(--font-mono);font-weight:700;color:${p.val<0?'var(--neg)':'var(--accent-3)'}">${p.val<0?'−':''}${fmtCompact(Math.abs(p.val),btnUSD)}</span></div>`).join('');
+      const det = pols.map(p=>{
+        const _pk=_polKey(p.poliza); const _edited=(p._orig!=null && Math.abs(p.val-p._orig)>0.5);
+        const _disp=(p.val!==0)?Number(p.val).toLocaleString('es-AR',{maximumFractionDigits:0}):'';
+        return `<div style="display:grid;grid-template-columns:1fr 130px;gap:8px;align-items:center;padding:5px 14px 5px 28px;border-top:1px dashed var(--line);font-size:12px">
+        <span style="min-width:0"><span style="font-weight:800;color:var(--accent-3);background:var(--bg-2);padding:1px 6px;border-radius:4px">${fmtPoliza(p.poliza)}</span> <span style="color:var(--ink-1)">${(p.aseg||'').toString().substring(0,26)}</span></span>
+        <span style="display:flex;align-items:center;gap:4px"><span style="font-size:11px;color:var(--ink-3)" title="Editable">✎</span><input type="text" inputmode="decimal" value="${_disp}" onchange="setEjecConfOv('${id}','${suf}','${_pk}','${k}', ${p._orig!=null?p._orig:p.val}, this.value)" style="width:100%;padding:4px 6px;font-family:var(--font-mono);font-size:12px;border:1.5px solid ${_edited?'var(--pos)':'var(--line-2)'};border-radius:6px;text-align:right;background:var(--panel);color:${p.val<0?'var(--neg)':'var(--ink)'}" /></span></div>`;
+      }).join('');
       const rid = `pc_${id}_${k}_${suf}`;
+      const _cOpen = !!(state._ejecConcOpen && state._ejecConcOpen[rid]);
       return `<div>
-        <div onclick="(function(){var d=document.getElementById('${rid}');if(d)d.style.display=d.style.display==='none'?'block':'none';})()" style="display:grid;grid-template-columns:14px 1fr auto auto;gap:10px;align-items:center;padding:9px 14px;border-bottom:1px solid var(--line);font-size:13.5px;cursor:pointer">
-          <span style="color:var(--accent);font-size:11px">▸</span>
+        <div onclick="ejecToggleConc('${rid}')" style="display:grid;grid-template-columns:14px 1fr auto auto;gap:10px;align-items:center;padding:9px 14px;border-bottom:1px solid var(--line);font-size:13.5px;cursor:pointer">
+          <span style="color:var(--accent);font-size:11px">${_cOpen?'▾':'▸'}</span>
           <span style="font-weight:700;color:var(--accent-3)">${CN[k]} <span style="color:var(--ink-3);font-weight:500;font-size:11.5px">· ${pols.length} pól.</span></span>
           <span style="font-family:var(--font-mono);font-weight:800;color:var(--accent-3);min-width:38px;text-align:right">${pct}%</span>
           <span style="font-family:var(--font-mono);font-weight:800;color:${k==='bono'?'var(--neg)':'var(--accent-3)'};min-width:84px;text-align:right">${k==='bono'?'−':''}${fmtCompact(Math.abs(g.c[k]),btnUSD)}</span>
         </div>
-        <div id="${rid}" style="display:none">${det||'<div style="padding:6px 28px;color:var(--ink-3);font-style:italic;font-size:12px">— sin pólizas —</div>'}</div>
+        <div id="${rid}" style="display:${_cOpen?'block':'none'}">${det||'<div style="padding:6px 28px;color:var(--ink-3);font-style:italic;font-size:12px">— sin pólizas —</div>'}</div>
       </div>`;
     }).join('');
     contenido = `<div style="border:1px solid var(--line-2);border-radius:9px;overflow:hidden;max-width:640px;${on?'':'opacity:.6'}">
