@@ -2449,7 +2449,9 @@ function estadoPolizaConsolidado(p, mesCorte){
 state.sectionFilters = {};
 function getSectionFilters(sectionId){
   if(!state.sectionFilters[sectionId]){
-    state.sectionFilters[sectionId] = {mes: 0, universo:'todos', cur:'dual', segmento:'all', polNuevas:'incluir', anualAnt:'incluir', tc:null, proy:0};
+    /* Resumen Ejecutivo: por defecto SIEMPRE moneda $ (ARS); el resto arranca en "Ambas". */
+    const _defCur = (sectionId==='ejecutivo') ? 'ars' : 'dual';
+    state.sectionFilters[sectionId] = {mes: 0, universo:'todos', cur:_defCur, segmento:'all', polNuevas:'incluir', anualAnt:'incluir', tc:null, proy:0};
   }
   /* Compat: si el filtro existía sin polNuevas/anualAnt, agregarlo */
   if(!state.sectionFilters[sectionId].polNuevas) state.sectionFilters[sectionId].polNuevas = 'incluir';
@@ -2523,22 +2525,17 @@ function sectionFiltersBarHTML(sectionId, opts={}){
       </div>
       <div class="sf-col">
         <div class="sf-group">
-          <span class="sf-lbl">3° TC <span style="color:var(--ink-3);font-style:italic;font-weight:400;text-transform:none;letter-spacing:0;margin-left:3px;font-size:8.5px">(Pendiente)</span></span>
-          <input type="number" id="${sectionId}_SF_tc" min="0" step="any" placeholder="1400" value="${(f.tc!=null && f.tc>0)?f.tc:''}"
-            style="width:72px;padding:2px 6px;font-family:var(--font-mono);font-size:10.5px;border:1px solid var(--line-2);border-radius:5px;color:var(--ink);background:var(--panel)" />
+          <span class="sf-lbl">3° Pólizas nuevas 25/26</span>
+          ${viewToggleHTML(nuevId,[{value:'incluir',label:'Sí'},{value:'excluir',label:'No'}],f.polNuevas||'incluir')}
         </div>
         <div class="sf-group">
-          <span class="sf-lbl">4° Pólizas nuevas 25/26</span>
-          ${viewToggleHTML(nuevId,[{value:'incluir',label:'Sí'},{value:'excluir',label:'No'}],f.polNuevas||'incluir')}
+          <span class="sf-lbl">4° "Anualidad Anterior" 2026</span>
+          ${viewToggleHTML(aantId,[{value:'incluir',label:'Sí'},{value:'excluir',label:'No'}],f.anualAnt||'incluir')}
         </div>
       </div>
       <div class="sf-col">
         <div class="sf-group">
-          <span class="sf-lbl">5° "Anualidad Anterior" 2026</span>
-          ${viewToggleHTML(aantId,[{value:'incluir',label:'Sí'},{value:'excluir',label:'No'}],f.anualAnt||'incluir')}
-        </div>
-        <div class="sf-group">
-          <span class="sf-lbl">6° Universo</span>
+          <span class="sf-lbl">5° Universo</span>
           ${viewToggleHTML(univId,[{value:'todos',label:'Todas las pólizas'},{value:'emit26',label:'Emitidas 2026'}],f.universo)}
         </div>
       </div>
@@ -4476,9 +4473,10 @@ function ejecJustificacion(S, useUSD, dual, useUSDprimary){
       const emisReal = S.emis26 || 0;
       const pv = (state._ejecPendVals && state._ejecPendVals[sufx]) || {conf:0,pres:0,p25:0};
       const pendMes   = pv.conf;                  /* se emite este mes = Emisión Confirmada */
-      const pendEstim = pv.pres + pv.p25;         /* Presupuesto + Sin Fecha */
-      const desvAnio = (emisReal + pendMes + pendEstim) - presup;   /* vs presupuesto hasta corte (incluye proyección + sin fecha) */
-      const desvMes  = (emisReal + pendMes + pv.p25) - presupEmi;   /* vs presupuesto hasta mes con emisión: confirmada + sin fecha (sin proyección) */
+      const pendEstim = pv.pres + pv.p25;         /* Presupuesto + Pendiente — se MUESTRA en gris pero NO se cuenta (pedido del usuario) */
+      const emisEst  = emisReal + pendMes;        /* Emisión estimada = Real + lo que se emite este mes (confirmado) */
+      const desvAnio = emisEst - presup;          /* Desvío acumulado hasta el corte (sin Presupuesto+Pendiente) */
+      const desvMes  = emisEst - presupEmi;       /* Desvío hasta el mes con emisión real */
       const _mLast  = (S.lastEmis26>0) ? MESES[S.lastEmis26-1] : '—';
       const _mCorte = (S.mesCorteSet>0) ? MESES[S.mesCorteSet-1] : 'Dic';
       const fv = (v)=>FMTc(Math.abs(v));
@@ -4489,6 +4487,11 @@ function ejecJustificacion(S, useUSD, dual, useUSDprimary){
       const cardBlue  = (lbl,sub,val)=> card('rgba(30,111,217,.10)','var(--accent)',lbl,sub, valDiv('var(--accent-3)',FMTc(val)));
       const cardEmis  = (lbl,sub,val)=> card('rgba(45,155,106,.12)','var(--pos)',lbl,sub, valDiv('var(--pos)',FMTc(val)));
       const cardYellow= (lbl,sub,val)=> card('rgba(255,193,7,.16)','#b8860b',lbl,sub, valDiv('#b8860b','+'+fv(val)));
+      /* Card gris: hay info en el desglose (activable) pero NO se cuenta en el desvío. */
+      const cardGrey  = (lbl,val)=>`<div style="flex:1;background:rgba(120,135,160,.10);border:1px dashed var(--line-2);border-radius:9px;padding:6px 11px;display:flex;flex-direction:column;justify-content:center">
+        <div style="font-size:10px;color:var(--ink-3);text-transform:uppercase;letter-spacing:.03em;font-weight:800">${lbl} <span style="font-weight:700;text-transform:none;font-size:8.5px;font-style:italic">· no se cuenta</span></div>
+        <div style="font-size:15px;font-weight:800;color:var(--ink-3);line-height:1;font-family:var(--font-mono);margin-top:2px">+${fv(val)}</div></div>`;
+      const _MFULL={Ene:'enero',Feb:'febrero',Mar:'marzo',Abr:'abril',May:'mayo',Jun:'junio',Jul:'julio',Ago:'agosto',Sep:'septiembre',Oct:'octubre',Nov:'noviembre',Dic:'diciembre'};
       const cardDesv  = (lbl,sub,val,base)=>{ const neg=val<0; const c=neg?'var(--neg)':'var(--pos)';
         const pct = base ? `(${neg?'−':'+'}${Math.round(Math.abs(val/base*100))}%)` : '';
         const inner = `<div style="display:flex;align-items:baseline;gap:7px;margin-top:2px"><span style="font-size:16px;font-weight:800;color:${c};font-family:var(--font-mono)">${neg?'−':'+'}${fv(val)}</span><span style="font-size:11.5px;font-weight:800;color:${c};font-family:var(--font-mono)">${pct}</span></div>`;
@@ -4497,8 +4500,14 @@ function ejecJustificacion(S, useUSD, dual, useUSDprimary){
       /* Según el mes seleccionado arriba (Dic = 'corte' / May = 'fecha'): se muestra solo el
          Presupuesto y el Desvío de ESE mes; el resto (Emisión Real, pendientes) igual para ambos. */
       const esCorte = (selMode!=='fecha');
+      const _mesSel = esCorte ? _mCorte : _mLast;
+      const _mesFull = _MFULL[_mesSel] || _mesSel;
+      const _proyNota = `(Desvío con proyección de emisión a ${_mesFull} 2026)`;
       return `<div style="margin-top:4px;border-top:1px solid var(--line);padding-top:6px">
-        <div style="font-size:11.5px;font-weight:800;color:var(--accent-3);text-transform:uppercase;letter-spacing:.04em;margin-bottom:6px">Comparación de desvíos</div>
+        <div style="display:flex;align-items:baseline;gap:9px;margin-bottom:7px;flex-wrap:wrap">
+          <span style="font-size:11.5px;font-weight:800;color:var(--accent-3);text-transform:uppercase;letter-spacing:.04em">Comparación de desvíos</span>
+          <span style="font-size:10.5px;color:var(--ink-3);font-weight:700">· acumulado 2026 hasta <strong style="color:var(--accent)">${_mesFull}</strong></span>
+        </div>
         <div style="display:flex;align-items:stretch;gap:8px">
           <div style="flex:1.05;display:flex;flex-direction:column;gap:6px;justify-content:center">
             ${esCorte ? cardBlue('Presupuesto Acumulado',_mCorte,presup) : cardBlue('Presupuesto Acumulado',_mLast,presupEmi)}
@@ -4507,12 +4516,13 @@ function ejecJustificacion(S, useUSD, dual, useUSDprimary){
           ${flecha('+')}
           <div style="flex:1.15;display:flex;flex-direction:column;gap:6px;justify-content:center">
             ${cardYellow('Pendiente · se emite este mes','',pendMes)}
-            ${cardYellow('Presupuesto + Pendiente','',pendEstim)}
+            ${cardGrey('Presupuesto + Pendiente',pendEstim)}
           </div>
           ${flecha('=')}
-          <div style="flex:1.15;display:flex;flex-direction:column;gap:6px;justify-content:center">
-            ${card('rgba(30,111,217,.10)','var(--accent)','Emisión estimada', esCorte?_mCorte:_mLast, valDiv('var(--accent-3)', FMTc(emisReal + pendMes + (esCorte?pendEstim:pv.p25))))}
+          <div style="flex:1.25;display:flex;flex-direction:column;gap:6px;justify-content:center">
+            ${card('rgba(30,111,217,.10)','var(--accent)','Emisión estimada', _mesSel, valDiv('var(--accent-3)', FMTc(emisEst)))}
             ${esCorte ? cardDesv('Desvío Acumulado',_mCorte,desvAnio, presup) : cardDesv('Desvío Acumulado',_mLast,desvMes, presupEmi)}
+            <div style="font-size:9.5px;color:var(--ink-3);font-style:italic;line-height:1.3;margin-top:1px">${_proyNota}</div>
           </div>
         </div>
       </div>`;
