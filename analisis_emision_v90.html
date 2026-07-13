@@ -1005,7 +1005,14 @@ function parseConfProy(ws){
   const cMon=colBy('moneda'), cTipo=colBy('tipo'), cPol=colBy('poliza'), cAseg=colBy('asegurado');
   if(cTipo<0||cPol<0) return;
   const monthCols=[];
-  for(let c=range.s.c;c<=range.e.c;c++){ const mi=_mesToNum(hdr1[c]); if(mi>=1 && _accent(hdr2[c])==='mon. orig.'){ monthCols.push({m:mi,cOrig:c,cArs:c+1}); } }
+  /* Cada mes tiene MON. ORIG. + ARS y, en el layout nuevo, también USD (dolarizado).
+     Se detecta por encabezado (fila 2), tolerando que exista o no la columna USD. */
+  for(let c=range.s.c;c<=range.e.c;c++){ const mi=_mesToNum(hdr1[c]); if(mi>=1 && _accent(hdr2[c])==='mon. orig.'){
+    let cArs=-1, cUsd=-1;
+    if(_accent(hdr2[c+1])==='ars'){ cArs=c+1; if(_accent(hdr2[c+2])==='usd'||_accent(hdr2[c+2])==='us') cUsd=c+2; }
+    else if(_accent(hdr2[c+1])==='usd'||_accent(hdr2[c+1])==='us'){ cUsd=c+1; }
+    monthCols.push({m:mi, cOrig:c, cArs:(cArs>=0?cArs:c+1), cUsd});
+  } }
   for(let r=2;r<=range.e.r;r++){
     const pol=getv(r,cPol), aseg=getv(r,cAseg); if(pol==null&&aseg==null) continue;
     const tipo=String(getv(r,cTipo)||'').trim(); const _ck=_tipoToConcepto(tipo); if(!_ck) continue;
@@ -1013,7 +1020,9 @@ function parseConfProy(ws){
     const esUS=/US|U\$|USD|DOLAR|DÓLAR/.test(monedaRaw);
     /* Bono/Profit: se guarda negado para que el sgn=-1 interno conserve su signo natural. */
     const _ss=(_ck==='bono')?-1:1;
-    const months=monthCols.map(mc=>({m:mc.m, orig:_ss*_numv(getv(r,mc.cOrig)), ars:_ss*_numv(getv(r,mc.cArs)), yellow:true})).filter(mo=>mo.orig||mo.ars);
+    /* USD del Excel (dolarizado): si la columna existe se usa directo; si no, queda null y las
+       funciones de valor lo derivan de ARS/TC como antes (compatibilidad con el layout viejo). */
+    const months=monthCols.map(mc=>{ const usdV=(mc.cUsd>=0)?_numv(getv(r,mc.cUsd)):null; return {m:mc.m, orig:_ss*_numv(getv(r,mc.cOrig)), ars:_ss*_numv(getv(r,mc.cArs)), usd:(usdV!=null&&usdV!==0)?_ss*usdV:null, yellow:true}; }).filter(mo=>mo.orig||mo.ars||mo.usd);
     if(!months.length) continue;
     state._presupArg.nYellow += months.length;
     _presupArgPush({poliza:pol, aseg, tipo, esUS, months});
