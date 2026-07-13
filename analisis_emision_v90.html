@@ -911,7 +911,9 @@ function _ejecContabOn(ck, which){
   state._ejecContab = state._ejecContab || {};
   const v = state._ejecContab[ck+'_'+which];
   if(v!==undefined) return !!v;
-  if(ck==='pend_2025') return false;   /* "Emisión Pendiente - Sin Fecha": por defecto NO contabiliza (el usuario lo enciende si quiere) */
+  /* "En Desarrollo" (pedido del usuario): Presupuesto, Emisión Confirmada y Emisión Pendiente
+     NO contabilizan por defecto (suman 0). El usuario los enciende si quiere contabilizarlos. */
+  if(ck==='pend_2025' || ck==='pend_conf' || ck==='pend_presup') return false;
   return (which==='mes');   /* el resto de los pendientes contabilizan por defecto (el dedup evita duplicar) */
 }
 /* "Emisión pendiente (se emite este mes)" del Excel CONTABILIZADA: suma, por concepto, solo los
@@ -4105,7 +4107,7 @@ function ejecJustificacion(S, useUSD, dual, useUSDprimary){
     const _p25V  = p25Full;
     /* Comparación de desvíos: valores completos (independientes de la vista). */
     state._ejecPendVals = state._ejecPendVals || {};
-    state._ejecPendVals[_sufp] = {conf:confFull, pres:presFull, p25:p25Full};
+    state._ejecPendVals[_sufp] = {conf:confFull, pres:presFull, p25:p25Full, confAll:_conf.total};
     /* NETO por vista (idéntico en tarjetas, donut y comparación):
          Dic = emisión real + confirmada + presupuesto + sin fecha − presupuesto hasta corte.
          May = emisión real + confirmada + sin fecha − presupuesto hasta el mes con emisión (sin presupuesto futuro). */
@@ -4114,8 +4116,8 @@ function ejecJustificacion(S, useUSD, dual, useUSDprimary){
     state._ejecNet = state._ejecNet || {};
     state._ejecNet[_sufp] = {dic:_netDic, may:_netMay};
     causas = [
-      mk('pend_conf','Pendiente - Emisión Confirmada', _confV, _conf.n, '#ffd54a','pendiente'),
-      mk('pend_presup','Presupuesto', _presV, _presMeses, APP_CONFIG.colores.pendiente,'pendiente'),
+      mk('pend_conf','Pendiente - Emisión Confirmada (En Desarrollo)', _confV, _conf.n, '#ffd54a','pendiente'),
+      mk('pend_presup','Presupuesto (En Desarrollo)', _presV, _presMeses, APP_CONFIG.colores.pendiente,'pendiente'),
       mk('pend_2025','Emisión Pendiente', _p25V, _p25.n, '#4fb0a8','pendiente'),
       mk('perdidas',APP_CONFIG.textos.perdidas, mkVal(cnt.perdidas), cnt.perdidas.n, APP_CONFIG.colores.perdidas),
       mk('menor',APP_CONFIG.textos.menor || 'Menor Emisión', menorSigned, menorN, APP_CONFIG.colores.abm),
@@ -4311,17 +4313,23 @@ function ejecJustificacion(S, useUSD, dual, useUSDprimary){
     /* Los 4 conceptos PENDIENTES son editables: el ▸ se reemplaza por ✎ y al clickear se
        abre el drill editable. "Sin justificar" ya NO es editable (no lleva ✎). */
     const esPendConcepto = !!(causa && causa.grupo==='pendiente');
+    /* "En Desarrollo": Presupuesto y Emisión Confirmada van en GRIS CLARO y suman 0 por defecto
+       (el usuario puede activarlos desde el desglose). */
+    const enDes = clickable && (id==='pend_conf' || id==='pend_presup') && !_ejecContabOn(id,'mes');
     const isClk = clickable;
     const click = clickable ? `onclick="toggleEjecCausa('${id}')"` : '';
     const carId = clickable ? `id="ejecCausaCar_${id}"` : '';
     const icon = esPendConcepto ? '✎' : (clickable ? '▸' : '');
-    const iconColor = esPendConcepto ? '#1e88c7' : 'var(--accent)';
-    return `<div ${click} style="display:grid;grid-template-columns:14px 14px 1fr auto auto;column-gap:10px;align-items:center;padding:4px 8px;border-radius:5px;${isClk?'cursor:pointer;':''}font-size:13.5px;line-height:1.25;border:1px solid transparent" ${isClk?`onmouseover="this.style.background='var(--bg-2)';this.style.borderColor='var(--line)'" onmouseout="this.style.background='';this.style.borderColor='transparent'"`:''}>
+    const iconColor = enDes ? 'var(--ink-3)' : (esPendConcepto ? '#1e88c7' : 'var(--accent)');
+    const swBg = enDes ? '#d6dde8' : p.col;
+    const lblColor = enDes ? 'var(--ink-3)' : 'var(--accent-3)';
+    const valColor = enDes ? 'var(--ink-3)' : totColor;
+    return `<div ${click} style="display:grid;grid-template-columns:14px 14px 1fr auto auto;column-gap:10px;align-items:center;padding:4px 8px;border-radius:5px;${isClk?'cursor:pointer;':''}font-size:13.5px;line-height:1.25;border:1px solid transparent${enDes?';opacity:.9':''}" ${isClk?`onmouseover="this.style.background='var(--bg-2)';this.style.borderColor='var(--line)'" onmouseout="this.style.background='';this.style.borderColor='transparent'"`:''}>
       <span ${carId} style="font-size:11px;color:${iconColor}">${icon}</span>
-      <span style="width:13px;height:13px;border-radius:50%;background:${p.col};border:1px solid rgba(0,0,0,.08)"></span>
-      <span style="color:var(--accent-3);font-weight:700">${p.lbl}${nPolStr}</span>
-      <span style="font-family:var(--font-mono);font-weight:800;color:var(--accent-3);min-width:38px;text-align:right">${Math.round(p.pctOf)}%</span>
-      <span style="font-family:var(--font-mono);font-weight:800;color:${totColor};min-width:82px;text-align:right">${sgnLeg}${FMTc(Math.abs(totSigned))}</span>
+      <span style="width:13px;height:13px;border-radius:50%;background:${swBg};border:1px solid rgba(0,0,0,.08)"></span>
+      <span style="color:${lblColor};font-weight:700">${p.lbl}${nPolStr}</span>
+      <span style="font-family:var(--font-mono);font-weight:800;color:${enDes?'var(--ink-3)':'var(--accent-3)'};min-width:38px;text-align:right">${Math.round(p.pctOf)}%</span>
+      <span style="font-family:var(--font-mono);font-weight:800;color:${valColor};min-width:82px;text-align:right">${sgnLeg}${FMTc(Math.abs(totSigned))}</span>
     </div>`;
   }).join('');
 
@@ -4445,18 +4453,26 @@ function ejecJustificacion(S, useUSD, dual, useUSDprimary){
      Convención dv>0 = déficit (se muestra en rojo con −). */
   const _dvCorte = (S.desvio!=null) ? S.desvio : 0;
   const _pctCorte = S.presup26>0 ? _dvCorte/S.presup26*100 : null;
-  const _selCard = (mode,titulo,sub,dv,pct)=>{ const sel=(selMode===mode);
-    return `<div onclick="window.ejecSelDesvio('${mode}')" style="flex:1;cursor:pointer;background:${sel?'rgba(217,71,71,.13)':'rgba(120,135,160,.07)'};border:1.5px solid ${sel?'var(--neg)':'var(--line-2)'};border-radius:9px;padding:6px 11px;transition:all .12s">
-      <div style="font-size:10px;color:${sel?'var(--neg)':'var(--ink-2)'};text-transform:uppercase;letter-spacing:.03em;font-weight:800">${titulo}${sub?' · '+sub:''}</div>
-      <div style="display:flex;align-items:baseline;gap:7px;margin-top:1px">
-        <span style="font-size:16px;font-weight:800;color:var(--neg);font-family:var(--font-mono)">${dv>0?'−':'+'}${FMTc(Math.abs(dv))}</span>
-        <span style="font-size:11px;font-weight:800;color:var(--neg);font-family:var(--font-mono)">${pct!=null?'('+(pct>0?'−':'+')+Math.abs(Math.round(pct))+'%)':''}</span>
+  /* Desvío CON PROYECCIONES = desvío crudo recuperando la Emisión Confirmada proyectada. */
+  const _pvTop = (state._ejecPendVals && state._ejecPendVals[useUSD?'u':'a']) || {confAll:0};
+  const _dvProy = _dvCorte - (_pvTop.confAll||0);
+  const _pctProy = S.presup26>0 ? _dvProy/S.presup26*100 : null;
+  const _MFULLd={Ene:'enero',Feb:'febrero',Mar:'marzo',Abr:'abril',May:'mayo',Jun:'junio',Jul:'julio',Ago:'agosto',Sep:'septiembre',Oct:'octubre',Nov:'noviembre',Dic:'diciembre'};
+  const _mCorteFull = _MFULLd[_mCorteD] || _mCorteD;
+  /* Tarjeta grande y resaltada del desvío ACUMULADO, con el mes completo resaltado. */
+  const _dvCardBig = (titulo, dv, pct, big)=>{
+    const sz = big ? {t:'11px', n:'30px', p:'15px', pad:'12px 16px'} : {t:'10px', n:'21px', p:'12px', pad:'9px 13px'};
+    return `<div style="flex:1;background:rgba(217,71,71,.10);border:${big?'2px':'1.5px'} solid var(--neg);border-radius:11px;padding:${sz.pad};box-shadow:${big?'0 2px 8px rgba(217,71,71,.14)':'none'}">
+      <div style="font-size:${sz.t};color:var(--neg);text-transform:uppercase;letter-spacing:.03em;font-weight:800">${titulo} · <span style="background:var(--neg);color:#fff;padding:1px 8px;border-radius:5px;letter-spacing:.02em">${_mCorteFull}</span></div>
+      <div style="display:flex;align-items:baseline;gap:9px;margin-top:5px">
+        <span style="font-size:${sz.n};font-weight:900;color:var(--neg);font-family:var(--font-mono);letter-spacing:-.01em">${dv>0?'−':'+'}${FMTc(Math.abs(dv))}</span>
+        <span style="font-size:${sz.p};font-weight:800;color:var(--neg);font-family:var(--font-mono)">${pct!=null?'('+(pct>0?'−':'+')+Math.abs(Math.round(pct))+'%)':''}</span>
       </div>
     </div>`; };
-  /* Primero HASTA DIC (corte del botón 1°), después emisión real. Achicadas y separadas para
-     diferenciarlas del total. */
-  const _selectorCards = `<div style="display:flex;gap:18px;margin-bottom:10px;max-width:300px">
-    ${_selCard('corte','Desvío Acumulado',_mCorteD, _dvCorte, _pctCorte)}
+  /* Dos desvíos lado a lado: el crudo (acumulado) y el que se logra CON PROYECCIONES (emisión confirmada). */
+  const _selectorCards = `<div style="display:flex;gap:12px;margin-bottom:12px;align-items:stretch;flex-wrap:wrap">
+    ${_dvCardBig('Desvío Acumulado', _dvCorte, _pctCorte, true)}
+    ${_dvCardBig('Desvío Acumulado CON PROYECCIONES', _dvProy, _pctProy, false)}
   </div>`;
   return `<div style="margin-top:${dual?8:2}px">
     ${dual?`<div style="font-size:11px;color:var(--ink-3);text-transform:uppercase;letter-spacing:.05em;font-weight:700;margin-bottom:4px">${mLbl}</div>`:''}
@@ -4471,12 +4487,14 @@ function ejecJustificacion(S, useUSD, dual, useUSDprimary){
       const presup = S.presup26 || 0;             /* presupuesto acumulado hasta el botón de corte */
       const presupEmi = S.presup26_emi || 0;      /* presupuesto hasta el último mes con emisión real 2026 */
       const emisReal = S.emis26 || 0;
-      const pv = (state._ejecPendVals && state._ejecPendVals[sufx]) || {conf:0,pres:0,p25:0};
-      const pendMes   = pv.conf;                  /* se emite este mes = Emisión Confirmada */
-      const pendEstim = pv.pres + pv.p25;         /* Presupuesto + Pendiente — se MUESTRA en gris pero NO se cuenta (pedido del usuario) */
-      const emisEst  = emisReal + pendMes;        /* Emisión estimada = Real + lo que se emite este mes (confirmado) */
-      const desvAnio = emisEst - presup;          /* Desvío acumulado hasta el corte (sin Presupuesto+Pendiente) */
-      const desvMes  = emisEst - presupEmi;       /* Desvío hasta el mes con emisión real */
+      const pv = (state._ejecPendVals && state._ejecPendVals[sufx]) || {conf:0,pres:0,p25:0,confAll:0};
+      /* "con proyecciones": la Emisión Confirmada proyectada SIEMPRE suma acá (es la proyección),
+         aunque en el donut esté "En Desarrollo". Así la Comparación construye el mismo desvío
+         CON PROYECCIONES que se muestra arriba. */
+      const pendMes   = (pv.confAll!=null ? pv.confAll : pv.conf) || 0;
+      const emisEst  = emisReal + pendMes;        /* Emisión estimada = Real + Emisión Confirmada proyectada */
+      const desvAnio = emisEst - presup;
+      const desvMes  = emisEst - presupEmi;
       const _mLast  = (S.lastEmis26>0) ? MESES[S.lastEmis26-1] : '—';
       const _mCorte = (S.mesCorteSet>0) ? MESES[S.mesCorteSet-1] : 'Dic';
       const fv = (v)=>FMTc(Math.abs(v));
@@ -4487,10 +4505,6 @@ function ejecJustificacion(S, useUSD, dual, useUSDprimary){
       const cardBlue  = (lbl,sub,val)=> card('rgba(30,111,217,.10)','var(--accent)',lbl,sub, valDiv('var(--accent-3)',FMTc(val)));
       const cardEmis  = (lbl,sub,val)=> card('rgba(45,155,106,.12)','var(--pos)',lbl,sub, valDiv('var(--pos)',FMTc(val)));
       const cardYellow= (lbl,sub,val)=> card('rgba(255,193,7,.16)','#b8860b',lbl,sub, valDiv('#b8860b','+'+fv(val)));
-      /* Card gris: hay info en el desglose (activable) pero NO se cuenta en el desvío. */
-      const cardGrey  = (lbl,val)=>`<div style="flex:1;background:rgba(120,135,160,.10);border:1px dashed var(--line-2);border-radius:9px;padding:6px 11px;display:flex;flex-direction:column;justify-content:center">
-        <div style="font-size:10px;color:var(--ink-3);text-transform:uppercase;letter-spacing:.03em;font-weight:800">${lbl} <span style="font-weight:700;text-transform:none;font-size:8.5px;font-style:italic">· no se cuenta</span></div>
-        <div style="font-size:15px;font-weight:800;color:var(--ink-3);line-height:1;font-family:var(--font-mono);margin-top:2px">+${fv(val)}</div></div>`;
       const _MFULL={Ene:'enero',Feb:'febrero',Mar:'marzo',Abr:'abril',May:'mayo',Jun:'junio',Jul:'julio',Ago:'agosto',Sep:'septiembre',Oct:'octubre',Nov:'noviembre',Dic:'diciembre'};
       const cardDesv  = (lbl,sub,val,base)=>{ const neg=val<0; const c=neg?'var(--neg)':'var(--pos)';
         const pct = base ? `(${neg?'−':'+'}${Math.round(Math.abs(val/base*100))}%)` : '';
@@ -4502,11 +4516,10 @@ function ejecJustificacion(S, useUSD, dual, useUSDprimary){
       const esCorte = (selMode!=='fecha');
       const _mesSel = esCorte ? _mCorte : _mLast;
       const _mesFull = _MFULL[_mesSel] || _mesSel;
-      const _proyNota = `(Desvío con proyección de emisión a ${_mesFull} 2026)`;
       return `<div style="margin-top:4px;border-top:1px solid var(--line);padding-top:6px">
         <div style="display:flex;align-items:baseline;gap:9px;margin-bottom:7px;flex-wrap:wrap">
           <span style="font-size:11.5px;font-weight:800;color:var(--accent-3);text-transform:uppercase;letter-spacing:.04em">Comparación de desvíos</span>
-          <span style="font-size:10.5px;color:var(--ink-3);font-weight:700">· acumulado 2026 hasta <strong style="color:var(--accent)">${_mesFull}</strong></span>
+          <span style="font-size:10.5px;color:var(--ink-3);font-weight:700">· con proyecciones · acumulado 2026 hasta <strong style="color:var(--accent)">${_mesFull}</strong></span>
         </div>
         <div style="display:flex;align-items:stretch;gap:8px">
           <div style="flex:1.05;display:flex;flex-direction:column;gap:6px;justify-content:center">
@@ -4514,15 +4527,13 @@ function ejecJustificacion(S, useUSD, dual, useUSDprimary){
             ${cardEmis('Emisión Real 2026',_mLast,emisReal)}
           </div>
           ${flecha('+')}
-          <div style="flex:1.15;display:flex;flex-direction:column;gap:6px;justify-content:center">
-            ${cardYellow('Pendiente · se emite este mes','',pendMes)}
-            ${cardGrey('Presupuesto + Pendiente',pendEstim)}
+          <div style="flex:1.05;display:flex;flex-direction:column;gap:6px;justify-content:center">
+            ${cardYellow('Pendiente · se emite este mes (proyección)','',pendMes)}
           </div>
           ${flecha('=')}
-          <div style="flex:1.25;display:flex;flex-direction:column;gap:6px;justify-content:center">
+          <div style="flex:1.05;display:flex;flex-direction:column;gap:6px;justify-content:center">
             ${card('rgba(30,111,217,.10)','var(--accent)','Emisión estimada', _mesSel, valDiv('var(--accent-3)', FMTc(emisEst)))}
-            ${esCorte ? cardDesv('Desvío Acumulado',_mCorte,desvAnio, presup) : cardDesv('Desvío Acumulado',_mLast,desvMes, presupEmi)}
-            <div style="font-size:9.5px;color:var(--ink-3);font-style:italic;line-height:1.3;margin-top:1px">${_proyNota}</div>
+            <div style="font-size:9.5px;color:var(--ink-3);font-style:italic;line-height:1.3;margin-top:1px">Desvío resultante arriba: <strong>Desvío Acumulado CON PROYECCIONES</strong></div>
           </div>
         </div>
       </div>`;
