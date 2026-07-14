@@ -3606,7 +3606,7 @@ function drawEjecutivo(){
 
     <!-- BLOQUE 5 -->
     <div class="card">
-      <div class="ejec-block-title">Detalle por rubro 2025 VS 2026</div>
+      <div class="ejec-block-title">Emisión por rubro 2025 VS 2026</div>
       <!-- 5.1 Comparativo emisión 2025 vs 2026 por rubro (PRIMERO, pedido del usuario) -->
       <div id="ejecRubroChartWrap" style="margin-top:12px"></div>
       <!-- 5.0 Super-resumen compacto: variación de proyección, tasa y siniestralidad por rubro -->
@@ -6754,12 +6754,11 @@ window.toggleEjecCausa = function(id){
     const _segs = _imp.filter(v=>v.val>0.5).map(v=>{ const pw=v.val/_tot*100;
         const lbl = pw>=11 ? `<span style="color:#fff;font-family:var(--font-mono);font-weight:800;font-size:12.5px;text-shadow:0 1px 1px rgba(0,0,0,.25);white-space:nowrap">−${_FMc(v.val)}</span>` : '';
         return `<div title="${v.lbl}: −${_FMc(v.val)}" style="width:${pw}%;background:${v.col};height:100%;display:flex;align-items:center;justify-content:center;overflow:hidden">${lbl}</div>`; }).join('');
+    /* Leyenda: solo el nombre del concepto (los valores quedan sobre la barra). */
     const _impLabels = _imp.map(v=>`<span style="white-space:nowrap">
         <span style="display:inline-block;width:10px;height:10px;border-radius:2px;background:${v.val>0.5?v.col:'var(--line-2)'};vertical-align:middle;margin-right:5px"></span>
         <span style="color:var(--ink-2);font-weight:700;font-size:12.5px">${v.lbl}</span>
-        <span style="font-family:var(--font-mono);font-weight:800;font-size:13px;color:${v.val>0.5?v.col:'var(--ink-3)'}">${v.val>0.5?'−':''}${_FMc(v.val)}</span>
-        <span style="color:var(--ink-3);font-size:10.5px">· ${v.n} pól</span>
-      </span>`).join('<span style="color:var(--line-2);margin:0 7px">·</span>');
+      </span>`).join('<span style="color:var(--line-2);margin:0 9px">·</span>');
     return _box(`
       <div style="display:flex;justify-content:space-between;align-items:baseline;margin-bottom:7px">
         <span style="font-size:10px;color:var(--accent-3);text-transform:uppercase;letter-spacing:.05em;font-weight:800">Impacto por concepto</span>
@@ -7777,7 +7776,7 @@ function drawEjecRubroChart(polArr, f, useUSD){
   }).join('');
   wrap.innerHTML = `
     <div style="display:flex;align-items:center;justify-content:space-between;gap:10px;margin-bottom:8px">
-      <span style="font-size:12px;text-transform:uppercase;letter-spacing:.04em;font-weight:800;color:var(--accent-3)">Detalle por rubro · 2025 vs 2026 · ${mLbl}</span>
+      <span style="font-size:12px;text-transform:uppercase;letter-spacing:.04em;font-weight:800;color:var(--accent-3)">Emisión por rubro · 2025 vs 2026 · ${mLbl}</span>
       <span style="font-size:10px;font-weight:800;color:var(--accent);background:var(--accent-soft);border-radius:20px;padding:2px 9px">▸ por rubro</span>
     </div>
     <div style="display:grid;grid-template-columns:${_cols};gap:9px;padding:0 4px 5px;font-size:9px;text-transform:uppercase;letter-spacing:.04em;font-weight:800;color:var(--ink-3)">
