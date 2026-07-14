@@ -911,9 +911,9 @@ function _ejecContabOn(ck, which){
   state._ejecContab = state._ejecContab || {};
   const v = state._ejecContab[ck+'_'+which];
   if(v!==undefined) return !!v;
-  /* "En Desarrollo" (pedido del usuario): Presupuesto, Emisión Confirmada y Emisión Pendiente
-     NO contabilizan por defecto (suman 0). El usuario los enciende si quiere contabilizarlos. */
-  if(ck==='pend_2025' || ck==='pend_conf' || ck==='pend_presup') return false;
+  /* "En Desarrollo" (pedido del usuario): Presupuesto y Emisión Pendiente NO contabilizan por
+     defecto (suman 0). Emisión Confirmada SÍ contabiliza. El usuario los enciende si quiere. */
+  if(ck==='pend_2025' || ck==='pend_presup') return false;
   return (which==='mes');   /* el resto de los pendientes contabilizan por defecto (el dedup evita duplicar) */
 }
 /* "Emisión pendiente (se emite este mes)" del Excel CONTABILIZADA: suma, por concepto, solo los
@@ -4112,9 +4112,9 @@ function ejecJustificacion(S, useUSD, dual, useUSDprimary){
     state._ejecNet = state._ejecNet || {};
     state._ejecNet[_sufp] = {dic:_netDic, may:_netMay};
     causas = [
-      mk('pend_conf','Pendiente - Emisión Confirmada (En Desarrollo)', _confV, _conf.n, '#ffd54a','pendiente'),
-      mk('pend_presup','Presupuesto (En Desarrollo)', _presV, _presMeses, APP_CONFIG.colores.pendiente,'pendiente'),
-      mk('pend_2025','Emisión Pendiente', _p25V, _p25.n, '#4fb0a8','pendiente'),
+      mk('pend_conf','Pendiente - Emisión Confirmada', _confV, _conf.n, '#cbd5e6','pendiente'),
+      mk('pend_presup','Presupuesto (En Desarrollo)', _presV, _presMeses, '#cbd5e6','pendiente'),
+      mk('pend_2025','Emisión Pendiente (En Desarrollo)', _p25V, _p25.n, '#cbd5e6','pendiente'),
       mk('perdidas',APP_CONFIG.textos.perdidas, mkVal(cnt.perdidas), cnt.perdidas.n, APP_CONFIG.colores.perdidas),
       mk('menor',APP_CONFIG.textos.menor || 'Menor Emisión', menorSigned, menorN, APP_CONFIG.colores.abm),
     /* Los pendientes siempre figuran aunque su valor sea 0. */
@@ -4232,7 +4232,7 @@ function ejecJustificacion(S, useUSD, dual, useUSDprimary){
     if(pctSinCubrir < 0.05) return '';
     const pctAncho = pctSinCubrir * escala;
     const fs = fsSeg(pctAncho);
-    return `<div title="Sin justificar: ${Math.round(pctSinCubrir)}%" style="width:${pctAncho}%;background:#c5cdd9;height:100%;display:flex;align-items:center;justify-content:center;font-size:${fs}px;font-weight:800;color:#5a6b85;line-height:1;overflow:visible;white-space:nowrap">${Math.round(pctSinCubrir)}%</div>`;
+    return `<div title="Sin justificar: ${Math.round(pctSinCubrir)}%" style="width:${pctAncho}%;background:repeating-linear-gradient(45deg,#8a99b0,#8a99b0 5px,#7688a1 5px,#7688a1 10px);height:100%;display:flex;align-items:center;justify-content:center;font-size:${fs}px;font-weight:800;color:#fff;line-height:1;overflow:visible;white-space:nowrap">${Math.round(pctSinCubrir)}%</div>`;
   };
 
   /* Leyenda única. */
@@ -4281,7 +4281,7 @@ function ejecJustificacion(S, useUSD, dual, useUSDprimary){
   const pieIdDes = `ejecDesvioPie_${useUSD?'u':'a'}`;
   const piePartes = causas.map(c=>({lbl:c.lbl, col:c.col, val:c.val, n:c.n, pctOf:pctDe(c.val)}));
   if(pctSinCubrir>=0.5){
-    piePartes.push({lbl:'Sin justificar', col:'#c5cdd9', val:sinCubrir, n:0, pctOf:pctSinCubrir});
+    piePartes.push({lbl:'Sin justificar', col:'#8a99b0', val:sinCubrir, n:0, pctOf:pctSinCubrir, stripe:true});
   }
   state._ejecDesvioPies = state._ejecDesvioPies || {};
   state._ejecDesvioPies[pieIdDes] = {partes:piePartes, useUSD};
@@ -4311,7 +4311,9 @@ function ejecJustificacion(S, useUSD, dual, useUSDprimary){
     const esPendConcepto = !!(causa && causa.grupo==='pendiente');
     /* "En Desarrollo": Presupuesto y Emisión Confirmada van en GRIS CLARO y suman 0 por defecto
        (el usuario puede activarlos desde el desglose). */
-    const enDes = clickable && (id==='pend_conf' || id==='pend_presup') && !_ejecContabOn(id,'mes');
+    /* Proyecciones/pendientes en gris claro (de-enfatizadas): Confirmada (cuenta), Presupuesto y
+       Emisión Pendiente (En Desarrollo, suman 0). */
+    const enDes = clickable && (id==='pend_conf' || id==='pend_presup' || id==='pend_2025');
     const isClk = clickable;
     const click = clickable ? `onclick="toggleEjecCausa('${id}')"` : '';
     const carId = clickable ? `id="ejecCausaCar_${id}"` : '';
@@ -4455,20 +4457,17 @@ function ejecJustificacion(S, useUSD, dual, useUSDprimary){
   const _pctProy = S.presup26>0 ? _dvProy/S.presup26*100 : null;
   const _MFULLd={Ene:'enero',Feb:'febrero',Mar:'marzo',Abr:'abril',May:'mayo',Jun:'junio',Jul:'julio',Ago:'agosto',Sep:'septiembre',Oct:'octubre',Nov:'noviembre',Dic:'diciembre'};
   const _mCorteFull = _MFULLd[_mCorteD] || _mCorteD;
-  /* Tarjeta grande y resaltada del desvío ACUMULADO, con el mes completo resaltado. */
-  const _dvCardBig = (titulo, dv, pct, big)=>{
-    const sz = big ? {t:'11px', n:'30px', p:'15px', pad:'12px 16px'} : {t:'10px', n:'21px', p:'12px', pad:'9px 13px'};
-    return `<div style="flex:1;background:rgba(217,71,71,.10);border:${big?'2px':'1.5px'} solid var(--neg);border-radius:11px;padding:${sz.pad};box-shadow:${big?'0 2px 8px rgba(217,71,71,.14)':'none'}">
-      <div style="font-size:${sz.t};color:var(--neg);text-transform:uppercase;letter-spacing:.03em;font-weight:800">${titulo} · <span style="background:var(--neg);color:#fff;padding:1px 8px;border-radius:5px;letter-spacing:.02em">${_mCorteFull}</span></div>
-      <div style="display:flex;align-items:baseline;gap:9px;margin-top:5px">
-        <span style="font-size:${sz.n};font-weight:900;color:var(--neg);font-family:var(--font-mono);letter-spacing:-.01em">${dv>0?'−':'+'}${FMTc(Math.abs(dv))}</span>
-        <span style="font-size:${sz.p};font-weight:800;color:var(--neg);font-family:var(--font-mono)">${pct!=null?'('+(pct>0?'−':'+')+Math.abs(Math.round(pct))+'%)':''}</span>
+  /* Dos tarjetas de desvío del MISMO tamaño (compactas pero con la cifra grande), mes completo resaltado. */
+  const _dvCardBig = (titulo, dv, pct)=>`<div style="flex:1;min-width:270px;background:rgba(217,71,71,.10);border:2px solid var(--neg);border-radius:10px;padding:8px 15px">
+      <div style="font-size:10.5px;color:var(--neg);text-transform:uppercase;letter-spacing:.03em;font-weight:800">${titulo} · <span style="background:var(--neg);color:#fff;padding:1px 8px;border-radius:5px;letter-spacing:.02em">${_mCorteFull}</span></div>
+      <div style="display:flex;align-items:baseline;gap:9px;margin-top:2px">
+        <span style="font-size:28px;font-weight:900;color:var(--neg);font-family:var(--font-mono);letter-spacing:-.01em">${dv>0?'−':'+'}${FMTc(Math.abs(dv))}</span>
+        <span style="font-size:14px;font-weight:800;color:var(--neg);font-family:var(--font-mono)">${pct!=null?'('+(pct>0?'−':'+')+Math.abs(Math.round(pct))+'%)':''}</span>
       </div>
-    </div>`; };
-  /* Dos desvíos lado a lado: el crudo (acumulado) y el que se logra CON PROYECCIONES (emisión confirmada). */
+    </div>`;
   const _selectorCards = `<div style="display:flex;gap:12px;margin-bottom:12px;align-items:stretch;flex-wrap:wrap">
-    ${_dvCardBig('Desvío Acumulado', _dvCorte, _pctCorte, true)}
-    ${_dvCardBig('Desvío Acumulado CON PROYECCIONES', _dvProy, _pctProy, false)}
+    ${_dvCardBig('Desvío Acumulado', _dvCorte, _pctCorte)}
+    ${_dvCardBig('Desvío Acumulado CON PROYECCIONES', _dvProy, _pctProy)}
   </div>`;
   return `<div style="margin-top:${dual?8:2}px">
     ${dual?`<div style="font-size:11px;color:var(--ink-3);text-transform:uppercase;letter-spacing:.05em;font-weight:700;margin-bottom:4px">${mLbl}</div>`:''}
@@ -4543,6 +4542,18 @@ function ejecJustificacion(S, useUSD, dual, useUSDprimary){
   </div>`;
 }
 
+/* Patrón de rayas diagonales (para diferenciar "Sin justificar" en el donut). Cachea por color. */
+const _stripePatCache = {};
+function _stripePattern(base){
+  if(_stripePatCache[base]) return _stripePatCache[base];
+  const c=document.createElement('canvas'); c.width=8; c.height=8; const x=c.getContext('2d');
+  x.fillStyle=base; x.fillRect(0,0,8,8);
+  x.strokeStyle='rgba(255,255,255,.55)'; x.lineWidth=2.2; x.lineCap='square';
+  x.beginPath(); x.moveTo(-2,6); x.lineTo(6,-2); x.stroke();
+  x.beginPath(); x.moveTo(2,10); x.lineTo(10,2); x.stroke();
+  const pat = x.createPattern(c,'repeat');
+  _stripePatCache[base]=pat; return pat;
+}
 /* Renderiza los pie charts del Desvío de Emisión guardados en state._ejecDesvioPies. */
 function renderEjecDesvioPies(){
   if(typeof Chart === 'undefined') return;
@@ -4563,7 +4574,7 @@ function renderEjecDesvioPies(){
         merged[i].lbl = (merged[i].lbl==='Pendiente de emisión' || /pendiente/i.test(merged[i].lbl)) ? 'Pendiente de emisión' : merged[i].lbl;
       } else {
         idxByCol.set(p.col, merged.length);
-        merged.push({lbl:p.lbl, col:p.col, val:p.val});
+        merged.push({lbl:p.lbl, col:p.col, val:p.val, stripe:p.stripe});
       }
     }
     /* Renombrar la porción celeste agrupada para que el tooltip diga
@@ -4576,7 +4587,7 @@ function renderEjecDesvioPies(){
         labels: merged.map(p=>p.lbl),
         datasets:[{
           data: merged.map(p=>p.val),
-          backgroundColor: merged.map(p=>p.col),
+          backgroundColor: merged.map(p=> p.stripe ? _stripePattern(p.col) : p.col),
           borderColor:'#fff', borderWidth:2,
         }]
       },
