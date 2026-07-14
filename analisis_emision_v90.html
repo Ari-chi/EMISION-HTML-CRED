@@ -5193,9 +5193,10 @@ window.toggleEjecEmi = function(id){
     if(dOrig>0) cc='var(--pos)';
     else if(dOrig<0) cc='var(--neg)';
     else cc='var(--accent)';
-    const equivLine = (monOrig!==monBtn)
-      ? `<div style="font-size:11.5px;color:var(--ink-3);font-family:var(--font-mono);text-align:right;margin-top:2px">${sgnTxt}${fmtCompact(valBtn(p,'26'), useUSD)}</div>`
-      : '';
+    /* Equivalente en la OTRA moneda, chiquito y gris (siempre, tanto en $ como en US). */
+    const _otherIsUS = (monOrig!=='US');
+    const _otherVal = _otherIsUS ? (p.usd26||0) : (p.ars26||0);
+    const equivLine = `<div style="font-size:11.5px;color:var(--ink-3);font-family:var(--font-mono);text-align:right;margin-top:2px">${sgnTxt}${fmtCompact(_otherVal, _otherIsUS)}</div>`;
     /* Etiqueta del concepto AA — viene en p.concepto (ej. "Prima+Ajuste"). */
     const lblConcepto = bucketKey==='anualant' ? (p.concepto || 'AA') : conceptoBucketLbl;
     const concBadge = (bucketKey==='anualant' && p.concepto)
@@ -5208,10 +5209,10 @@ window.toggleEjecEmi = function(id){
       const d = (v26||0) - (v25||0);
       const cT = d===0?'var(--accent)':(d>0?(neg?'var(--neg)':'var(--pos)'):(neg?'var(--pos)':'var(--neg)'));
       const pct = (v25!=null && v25!==0) ? d/Math.abs(v25) : null;
-      return `<div style="display:grid;grid-template-columns:62px 1fr auto;gap:6px;font-size:11.5px;line-height:1.35;padding:1px 0">
+      return `<div style="display:grid;grid-template-columns:88px 1fr auto;gap:10px;font-size:11.5px;line-height:1.4;padding:2px 0;border-top:1px solid var(--line)">
         <span style="color:var(--accent-3);font-weight:700">${label}</span>
-        <span style="font-family:var(--font-mono);color:var(--ink-2)">${fmt(v25)} → <strong>${fmt(v26)}</strong></span>
-        <span style="font-family:var(--font-mono);font-weight:800;color:${cT};text-align:right;min-width:60px">${d>=0?'+':''}${deltaFmt(d)}${pct!=null?' ('+(d>=0?'+':'')+FMT_PCT(pct)+')':''}</span>
+        <span style="font-family:var(--font-mono);color:var(--ink-2);white-space:nowrap">${fmt(v25)} <span style="color:var(--ink-3)">→</span> <strong>${fmt(v26)}</strong></span>
+        <span style="font-family:var(--font-mono);font-weight:800;color:${cT};text-align:right;white-space:nowrap">${d>=0?'+':''}${deltaFmt(d)}${pct!=null?' ('+(d>=0?'+':'')+FMT_PCT(pct)+')':''}</span>
       </div>`;
     };
     /* Prima/PV: moneda original; Tasa/Sin: porcentaje */
@@ -5227,12 +5228,12 @@ window.toggleEjecEmi = function(id){
        concepto AA — sin PV/Tasa/Siniestralidad, porque la AA es residuo del
        período anterior y esas variables no aplican al desvío de este período. */
     const esAAbucket = (bucketKey==='anualant');
-    const varBox = `<div style="background:rgba(0,0,0,.03);border:1px solid var(--line);border-radius:5px;padding:6px 10px;margin-top:6px;max-width:520px">
+    const varBox = `<div style="background:rgba(0,0,0,.03);border:1px solid var(--line);border-radius:6px;padding:5px 12px;margin-top:6px;width:100%">
       ${varLine(lblConcepto, pmO25, pmO26, fmtMon, fmtMon, false)}
-      ${esAAbucket?'':varLine('PV',    pvO25, pvO26, fmtMon, fmtMon, false)}
+      ${esAAbucket?'':varLine('Proy. ventas', pvO25, pvO26, fmtMon, fmtMon, false)}
       ${esAAbucket?'':varLine('Tasa',  p.tasa25, p.tasa26, fmtTasa, fmtTasa, false)}
-      ${esAAbucket?'':varLine('Sin UV',p.sinUV25, p.sinUV26, fmtSin, fmtSin, true)}
-      ${esAAbucket?'':varLine('Sin H', p.sinH25, p.sinH26, fmtSin, fmtSin, true)}
+      ${esAAbucket?'':varLine('Sin. UV',p.sinUV25, p.sinUV26, fmtSin, fmtSin, true)}
+      ${esAAbucket?'':varLine('Sin. H', p.sinH25, p.sinH26, fmtSin, fmtSin, true)}
     </div>`;
     return `<div style="padding:10px 4px;border-bottom:1px solid var(--line)">
       <div style="display:flex;justify-content:space-between;gap:14px;align-items:flex-start">
@@ -5240,7 +5241,6 @@ window.toggleEjecEmi = function(id){
           <div style="display:flex;align-items:baseline;gap:8px;flex-wrap:wrap">
             <span style="font-size:15px;font-weight:800;color:var(--accent-3);background:var(--bg-2);padding:2px 9px;border-radius:5px">${fmtPoliza(p.poliza)}</span>
             <span style="color:var(--ink-1);font-size:13.5px;font-weight:600;max-width:280px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${(p.asegurado||'').substring(0,32)}</span>
-            <span style="font-size:11px;color:var(--accent);font-weight:700;background:rgba(30,111,217,.10);padding:2px 7px;border-radius:4px">${p.rubro||'—'}</span>
             ${concBadge}
           </div>
           ${varBox}
@@ -5427,15 +5427,7 @@ window.toggleEjecEmi = function(id){
       : '<span style="font-size:11px;color:var(--ink-3);font-style:italic">— sin rubros —</span>';
     const _cTot=_dT>=0?'var(--pos)':'var(--neg)';
     const _nTot=(monARS.n26||0)+(monUSD.n26||0);
-    return `<div style="border:1px solid var(--line-2);border-radius:10px;padding:11px 13px;margin-bottom:14px;background:#fbfcfe;box-shadow:0 1px 4px rgba(10,31,58,.06)">
-      <div style="display:flex;align-items:baseline;gap:10px;flex-wrap:wrap">
-        <span style="font-size:10px;color:#2d9b6a;text-transform:uppercase;letter-spacing:.05em;font-weight:800">Emisión total 2025→2026</span>
-        <span style="font-family:var(--font-mono);font-size:13px;color:var(--ink-2)">${_FMc(_t25)} <span style="color:var(--ink-3)">→</span> <strong style="color:var(--accent-3)">${_FMc(_t26)}</strong></span>
-        <span style="font-family:var(--font-mono);font-size:19px;font-weight:800;color:${_cTot}">${_dT>=0?'+':''}${_FMc(_dT)}${_dTp!=null?' ('+(_dT>=0?'+':'')+FMT_PCT(_dTp)+')':''}</span>
-        <span style="font-size:10.5px;color:var(--ink-3)">${_nTot} pól. · ${useUSD?'USD':'ARS$'}</span>
-      </div>
-      <div style="font-family:var(--font-mono);font-size:11px;color:var(--ink-3);margin-top:3px">Por moneda: $ ${_proyOne(monARS)} · US ${_proyOne(monUSD)}</div>
-      <div style="border-top:1px solid var(--line);margin:10px 0 8px"></div>
+    return `<div style="border:1px solid var(--line-2);border-radius:10px;padding:10px 13px;margin-bottom:14px;background:#fbfcfe;box-shadow:0 1px 4px rgba(10,31,58,.06)">
       <div style="display:flex;gap:8px;align-items:baseline;flex-wrap:wrap">
         <span style="font-size:9.5px;color:var(--ink-3);text-transform:uppercase;letter-spacing:.04em;font-weight:800">Rubros (${rubArr.length}) <span style="font-weight:600">'25→'26</span></span>
         <div style="display:flex;gap:3px;flex-wrap:wrap;align-items:baseline">${_rubInline}</div>
