@@ -3595,7 +3595,7 @@ function drawEjecutivo(){
 
     <!-- COMPARACIÓN 2025 vs 2026 + EMISIÓN 2026 (unificados, debajo del Desvío) -->
     <div class="card">
-      <div class="ejec-block-title">Comparación de emisión 2025 vs 2026</div>
+      <div class="ejec-block-title">Comparación de emisión 2025 vs 2026 ${(()=>{const _M={1:'enero',2:'febrero',3:'marzo',4:'abril',5:'mayo',6:'junio',7:'julio',8:'agosto',9:'septiembre',10:'octubre',11:'noviembre',12:'diciembre'};const m=primary.mesCorteSet||12;return `<span style="margin-left:12px;font-family:var(--font-mono);font-size:12.5px;font-weight:800;background:rgba(255,255,255,.20);color:#fff;padding:3px 11px;border-radius:6px;text-transform:none;letter-spacing:0">acumulado 2025/2026 · hasta ${_M[m]}</span>`;})()}</div>
       ${setU?ejecComparacion(setU,true,dual):''}
       ${setA?ejecComparacion(setA,false,dual):''}
       <div style="margin-top:26px;padding-top:20px;border-top:2px solid var(--line-2)">
@@ -3818,7 +3818,7 @@ function ejecComparacion(S, useUSD, dual){
     <div class="grid-2">
       <div>
         <div class="card-sub" style="margin-bottom:4px;font-size:11px">Emisión total — comparativa</div>
-        <div class="chart-box" style="height:150px"><canvas id="${idT}"></canvas></div>
+        <div class="chart-box" style="height:230px"><canvas id="${idT}"></canvas></div>
         <div style="display:flex;align-items:baseline;justify-content:center;gap:8px;margin-top:6px">
           <span style="font-size:11px;color:var(--ink-3);text-transform:uppercase;letter-spacing:.05em;font-weight:800">Desvío</span>
           <span style="font-family:var(--font-mono);font-size:20px;font-weight:800;color:${cTot};line-height:1">${dTot>=0?'+':''}${fmtCompact(dTot, useUSD)}</span>
@@ -3827,7 +3827,7 @@ function ejecComparacion(S, useUSD, dual){
       </div>
       <div>
         <div class="card-sub" style="margin-bottom:4px;font-size:11px">Emisión por concepto</div>
-        <div class="chart-box" style="height:150px"><canvas id="${idC}"></canvas></div>
+        <div class="chart-box" style="height:230px"><canvas id="${idC}"></canvas></div>
         <div style="display:grid;grid-template-columns:repeat(2,1fr);gap:6px;margin-top:6px">
           ${conceptosVar.map(cv=>{
             const cc = cv.dd>=0?'var(--pos)':'var(--neg)';
