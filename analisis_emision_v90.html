@@ -12787,26 +12787,30 @@ function drawTop10(){
       g.n++;
     }
     const arr = Object.values(acc).filter(g=>g.tot>0.5).sort((a,b)=>b.tot-a.tot).slice(0,10);
-    const cell=(v)=>`<td style="text-align:right;font-family:var(--font-mono);font-size:11.5px;color:var(--ink-2);padding:5px 8px">${Math.abs(v)>0.5?fmtCompact(v,false):'<span style="color:var(--line-2)">—</span>'}</td>`;
-    const rows = arr.map((g,i)=>`<tr style="border-top:1px solid var(--line)">
-        <td style="color:var(--ink-3);font-family:var(--font-mono);font-size:11px;padding:5px 8px">${String(i+1).padStart(2,'0')}</td>
-        <td style="padding:5px 8px"><div style="font-weight:700;color:var(--accent-3);font-size:12.5px">${g.nombre}</div><div style="font-size:10px;color:var(--ink-3)">${g.n} pól.</div></td>
-        <td style="text-align:right;padding:5px 8px">
-          <div style="display:flex;align-items:center;justify-content:flex-end;gap:8px">
-            ${g.tot26>0.5 ? `<span title="Emisión 2026 acumulada hasta el corte" style="font-size:10.5px;font-weight:800;color:var(--accent);background:rgba(30,111,217,.10);border:1px solid var(--accent);border-radius:6px;padding:2px 7px;white-space:nowrap">2026: ${fmtCompact(g.tot26,false)}</span>` : ''}
-            <span style="font-family:var(--font-mono);font-weight:800;color:var(--accent-3);font-size:15.5px">${fmtCompact(g.tot,false)}</span>
+    const cell=(v)=>`<td style="text-align:right;font-family:var(--font-mono);font-size:12px;font-weight:700;color:${v<0?'var(--neg)':'var(--ink-2)'};padding:10px 10px">${Math.abs(v)>0.5?(v<0?'−':'')+fmtCompact(Math.abs(v),false):'<span style="color:var(--line-2);font-weight:400">—</span>'}</td>`;
+    const _medal=(i)=> i===0?'#e0a417': i===1?'#9aa7b8': i===2?'#c58348':null;
+    const rankBadge=(i)=>{ const m=_medal(i); return `<span style="display:inline-flex;align-items:center;justify-content:center;width:27px;height:27px;border-radius:8px;background:${m||'rgba(30,111,217,.10)'};color:${m?'#fff':'var(--accent)'};font-family:var(--font-mono);font-weight:800;font-size:12.5px;box-shadow:${m?'0 1px 3px '+m+'66':'none'}">${String(i+1).padStart(2,'0')}</span>`; };
+    const rowBg=(i)=> i%2 ? 'transparent' : 'rgba(30,111,217,.035)';
+    const rows = arr.map((g,i)=>{ const m=_medal(i);
+      return `<tr style="border-top:1px solid var(--line);background:${rowBg(i)}${m?';box-shadow:inset 3px 0 0 '+m:''}" onmouseover="this.style.background='rgba(30,111,217,.08)'" onmouseout="this.style.background='${rowBg(i)}'">
+        <td style="padding:10px 10px">${rankBadge(i)}</td>
+        <td style="padding:10px 8px"><div style="font-weight:800;color:var(--accent-3);font-size:14px;letter-spacing:-.005em">${g.nombre}</div><div style="font-size:10.5px;color:var(--ink-3);font-weight:600;margin-top:1px">${g.n} pól.</div></td>
+        <td style="text-align:right;padding:10px 10px">
+          <div style="display:flex;align-items:center;justify-content:flex-end;gap:9px">
+            ${g.tot26>0.5 ? `<span title="Emisión 2026 acumulada hasta el corte" style="font-size:10.5px;font-weight:800;color:var(--accent);background:rgba(30,111,217,.10);border:1px solid rgba(30,111,217,.4);border-radius:6px;padding:2px 8px;white-space:nowrap">2026: ${fmtCompact(g.tot26,false)}</span>` : ''}
+            <span style="font-family:var(--font-mono);font-weight:800;color:var(--accent);font-size:18px;letter-spacing:-.01em">${fmtCompact(g.tot,false)}</span>
           </div>
         </td>
         ${cell(g.primaMin)}${cell(g.ajuste)}${cell(g.bono)}${cell(g.malus)}
-      </tr>`).join('');
+      </tr>`; }).join('');
     const _sinGrupos = (Object.keys(grupos).length===0 && Object.keys(gruposAseg).length===0);
     const _avisoGrupos = _sinGrupos ? `<div style="font-size:11px;color:#b9760f;background:rgba(232,155,30,.10);border-left:3px solid var(--warn);padding:6px 10px;border-radius:4px;margin-bottom:8px">⚠ No se detectó la hoja <strong>Grupos</strong> en el Excel cargado — se está agrupando por nombre de asegurado. Subí el Excel con la hoja "Grupos" (Nombre Asegurado · Póliza · Grupo) para agrupar por grupo económico.</div>` : '';
-    wrap.innerHTML = arr.length ? `${_avisoGrupos}<table style="width:100%;border-collapse:collapse">
-      <thead><tr style="font-size:9.5px;text-transform:uppercase;letter-spacing:.03em;color:var(--ink-3);font-weight:700">
-        <th style="text-align:left;padding:4px 8px">#</th><th style="text-align:left;padding:4px 8px">Grupo económico</th>
-        <th style="text-align:right;padding:4px 8px">Emisión 2025</th><th style="text-align:right;padding:4px 8px">Prima mín.</th>
-        <th style="text-align:right;padding:4px 8px">Ajuste</th><th style="text-align:right;padding:4px 8px">Bono</th><th style="text-align:right;padding:4px 8px">Malus</th>
-      </tr></thead><tbody>${rows}</tbody></table>`
+    wrap.innerHTML = arr.length ? `${_avisoGrupos}<div style="border:1px solid var(--line-2);border-radius:10px;overflow:hidden;box-shadow:0 1px 4px rgba(10,31,58,.06)"><table style="width:100%;border-collapse:collapse">
+      <thead><tr style="background:linear-gradient(90deg,rgba(30,111,217,.14),rgba(30,111,217,.05));font-size:10px;text-transform:uppercase;letter-spacing:.05em;color:var(--accent-3);font-weight:800">
+        <th style="text-align:left;padding:10px 10px">#</th><th style="text-align:left;padding:10px 8px">Grupo económico</th>
+        <th style="text-align:right;padding:10px 10px">Emisión 2025</th><th style="text-align:right;padding:10px 10px">Prima mín.</th>
+        <th style="text-align:right;padding:10px 10px">Ajuste</th><th style="text-align:right;padding:10px 10px">Bono</th><th style="text-align:right;padding:10px 10px">Malus</th>
+      </tr></thead><tbody>${rows}</tbody></table></div>`
       : '<span style="color:var(--ink-3);font-style:italic">— sin emisión 2025 —</span>';
   })();
   const calcVar = (x)=>{
