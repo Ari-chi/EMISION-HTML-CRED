@@ -4815,14 +4815,14 @@ function ejecEmitido(S, useUSD, dual){
     if(show25){
       const d=it.totSigned-it.tot25Signed, dc=d>=0?'var(--pos)':'var(--neg)';
       /* Grilla alineada: nombre | 2025 | → | 2026 | Δ (columnas de ancho fijo). */
-      return `<div onclick="toggleEjecEmiArea('${id}','${drillId}')" style="display:grid;grid-template-columns:14px 13px 200px 88px 11px 88px 66px;column-gap:7px;align-items:center;padding:6px 6px;border-radius:5px;cursor:pointer;line-height:1.3;border:1px solid transparent;width:fit-content" ${hov}>
-        <span id="${id}_car" style="font-size:11px;color:var(--accent)">▸</span>
-        <span style="width:13px;height:13px;border-radius:50%;background:${it.col};border:1px solid rgba(0,0,0,.08)"></span>
+      return `<div onclick="toggleEjecEmiArea('${id}','${drillId}')" style="display:grid;grid-template-columns:14px 12px 200px 80px 11px 80px 62px;column-gap:8px;align-items:center;padding:5px 6px;border-radius:6px;cursor:pointer;line-height:1.3;border:1px solid transparent;width:fit-content" ${hov}>
+        <span id="${id}_car" style="font-size:10px;color:var(--accent)">▸</span>
+        <span style="width:12px;height:12px;border-radius:50%;background:${it.col};border:1px solid rgba(0,0,0,.08)"></span>
         ${nameCell}
-        <span style="justify-self:end;display:inline-block;white-space:nowrap;font-family:var(--font-mono);background:var(--bg-2);border:1px solid var(--line);padding:3px 7px;border-radius:5px;color:var(--ink-2);font-weight:700;font-size:13px">${FMTc(it.tot25Signed)}</span>
-        <span style="color:var(--ink-3);text-align:center;font-size:12px">→</span>
-        <span style="justify-self:end;display:inline-block;white-space:nowrap;font-family:var(--font-mono);background:rgba(45,155,106,.10);border:1px solid rgba(45,155,106,.25);padding:3px 7px;border-radius:5px;color:${totColor};font-weight:800;font-size:14px">${FMTc(it.totSigned)}</span>
-        <span style="font-family:var(--font-mono);color:${dc};font-weight:800;font-size:12.5px;text-align:right">${d>=0?'+':''}${FMTc(d)}</span>
+        <span style="justify-self:end;font-family:var(--font-mono);color:var(--ink-3);font-weight:700;font-size:12.5px">${FMTc(it.tot25Signed)}</span>
+        <span style="color:var(--ink-3);text-align:center;font-size:11px">→</span>
+        <span style="justify-self:end;font-family:var(--font-mono);color:${totColor};font-weight:800;font-size:13.5px">${FMTc(it.totSigned)}</span>
+        <span style="font-family:var(--font-mono);color:${dc};font-weight:800;font-size:12px;text-align:right">${d>=0?'+':''}${FMTc(d)}</span>
       </div>`;
     }
     return `<div onclick="toggleEjecEmiArea('${id}','${drillId}')" style="display:grid;grid-template-columns:15px 14px 1fr auto;column-gap:10px;align-items:center;padding:8px 8px;border-radius:5px;cursor:pointer;font-size:14.5px;line-height:1.3;border:1px solid transparent" ${hov}>
@@ -4834,10 +4834,10 @@ function ejecEmitido(S, useUSD, dual){
   }).join('');
   /* Encabezado de columnas (solo en modo comparación): títulos 2025 / 2026 sobre las cajas. */
   const leyHeader = show25
-    ? `<div style="display:grid;grid-template-columns:14px 13px 200px 88px 11px 88px 66px;column-gap:7px;padding:0 6px 5px;font-size:11px;font-weight:800;color:var(--ink-3);text-transform:uppercase;letter-spacing:.04em;width:fit-content">
+    ? `<div style="display:grid;grid-template-columns:14px 12px 200px 80px 11px 80px 62px;column-gap:8px;padding:0 6px 5px;font-size:10px;font-weight:800;color:var(--ink-3);text-transform:uppercase;letter-spacing:.04em;width:fit-content">
         <span></span><span></span><span></span>
-        <span style="text-align:center">2025</span><span></span>
-        <span style="text-align:center;color:var(--pos)">2026</span>
+        <span style="text-align:right">2025</span><span></span>
+        <span style="text-align:right;color:var(--pos)">2026</span>
         <span style="text-align:right">Var.</span>
       </div>`
     : '';
@@ -7771,25 +7771,34 @@ function drawEjecRubroChart(polArr, f, useUSD){
     .sort((a,b)=>b.v26-a.v26);
   const max = Math.max(1, ...items.flatMap(it=>[it.v25, it.v26]));
   const FMTc = (v)=>fmtCompact(v, useUSD);
+  /* Tabla compacta estilo dashboard: Rubro | 2025 | 2026 | Var | Pól. + mini-barra bajo el rubro.
+     El click en la fila abre el desglose por rubro (se mantiene el drill de siempre). */
+  const _cols = '15px 1.25fr 82px 82px 66px 40px';
   const filas = items.map((it, idx)=>{
-    const w25 = Math.round(it.v25/max*100);
     const w26 = Math.round(it.v26/max*100);
     const d = it.v26 - it.v25;
     const dc = d>=0?'var(--pos)':'var(--neg)';
-    return `<div style="border-bottom:1px solid var(--line)">
-      <div onclick="toggleEjecRubroChartRow(${idx},'${it.rubro.replace(/'/g,"\\'")}')" style="display:grid;grid-template-columns:18px 150px 1fr 120px;gap:10px;align-items:center;padding:6px 0;cursor:pointer;transition:background .15s" onmouseover="this.style.background='var(--bg-2)'" onmouseout="this.style.background=''">
-        <span id="ejecRubroChartCar_${idx}" style="font-size:11px;color:var(--accent)">▸</span>
-        <div style="font-size:13.5px;font-weight:800;color:var(--accent-3)">${it.rubro}</div>
-        <div>
-          <div style="display:flex;align-items:center;gap:6px;margin-bottom:3px"><span style="font-size:10.5px;color:var(--ink-3);width:32px;font-weight:700">2025</span><div style="flex:1;height:14px;background:var(--bg-2);border-radius:3px;position:relative"><div style="position:absolute;left:0;top:0;bottom:0;width:${w25}%;background:rgba(94,179,232,.75);border-radius:3px"></div></div><span style="font-family:var(--font-mono);font-size:12px;font-weight:700;width:135px;text-align:right">${FMTc(it.v25)} <span style="color:var(--ink-3);font-weight:600;font-size:10.5px">· ${it.n25} pól.</span></span></div>
-          <div style="display:flex;align-items:center;gap:6px"><span style="font-size:10.5px;color:var(--ink-3);width:32px;font-weight:700">2026</span><div style="flex:1;height:14px;background:var(--bg-2);border-radius:3px;position:relative"><div style="position:absolute;left:0;top:0;bottom:0;width:${w26}%;background:rgba(30,111,217,.9);border-radius:3px"></div></div><span style="font-family:var(--font-mono);font-size:12px;font-weight:800;width:135px;text-align:right">${FMTc(it.v26)} <span style="color:var(--ink-3);font-weight:600;font-size:10.5px">· ${it.n26} pól.</span></span></div>
-        </div>
-        <div style="font-family:var(--font-mono);font-size:14px;font-weight:800;color:${dc};text-align:right">${d>=0?'+':''}${FMTc(d)}</div>
+    const pp = it.v25 ? d/Math.abs(it.v25) : null;
+    return `<div style="border-top:1px solid var(--line)">
+      <div onclick="toggleEjecRubroChartRow(${idx},'${it.rubro.replace(/'/g,"\\'")}')" style="display:grid;grid-template-columns:${_cols};gap:9px;align-items:center;padding:6px 4px;cursor:pointer;font-size:12px" onmouseover="this.style.background='var(--bg-2)'" onmouseout="this.style.background=''">
+        <span id="ejecRubroChartCar_${idx}" style="font-size:10px;color:var(--accent)">▸</span>
+        <div style="min-width:0"><div style="font-weight:700;color:var(--accent-3);font-size:12.5px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${it.rubro}</div><div style="height:5px;border-radius:3px;margin-top:3px;background:${dc};width:${Math.max(4,w26)}%;opacity:.85"></div></div>
+        <span style="font-family:var(--font-mono);text-align:right;color:var(--ink-2)">${FMTc(it.v25)}</span>
+        <span style="font-family:var(--font-mono);text-align:right;font-weight:800;color:var(--accent-3)">${FMTc(it.v26)}</span>
+        <span style="font-family:var(--font-mono);text-align:right;font-weight:800;color:${dc}">${pp!=null?((d>=0?'+':'')+FMT_PCT(pp)):((d>=0?'+':'')+FMTc(d))}</span>
+        <span style="font-family:var(--font-mono);text-align:right;color:var(--ink-3)">${it.n26}</span>
       </div>
       <div id="ejecRubroChartDet_${idx}" style="display:none;padding:8px 4px 14px"></div>
     </div>`;
   }).join('');
-  wrap.innerHTML = `<div style="font-size:18px;color:#fff;background:linear-gradient(90deg,#1e6fd9,#0a3d7a);padding:10px 16px;border-radius:9px;letter-spacing:.02em;font-weight:800;margin-bottom:14px;box-shadow:0 2px 6px rgba(10,31,58,.18)">Emisión por rubro · 2025 vs 2026 · ${mLbl}</div>
+  wrap.innerHTML = `
+    <div style="display:flex;align-items:center;justify-content:space-between;gap:10px;margin-bottom:8px">
+      <span style="font-size:12px;text-transform:uppercase;letter-spacing:.04em;font-weight:800;color:var(--accent-3)">Detalle por rubro · 2025 vs 2026 · ${mLbl}</span>
+      <span style="font-size:10px;font-weight:800;color:var(--accent);background:var(--accent-soft);border-radius:20px;padding:2px 9px">▸ por rubro</span>
+    </div>
+    <div style="display:grid;grid-template-columns:${_cols};gap:9px;padding:0 4px 5px;font-size:9px;text-transform:uppercase;letter-spacing:.04em;font-weight:800;color:var(--ink-3)">
+      <span></span><span>Rubro</span><span style="text-align:right">2025</span><span style="text-align:right">2026</span><span style="text-align:right">Var.</span><span style="text-align:right">Pól.</span>
+    </div>
     ${filas || '<div style="font-size:12px;color:var(--ink-3);font-style:italic">— sin datos —</div>'}`;
 }
 
