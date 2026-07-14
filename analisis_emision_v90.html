@@ -3711,6 +3711,8 @@ window.closeEjecDrawer=function(){
   const p=document.getElementById('ejecCausaDetalle');
   if(dr) dr.classList.remove('on'); if(bk) bk.classList.remove('on');
   if(p){ p.style.display='none'; p.dataset.open=''; }
+  /* Resetear los caret de los desgloses laterales (emisión por tipo / rubro). */
+  document.querySelectorAll('[id^="ejecEmi_"][id$="_car"], [id^="ejecRubroChartCar_"]').forEach(c=>{ c.textContent='▸'; });
 };
 /* KPI "Desvío": lleva a la sección Desvío y resalta brevemente. */
 window._scrollToDesvio=function(){
@@ -5091,29 +5093,21 @@ window._reopenEjecEmiDrills = function(){
   });
 };
 window.toggleEjecEmiArea = function(itemId, drillAreaId){
-  const area = document.getElementById(drillAreaId);
-  if(!area) return;
-  const wasOpen = area.dataset.open === itemId;
-  state._ejecEmiOpen = state._ejecEmiOpen || {};
-  /* Cerrar todos los caret del set */
+  /* Desglose LATERAL (pedido del usuario): el detalle por tipo se abre en el panel deslizante. */
+  _ensureEjecDrawer();
+  const host = document.getElementById('ejecCausaDetalle');
+  if(!host) return;
   const sufijo = drillAreaId.replace('ejecEmiDrillArea_','');
-  document.querySelectorAll(`[id$="_car"]`).forEach(c=>{
-    if(c.id.startsWith('ejecEmi_') && c.id.endsWith('_'+sufijo+'_car')){ c.textContent='▸'; }
-  });
-  if(wasOpen){ area.innerHTML=''; area.dataset.open=''; delete state._ejecEmiOpen[drillAreaId]; return; }
-  /* Marcar el actual y renderizar */
+  document.querySelectorAll(`[id$="_car"]`).forEach(c=>{ if(c.id.startsWith('ejecEmi_') && c.id.endsWith('_'+sufijo+'_car')){ c.textContent='▸'; } });
+  if(host.dataset.open === 'emi:'+itemId){ closeEjecDrawer(); return; }
   const car = document.getElementById(itemId+'_car');
   if(car) car.textContent='▾';
-  area.dataset.open = itemId;
-  state._ejecEmiOpen[drillAreaId] = itemId; /* recordar para reabrir tras re-render */
-  /* Reutilizamos la lógica de toggleEjecEmi pero pasando un div objetivo. */
-  const tmp = document.createElement('div');
-  tmp.id = itemId;
-  tmp.style.display = 'none';
-  area.innerHTML = '';
-  area.appendChild(tmp);
+  /* toggleEjecEmi renderiza dentro del div con id=itemId; lo creamos dentro del drawer. */
+  const tmp = document.createElement('div'); tmp.id = itemId; tmp.style.display = 'none';
+  host.innerHTML = ''; host.appendChild(tmp);
   if(typeof toggleEjecEmi === 'function') toggleEjecEmi(itemId);
-  /* toggleEjecEmi pondrá display:block en tmp; nada más que hacer. */
+  host.style.display = 'block'; host.dataset.open = 'emi:'+itemId;
+  _openEjecDrawer();
 };
 
 window.toggleEjecEmi = function(id){
@@ -5441,13 +5435,6 @@ window.toggleEjecEmi = function(id){
         <span style="font-size:10.5px;color:var(--ink-3)">${_nTot} pól. · ${useUSD?'USD':'ARS$'}</span>
       </div>
       <div style="font-family:var(--font-mono);font-size:11px;color:var(--ink-3);margin-top:3px">Por moneda: $ ${_proyOne(monARS)} · US ${_proyOne(monUSD)}</div>
-      <div style="border-top:1px solid var(--line);margin:10px 0 9px"></div>
-      <div style="font-size:10px;color:var(--accent-3);text-transform:uppercase;letter-spacing:.05em;font-weight:800;margin-bottom:7px">Variables · en general</div>
-      <div style="display:flex;gap:8px;flex-wrap:wrap">
-        ${_chip('Proyección', `$ ${_proyOne(proyARS)} · US ${_proyOne(proyUSD)}`, '#1e6fd9')}
-        ${_chip('Tasa prom.', `$ ${_tasaOne(tasaARS)} · US ${_tasaOne(tasaUSD)}`, '#8b5cf6')}
-        ${_chip('Siniestr.', `UV ${_sinOne(sinUVGen)} · H ${_sinOne(sinHGen)}`, '#e89b1e')}
-      </div>
       <div style="border-top:1px solid var(--line);margin:10px 0 8px"></div>
       <div style="display:flex;gap:8px;align-items:baseline;flex-wrap:wrap">
         <span style="font-size:9.5px;color:var(--ink-3);text-transform:uppercase;letter-spacing:.04em;font-weight:800">Rubros (${rubArr.length}) <span style="font-weight:600">'25→'26</span></span>
@@ -6772,20 +6759,22 @@ window.toggleEjecCausa = function(id){
     const _imp = _impByConcept();
     const _tot = _imp.reduce((a,v)=>a+v.val,0) || 1;
     /* Gráfico compacto: una sola barra segmentada (cada concepto = un tramo) + leyenda inline. */
-    const _segs = _imp.filter(v=>v.val>0.5).map(v=>`<div title="${v.lbl}: −${_FMc(v.val)}" style="width:${v.val/_tot*100}%;background:${v.col};height:100%"></div>`).join('');
+    const _segs = _imp.filter(v=>v.val>0.5).map(v=>{ const pw=v.val/_tot*100;
+        const lbl = pw>=11 ? `<span style="color:#fff;font-family:var(--font-mono);font-weight:800;font-size:12.5px;text-shadow:0 1px 1px rgba(0,0,0,.25);white-space:nowrap">−${_FMc(v.val)}</span>` : '';
+        return `<div title="${v.lbl}: −${_FMc(v.val)}" style="width:${pw}%;background:${v.col};height:100%;display:flex;align-items:center;justify-content:center;overflow:hidden">${lbl}</div>`; }).join('');
     const _impLabels = _imp.map(v=>`<span style="white-space:nowrap">
-        <span style="display:inline-block;width:9px;height:9px;border-radius:2px;background:${v.val>0.5?v.col:'var(--line-2)'};vertical-align:middle;margin-right:4px"></span>
-        <span style="color:var(--ink-2);font-weight:700;font-size:11px">${v.lbl}</span>
-        <span style="font-family:var(--font-mono);font-weight:800;font-size:11px;color:${v.val>0.5?v.col:'var(--ink-3)'}">${v.val>0.5?'−':''}${_FMc(v.val)}</span>
-        <span style="color:var(--ink-3);font-size:9.5px">· ${v.n} pól</span>
-      </span>`).join('<span style="color:var(--line-2);margin:0 5px">·</span>');
+        <span style="display:inline-block;width:10px;height:10px;border-radius:2px;background:${v.val>0.5?v.col:'var(--line-2)'};vertical-align:middle;margin-right:5px"></span>
+        <span style="color:var(--ink-2);font-weight:700;font-size:12.5px">${v.lbl}</span>
+        <span style="font-family:var(--font-mono);font-weight:800;font-size:13px;color:${v.val>0.5?v.col:'var(--ink-3)'}">${v.val>0.5?'−':''}${_FMc(v.val)}</span>
+        <span style="color:var(--ink-3);font-size:10.5px">· ${v.n} pól</span>
+      </span>`).join('<span style="color:var(--line-2);margin:0 7px">·</span>');
     return _box(`
-      <div style="display:flex;justify-content:space-between;align-items:baseline;margin-bottom:6px">
+      <div style="display:flex;justify-content:space-between;align-items:baseline;margin-bottom:7px">
         <span style="font-size:10px;color:var(--accent-3);text-transform:uppercase;letter-spacing:.05em;font-weight:800">Impacto por concepto</span>
         <span style="font-size:9px;color:var(--ink-3);font-weight:700">${_u?'USD':'ARS$'}</span>
       </div>
-      <div style="display:flex;height:15px;border-radius:5px;overflow:hidden;background:rgba(0,0,0,.05);margin-bottom:7px">${_segs}</div>
-      <div style="display:flex;flex-wrap:wrap;gap:4px 0;align-items:baseline">${_impLabels}</div>
+      <div style="display:flex;height:26px;border-radius:6px;overflow:hidden;background:rgba(0,0,0,.05);margin-bottom:8px">${_segs}</div>
+      <div style="display:flex;flex-wrap:wrap;gap:5px 0;align-items:baseline">${_impLabels}</div>
       ${_divi}
       ${_rubBlock}`);
   })();
@@ -6876,7 +6865,7 @@ window.toggleEjecCausa = function(id){
       : `${colAbm(false,sub)}${colAbm(true,sub)}`;
     emisionesUI = ()=>`
       <div style="display:flex;gap:8px;margin-bottom:14px;flex-wrap:wrap" id="ejecMenorSubsel">${mBtn('prima','Prima mínima',true)}${mBtn('ajuste','Ajuste',false)}${mBtn('bono','Bono',false)}${mBtn('malus','Malus',false)}</div>
-      <div id="ejecMenorBody" style="display:grid;grid-template-columns:1fr 1fr;gap:16px">${emisCols('prima')}</div>`;
+      <div id="ejecMenorBody" style="display:grid;grid-template-columns:1fr;gap:16px">${emisCols('prima')}</div>`;
     /* Resumen (formato foto 4, SIN gráficos) de una variable por moneda original. */
     varResumen = (sub)=>{
       const arrA = polFiltradas.filter(p=>p.moneda==='$'), arrU = polFiltradas.filter(p=>p.moneda==='US');
@@ -6905,7 +6894,7 @@ window.toggleEjecCausa = function(id){
     varBody = (sub)=>{
       if(sub==='sin') return colSinUI();
       /* Resumen foto 4 (sin gráfico) + detalle por póliza. */
-      return varResumen(sub) + `<div id="ejecPrimaCols" style="display:grid;grid-template-columns:1fr 1fr;gap:16px">${colPrima(false,sub)}${colPrima(true,sub)}</div>`;
+      return varResumen(sub) + `<div id="ejecPrimaCols" style="display:grid;grid-template-columns:1fr;gap:16px">${colPrima(false,sub)}${colPrima(true,sub)}</div>`;
     };
     variablesUI = ()=>`
       <div style="display:flex;gap:8px;margin-bottom:14px;flex-wrap:wrap" id="ejecVarSubsel">${vBtn('proy','Proyección de ventas',true)}${vBtn('tasa','Tasa',false)}${vBtn('sin','Siniestralidad',false)}</div>
@@ -6915,7 +6904,7 @@ window.toggleEjecCausa = function(id){
     contenido = `
       <div id="ejecMenorTopBody">${emisionesUI()}</div>`;
   } else if(id==='prima'){
-    contenido = `<div id="ejecMenorBody" style="display:grid;grid-template-columns:1fr 1fr;gap:16px">${colPrima(false,'prima')}${colPrima(true,'prima')}</div>`;
+    contenido = `<div id="ejecMenorBody" style="display:grid;grid-template-columns:1fr;gap:16px">${colPrima(false,'prima')}${colPrima(true,'prima')}</div>`;
   } else if(id==='abm'){
     contenido = `
       <div style="display:flex;gap:8px;margin-bottom:12px" id="ejecAbmSubsel">
@@ -6923,7 +6912,7 @@ window.toggleEjecCausa = function(id){
         <button class="ejec-abmbtn" data-sub="bono" onclick="setEjecAbmSub('bono')" style="padding:6px 14px;font-size:11.5px;font-weight:700;border-radius:5px;border:1px solid var(--line-2);background:var(--bg-2);color:var(--ink-2);cursor:pointer">Bono</button>
         <button class="ejec-abmbtn" data-sub="malus" onclick="setEjecAbmSub('malus')" style="padding:6px 14px;font-size:11.5px;font-weight:700;border-radius:5px;border:1px solid var(--line-2);background:var(--bg-2);color:var(--ink-2);cursor:pointer">Malus</button>
       </div>
-      <div id="ejecAbmCols" style="display:grid;grid-template-columns:1fr 1fr;gap:16px">${colAbm(false,'ajuste')}${colAbm(true,'ajuste')}</div>`;
+      <div id="ejecAbmCols" style="display:grid;grid-template-columns:1fr;gap:16px">${colAbm(false,'ajuste')}${colAbm(true,'ajuste')}</div>`;
   } else if(id==='sinjust'){
     contenido = `<div style="display:grid;grid-template-columns:1fr 1fr;gap:16px">${colNoCrecen(false)}${colNoCrecen(true)}</div>`;
   } else if(id==='pend_presup'){
@@ -7840,24 +7829,23 @@ function drawEjecRubroTabla(polArr, f, useUSD){
    foto 1). Recibe el índice del rubro en `items` del CHART y el nombre
    para buscar el match en state._ejecRubroItems (que tiene otro orden). */
 window.toggleEjecRubroChartRow = function(idx, rubroName){
-  const detEl = document.getElementById('ejecRubroChartDet_'+idx);
+  /* Desglose LATERAL: el detalle por rubro se abre en el panel deslizante. */
+  _ensureEjecDrawer();
+  const host = document.getElementById('ejecCausaDetalle');
+  if(!host) return;
   const car = document.getElementById('ejecRubroChartCar_'+idx);
-  if(!detEl) return;
-  if(detEl.dataset.open==='1'){
-    detEl.style.display='none'; detEl.dataset.open=''; if(car) car.textContent='▸';
-    return;
-  }
+  document.querySelectorAll('[id^="ejecRubroChartCar_"]').forEach(c=>{ c.textContent='▸'; });
+  if(host.dataset.open==='rubro:'+idx){ closeEjecDrawer(); return; }
   const items = state._ejecRubroItems || [];
   const useUSD = state._ejecRubroUseUSD;
   const mesCorte = state._ejecRubroMesCorte || 0;
-  /* Buscar el item por nombre — el orden del chart no coincide con el de
-     la tabla (chart por emisión 2026 desc; tabla por |delta| desc). */
   const realIdx = items.findIndex(it=>it.rubro===rubroName);
-  if(realIdx<0){ detEl.innerHTML = '<div style="font-size:12px;color:var(--ink-3);font-style:italic">— sin detalle disponible —</div>'; }
-  else {
-    detEl.innerHTML = renderRubroCard(items[realIdx], realIdx, useUSD, mesCorte);
-  }
-  detEl.style.display='block'; detEl.dataset.open='1'; if(car) car.textContent='▾';
+  host.innerHTML = (realIdx<0)
+    ? '<div style="font-size:12px;color:var(--ink-3);font-style:italic">— sin detalle disponible —</div>'
+    : renderRubroCard(items[realIdx], realIdx, useUSD, mesCorte);
+  host.style.display='block'; host.dataset.open='rubro:'+idx;
+  if(car) car.textContent='▾';
+  _openEjecDrawer();
 };
 
 /* Tarjeta por rubro: header (nombre + n pól. + variación de emisión) + conclusión
