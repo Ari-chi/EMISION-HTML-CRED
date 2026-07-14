@@ -3993,8 +3993,9 @@ function contarPolizasCausa(id, polFiltradas, mesCorte){
         mARS=(dARS!=null)?dARS:-(bajaA>0?bajaA:0);
         mUSD=(dUSD!=null)?dUSD:-(bajaU>0?bajaU:0);
       }
-    } else if(id==='ajuste'||id==='bono'||id==='malus'){
-      /* MISMA regla que collect/colAbm: fuente única desvioConceptoABM (signo del Excel). */
+    } else if((id==='ajuste'||id==='bono'||id==='malus') && !terminada){
+      /* MISMA regla que collect/colAbm: fuente única desvioConceptoABM (signo del Excel).
+         Terminada NO cuenta en Menor Emisión (ya está en "Pólizas que se fueron"). */
       const conceptoMap={ajuste:'Ajuste',bono:'Bono',malus:'Malus'};
       const dv = desvioConceptoABM(p, conceptoMap[id], mesCorte);
       if(dv.entra){
@@ -5989,11 +5990,11 @@ window.toggleEjecCausa = function(id){
             baja: true, mantiene});
         }
       }
-      else if(effId==='ajuste' || effId==='bono' || effId==='malus'){
+      else if((effId==='ajuste' || effId==='bono' || effId==='malus') && !terminada){
         /* Caída/variación de Ajuste/Bono/Malus — FUENTE ÚNICA (desvioConceptoABM):
            aplica toda la regla del usuario y devuelve el monto CON SIGNO desde la
            columna Desvío del Excel. "No corresponde" = endoso $0 con desvío 2025
-           completo; bono que sube = a favor (+). */
+           completo; bono que sube = a favor (+). Terminada NO cuenta acá (va en perdidas). */
         const k = effId; /* 'ajuste' | 'bono' | 'malus' */
         const conceptoMap = {ajuste:'Ajuste', bono:'Bono', malus:'Malus'};
         const cR = p.conceptos[conceptoMap[k]];
@@ -6738,9 +6739,11 @@ window.toggleEjecCausa = function(id){
     }
     /* MENOR EMISIÓN: impacto por concepto (mismo collect que el detalle) + variables en chips. */
     const _impByConcept = ()=>{
+      /* raw = neto CON SIGNO (mismo collect que el detalle) → la suma de los 4 conceptos
+         coincide EXACTO con la causa "Menor Emisión" del donut. val = magnitud (ancho). */
       const calc=(eff)=>{ let a=0,uu=0; const cl=new Set();
         try{ [...collect(false,eff),...collect(true,eff)].forEach(r=>{a+=(r.montoARS||0);uu+=(r.montoUSD||0);cl.add(r.clave||r.poliza);}); }catch(e){}
-        return {val:Math.abs(_u?uu:a), n:cl.size}; };
+        const raw=(_u?uu:a); return {raw, val:Math.abs(raw), n:cl.size}; };
       return [
         {k:'prima',  lbl:'Prima mín.', col:APP_CONFIG.colores.prima, ...calc('prima')},
         {k:'ajuste', lbl:'Ajuste',     col:APP_CONFIG.colores.abm,   ...calc('ajuste')},
@@ -6750,10 +6753,12 @@ window.toggleEjecCausa = function(id){
     };
     const _imp = _impByConcept();
     const _tot = _imp.reduce((a,v)=>a+v.val,0) || 1;
+    const _impNet = _imp.reduce((a,v)=>a+v.raw,0);   /* neto = suma firmada (coincide con la causa) */
     /* Gráfico compacto: una sola barra segmentada (cada concepto = un tramo) + leyenda inline. */
+    const _sg = (r)=> r<0?'−':(r>0?'+':'');
     const _segs = _imp.filter(v=>v.val>0.5).map(v=>{ const pw=v.val/_tot*100;
-        const lbl = pw>=11 ? `<span style="color:#fff;font-family:var(--font-mono);font-weight:800;font-size:12.5px;text-shadow:0 1px 1px rgba(0,0,0,.25);white-space:nowrap">−${_FMc(v.val)}</span>` : '';
-        return `<div title="${v.lbl}: −${_FMc(v.val)}" style="width:${pw}%;background:${v.col};height:100%;display:flex;align-items:center;justify-content:center;overflow:hidden">${lbl}</div>`; }).join('');
+        const lbl = pw>=11 ? `<span style="color:#fff;font-family:var(--font-mono);font-weight:800;font-size:12.5px;text-shadow:0 1px 1px rgba(0,0,0,.25);white-space:nowrap">${_sg(v.raw)}${_FMc(v.val)}</span>` : '';
+        return `<div title="${v.lbl}: ${_sg(v.raw)}${_FMc(v.val)}" style="width:${pw}%;background:${v.col};height:100%;display:flex;align-items:center;justify-content:center;overflow:hidden">${lbl}</div>`; }).join('');
     /* Leyenda: solo el nombre del concepto (los valores quedan sobre la barra). */
     const _impLabels = _imp.map(v=>`<span style="white-space:nowrap">
         <span style="display:inline-block;width:10px;height:10px;border-radius:2px;background:${v.val>0.5?v.col:'var(--line-2)'};vertical-align:middle;margin-right:5px"></span>
@@ -6761,7 +6766,7 @@ window.toggleEjecCausa = function(id){
       </span>`).join('<span style="color:var(--line-2);margin:0 9px">·</span>');
     return _box(`
       <div style="display:flex;justify-content:space-between;align-items:baseline;margin-bottom:7px">
-        <span style="font-size:10px;color:var(--accent-3);text-transform:uppercase;letter-spacing:.05em;font-weight:800">Impacto por concepto</span>
+        <span style="font-size:10px;color:var(--accent-3);text-transform:uppercase;letter-spacing:.05em;font-weight:800">Impacto por concepto <span style="color:var(--ink-3);font-weight:600">· total ${_sg(_impNet)}${_FMc(Math.abs(_impNet))}</span></span>
         <span style="font-size:9px;color:var(--ink-3);font-weight:700">${_u?'USD':'ARS$'}</span>
       </div>
       <div style="display:flex;height:26px;border-radius:6px;overflow:hidden;background:rgba(0,0,0,.05);margin-bottom:8px">${_segs}</div>
