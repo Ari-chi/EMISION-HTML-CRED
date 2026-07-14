@@ -3813,30 +3813,28 @@ function ejecComparacion(S, useUSD, dual){
     const dd = v26 - v25; const pp = v25 ? dd/Math.abs(v25) : null;
     return {c, dd, pp};
   });
-  return `<div style="margin-top:${dual?14:8}px">
-    ${dual?`<div style="font-size:11px;color:var(--ink-3);text-transform:uppercase;letter-spacing:.05em;font-weight:700;margin-bottom:8px">${mLbl}</div>`:''}
+  return `<div style="margin-top:${dual?10:4}px">
+    ${dual?`<div style="font-size:11px;color:var(--ink-3);text-transform:uppercase;letter-spacing:.05em;font-weight:700;margin-bottom:6px">${mLbl}</div>`:''}
     <div class="grid-2">
       <div>
-        <div class="card-sub" style="margin-bottom:6px">Emisión total — comparativa</div>
-        <div class="chart-box" style="height:210px"><canvas id="${idT}"></canvas></div>
-        <div style="text-align:center;margin-top:10px">
-          <div style="font-size:13px;color:var(--ink-3);text-transform:uppercase;letter-spacing:.05em;font-weight:700">Desvío</div>
-          <div style="font-family:var(--font-mono);font-size:26px;font-weight:800;color:${cTot};line-height:1.1;margin-top:4px">${dTot>=0?'+':''}${fmtCompact(dTot, useUSD)}</div>
-          <div style="font-size:16px;font-weight:800;color:${cTot};margin-top:2px">${dTotPct!=null?'('+(dTot>=0?'+':'')+FMT_PCT(dTotPct)+')':''}</div>
+        <div class="card-sub" style="margin-bottom:4px;font-size:11px">Emisión total — comparativa</div>
+        <div class="chart-box" style="height:150px"><canvas id="${idT}"></canvas></div>
+        <div style="display:flex;align-items:baseline;justify-content:center;gap:8px;margin-top:6px">
+          <span style="font-size:11px;color:var(--ink-3);text-transform:uppercase;letter-spacing:.05em;font-weight:800">Desvío</span>
+          <span style="font-family:var(--font-mono);font-size:20px;font-weight:800;color:${cTot};line-height:1">${dTot>=0?'+':''}${fmtCompact(dTot, useUSD)}</span>
+          <span style="font-size:13px;font-weight:800;color:${cTot}">${dTotPct!=null?'('+(dTot>=0?'+':'')+FMT_PCT(dTotPct)+')':''}</span>
         </div>
       </div>
       <div>
-        <div class="card-sub" style="margin-bottom:6px">Emisión por concepto</div>
-        <div class="chart-box" style="height:210px"><canvas id="${idC}"></canvas></div>
-        <div style="display:grid;grid-template-columns:repeat(2,1fr);gap:8px;margin-top:10px;font-size:13.5px">
+        <div class="card-sub" style="margin-bottom:4px;font-size:11px">Emisión por concepto</div>
+        <div class="chart-box" style="height:150px"><canvas id="${idC}"></canvas></div>
+        <div style="display:grid;grid-template-columns:repeat(2,1fr);gap:6px;margin-top:6px">
           ${conceptosVar.map(cv=>{
             const cc = cv.dd>=0?'var(--pos)':'var(--neg)';
-            return `<div style="background:var(--bg-2);border-radius:6px;padding:8px 12px;border-left:3px solid ${cc}">
-              <div style="color:var(--accent-3);font-weight:700;font-size:13px">${CONCEPTO_LABEL[cv.c]}</div>
-              <div style="display:flex;align-items:baseline;gap:8px;margin-top:2px">
-                <span style="font-family:var(--font-mono);font-weight:800;color:${cc};font-size:17px">${cv.dd>=0?'+':''}${cv.pp!=null?FMT_PCT(cv.pp):'—'}</span>
-                <span style="font-family:var(--font-mono);font-weight:700;color:var(--ink-2);font-size:13px">${cv.dd>=0?'+':''}${fmtCompact(cv.dd, useUSD)}</span>
-              </div>
+            return `<div style="background:var(--bg-2);border-radius:6px;padding:5px 9px;border-left:3px solid ${cc};display:flex;align-items:baseline;gap:7px">
+              <span style="color:var(--accent-3);font-weight:700;font-size:11.5px">${CONCEPTO_LABEL[cv.c]}</span>
+              <span style="font-family:var(--font-mono);font-weight:800;color:${cc};font-size:13.5px">${cv.dd>=0?'+':''}${cv.pp!=null?FMT_PCT(cv.pp):'—'}</span>
+              <span style="font-family:var(--font-mono);font-weight:700;color:var(--ink-2);font-size:11px;margin-left:auto">${cv.dd>=0?'+':''}${fmtCompact(cv.dd, useUSD)}</span>
             </div>`;
           }).join('')}
         </div>
