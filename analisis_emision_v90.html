@@ -7761,14 +7761,20 @@ function drawEjecRubroChart(polArr, f, useUSD){
      El click en la fila abre el desglose por rubro (se mantiene el drill de siempre). */
   const _cols = '15px 1.25fr 82px 82px 66px 40px';
   const filas = items.map((it, idx)=>{
+    const w25 = Math.round(it.v25/max*100);
     const w26 = Math.round(it.v26/max*100);
     const d = it.v26 - it.v25;
     const dc = d>=0?'var(--pos)':'var(--neg)';
     const pp = it.v25 ? d/Math.abs(it.v25) : null;
+    /* Dos barras por rubro: 2025 (azul) y 2026 (verde si sube / rojo si baja), separadas. */
+    const _bars = `<div style="margin-top:4px;display:flex;flex-direction:column;gap:3px">
+        <div style="display:flex;align-items:center;gap:5px"><span style="font-size:8px;color:var(--ink-3);font-weight:700;width:22px">'25</span><div style="height:6px;border-radius:3px;background:#4a90e2;width:${Math.max(3,w25)}%"></div></div>
+        <div style="display:flex;align-items:center;gap:5px"><span style="font-size:8px;color:var(--ink-3);font-weight:700;width:22px">'26</span><div style="height:6px;border-radius:3px;background:${dc};width:${Math.max(3,w26)}%"></div></div>
+      </div>`;
     return `<div style="border-top:1px solid var(--line)">
-      <div onclick="toggleEjecRubroChartRow(${idx},'${it.rubro.replace(/'/g,"\\'")}')" style="display:grid;grid-template-columns:${_cols};gap:9px;align-items:center;padding:6px 4px;cursor:pointer;font-size:12px" onmouseover="this.style.background='var(--bg-2)'" onmouseout="this.style.background=''">
+      <div onclick="toggleEjecRubroChartRow(${idx},'${it.rubro.replace(/'/g,"\\'")}')" style="display:grid;grid-template-columns:${_cols};gap:9px;align-items:center;padding:7px 4px;cursor:pointer;font-size:12px" onmouseover="this.style.background='var(--bg-2)'" onmouseout="this.style.background=''">
         <span id="ejecRubroChartCar_${idx}" style="font-size:10px;color:var(--accent)">▸</span>
-        <div style="min-width:0"><div style="font-weight:700;color:var(--accent-3);font-size:12.5px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${it.rubro}</div><div style="height:5px;border-radius:3px;margin-top:3px;background:${dc};width:${Math.max(4,w26)}%;opacity:.85"></div></div>
+        <div style="min-width:0"><div style="font-weight:700;color:var(--accent-3);font-size:12.5px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${it.rubro}</div>${_bars}</div>
         <span style="font-family:var(--font-mono);text-align:right;color:var(--ink-2)">${FMTc(it.v25)}</span>
         <span style="font-family:var(--font-mono);text-align:right;font-weight:800;color:var(--accent-3)">${FMTc(it.v26)}</span>
         <span style="font-family:var(--font-mono);text-align:right;font-weight:800;color:${dc}">${pp!=null?((d>=0?'+':'')+FMT_PCT(pp)):((d>=0?'+':'')+FMTc(d))}</span>
@@ -7982,6 +7988,23 @@ function renderRubroCard(it, idx, useUSD, mesCorte, opts){
     ${rC('$',gA.n25,gA.n26)}${cMon(gA.e25,gA.e26,false,'emi')}${cMon(gA.p25,gA.p26,false,'proy')}${cPct(gA.t25,gA.t26,false,FMT_PCT_TASA,'tasa')}${cSin(gA.uv25,gA.uv26,gA.h25,gA.h26)}
     ${rC('US',gU.n25,gU.n26)}${cMon(gU.e25,gU.e26,true,'emi')}${cMon(gU.p25,gU.p26,true,'proy')}${cPct(gU.t25,gU.t26,false,FMT_PCT_TASA,'tasa')}${cSin(gU.uv25,gU.uv26,gU.h25,gU.h26)}
   </div></div>`;
+  /* Reemplazo minimalista del grid (pedido del usuario: "sacale lo de la foto 2"): chips
+     compactos y clickeables por concepto; el detalle por póliza sigue abriéndose (▸). */
+  const _rubChips = _stat ? '' : (()=>{
+    const chip=(lbl,cid,body,accent)=>`<div onclick="toggleEjrConcepto(${idx},'${cid}')" title="Ver pólizas de ${lbl}" style="cursor:pointer;display:inline-flex;flex-direction:column;gap:2px;background:#fff;border:1px solid var(--line-2);border-left:3px solid ${accent};border-radius:7px;padding:6px 11px">
+        <span style="font-size:8.5px;text-transform:uppercase;letter-spacing:.04em;color:var(--ink-3);font-weight:800">${lbl} <span style="color:var(--accent)">▸</span></span>
+        <span style="font-size:11.5px;font-weight:700;font-family:var(--font-mono);white-space:nowrap">${body}</span></div>`;
+    const dMon=(a25,a26,u25,u26)=>{ const da=a26-a25,du=u26-u25; return `<span style="color:${da>=0?'var(--pos)':'var(--neg)'}">$ ${da>=0?'+':''}${fmtCompact(da,false)}</span> · <span style="color:${du>=0?'var(--pos)':'var(--neg)'}">US ${du>=0?'+':''}${fmtCompact(du,true)}</span>`; };
+    const dPct=(a25,a26)=>{ const d=a26-a25; return `<span style="color:${d>=0?'var(--pos)':'var(--neg)'}">${FMT_PCT_TASA(a26)}</span>`; };
+    const dSin=(a25,a26)=>{ const d=a26-a25; return `<span style="color:${d>0?'var(--neg)':(d<0?'var(--pos)':'var(--ink-2)')}">${FMT_PCT_SIN(a25)}→${FMT_PCT_SIN(a26)}</span>`; };
+    return `<div style="display:flex;gap:7px;flex-wrap:wrap;margin-top:12px">
+      ${chip('Emisión','emi', dMon(gA.e25,gA.e26,gU.e25,gU.e26), '#2d9b6a')}
+      ${chip('Proyección','proy', dMon(gA.p25,gA.p26,gU.p25,gU.p26), '#1e6fd9')}
+      ${chip('Tasa','tasa', `$ ${dPct(gA.t25,gA.t26)} · US ${dPct(gU.t25,gU.t26)}`, '#8b5cf6')}
+      ${chip('Sin. UV','uv', `UV ${dSin(gU.uv25,gU.uv26)}`, '#e89b1e')}
+      ${chip('Sin. H','sinh', `H ${dSin(gU.h25,gU.h26)}`, '#e89b1e')}
+    </div>`;
+  })();
   return `<div style="border:1px solid var(--line-2);border-radius:10px;padding:16px 18px;background:var(--panel);box-shadow:0 1px 3px rgba(10,31,58,.04)">
     <!-- Header -->
     <div style="display:flex;justify-content:space-between;align-items:baseline;gap:14px;flex-wrap:wrap;margin-bottom:6px">
@@ -7996,8 +8019,8 @@ function renderRubroCard(it, idx, useUSD, mesCorte, opts){
       </div>
     </div>
     ${conclTxt}
-    <!-- Conceptos: cada uno en su propio cuadrito para diferenciarlos -->
-    ${foto4Grid}
+    <!-- Chips compactos por concepto (reemplazan el grid; el detalle por póliza se abre con ▸) -->
+    ${_rubChips}
     <!-- Drilldown del concepto seleccionado -->
     ${_stat ? '' : `<div id="ejrDrill_${idx}" style="margin-top:14px"></div>`}
   </div>`;
