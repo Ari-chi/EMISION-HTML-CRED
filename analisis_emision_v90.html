@@ -5484,8 +5484,8 @@ window.toggleEjecEmi = function(id){
     return `<div>${cabecera}${bloque(sorted, '', headColor, headBg)}</div>`;
   };
 
-  /* Layout: resumen arriba + dos columnas (moneda original $ izq, US der). */
-  div.innerHTML = `${resumenCard}<div style="display:grid;grid-template-columns:1fr 1fr;gap:16px">${col('$')}${col('US')}</div>`;
+  /* Layout: resumen arriba + columnas APILADas ($ y US), para que se vea todo sin scroll lateral. */
+  div.innerHTML = `${resumenCard}<div style="display:grid;grid-template-columns:1fr;gap:16px">${col('$')}${col('US')}</div>`;
   div.style.display='block';
   if(car)car.textContent='▾';
 };
