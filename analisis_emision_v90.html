@@ -6126,21 +6126,29 @@ window.toggleEjecCausa = function(id){
       else {                  lblC='Prima';  c25=isUS?r.pm25USD:r.pm25ARS; c26=isUS?r.pm26USD:r.pm26ARS; }
       const pv25 = isUS ? (r.proy25USD||0) : (r.proy25ARS||0);
       const pv26 = isUS ? (r.proy26USD||0) : (r.proy26ARS||0);
-      /* Variación del BONO (2025 → 2026) en NEGATIVO (mismo formato que las otras filas),
-         para ver de dónde sale el desvío de bono. Se calcula con cuotas pareadas. */
+      /* Póliza completa: para agregar Ajuste, Bono y Malus (moneda original) al cuadrito. */
+      const _pF = state.polizas.find(pp=>pp.clave===r.clave || pp.poliza===r.poliza);
+      let _aj25=0,_aj26=0,_ma25=0,_ma26=0;
+      if(_pF){
+        const _f25=calcEmisionFiltrada(_pF,2025,mesCorte), _f26=calcEmisionFiltrada(_pF,2026,mesCorte);
+        const _b25=isUS?_f25.breakdownUSD:_f25.breakdownARS, _b26=isUS?_f26.breakdownUSD:_f26.breakdownARS;
+        _aj25=_b25.ajuste; _aj26=_b26.ajuste; _ma25=_b25.malus; _ma26=_b26.malus;
+      }
+      const ajLine = (lblC!=='Ajuste') ? varLine('Ajuste', _aj25, _aj26, fmtMon, false, true) : '';
+      const maLine = (lblC!=='Malus') ? varLine('Malus', _ma25, _ma26, fmtMon, false, true) : '';
+      /* Variación del BONO (2025 → 2026) en NEGATIVO (nota de crédito), con cuotas pareadas. */
       let bonoLine = '';
-      if(lblC!=='Bono'){
-        const _pF = state.polizas.find(pp=>pp.clave===r.clave || pp.poliza===r.poliza);
-        if(_pF){
-          const pb = conceptoBajaPareada(_pF, 'Bono', isUS, mesCorte, true);
-          if((pb.pm25||0)>0.5 || (pb.pm26||0)>0.5){
-            bonoLine = varLine('Bono', -(pb.pm25||0), -(pb.pm26||0), fmtMon, false);
-          }
+      if(lblC!=='Bono' && _pF){
+        const pb = conceptoBajaPareada(_pF, 'Bono', isUS, mesCorte, true);
+        if((pb.pm25||0)>0.5 || (pb.pm26||0)>0.5){
+          bonoLine = varLine('Bono', -(pb.pm25||0), -(pb.pm26||0), fmtMon, false);
         }
       }
       varBox = `<div style="background:rgba(0,0,0,.03);border:1px solid var(--line);border-radius:6px;padding:4px 12px;margin-top:6px;width:100%">
         ${varLine(lblC, c25, c26, fmtMon, false, true)}
+        ${ajLine}
         ${bonoLine}
+        ${maLine}
         ${varLine('Proy. ventas', pv25, pv26, fmtMon, false, true)}
         ${varLine('Tasa',  r.tasa25, r.tasa26, fmtTasa, false, true)}
         ${varLine('Sin. UV',r.sinUV25, r.sinUV26, fmtSin, true, true)}
