@@ -3064,7 +3064,6 @@ function totalesGlobales(mesCorte, polizasArr){
 function renderEjecutivo(){
   const sec = document.getElementById('sec-ejecutivo');
   sec.innerHTML = `
-    <div class="section-head"><h2>Resumen <em>ejecutivo</em></h2></div>
     ${sectionFiltersBarHTML('ejecutivo')}
     <div id="ejecutivo-nlabel"></div>
     <div id="ejecutivo-body"></div>`;
@@ -3559,9 +3558,6 @@ function drawEjecutivo(){
 
   body.innerHTML = `
     ${sinPresup?`<div style="background:rgba(232,155,30,.10);border-left:3px solid var(--warn);padding:10px 14px;border-radius:4px;margin-bottom:12px;font-size:12px;color:var(--accent-3)">⚠ No se detectó presupuesto 2026 cargado. Los bloques de presupuesto mostrarán 0; el resto funciona igual.</div>`:''}
-
-    <!-- KPIs (dashboard) -->
-    ${ejecKpiRow(primary)}
 
     <!-- BLOQUE 1 -->
     <div class="card">
