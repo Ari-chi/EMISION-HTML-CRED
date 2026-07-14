@@ -4112,7 +4112,7 @@ function ejecJustificacion(S, useUSD, dual, useUSDprimary){
     state._ejecNet = state._ejecNet || {};
     state._ejecNet[_sufp] = {dic:_netDic, may:_netMay};
     causas = [
-      mk('pend_conf','Pendiente - Emisión Confirmada', _confV, _conf.n, '#cbd5e6','pendiente'),
+      mk('pend_conf','Pendiente - Emisión Confirmada', _confV, _conf.n, '#ffd54a','pendiente'),
       mk('pend_presup','Presupuesto (En Desarrollo)', _presV, _presMeses, '#cbd5e6','pendiente'),
       mk('pend_2025','Emisión Pendiente (En Desarrollo)', _p25V, _p25.n, '#cbd5e6','pendiente'),
       mk('perdidas',APP_CONFIG.textos.perdidas, mkVal(cnt.perdidas), cnt.perdidas.n, APP_CONFIG.colores.perdidas),
@@ -4311,9 +4311,9 @@ function ejecJustificacion(S, useUSD, dual, useUSDprimary){
     const esPendConcepto = !!(causa && causa.grupo==='pendiente');
     /* "En Desarrollo": Presupuesto y Emisión Confirmada van en GRIS CLARO y suman 0 por defecto
        (el usuario puede activarlos desde el desglose). */
-    /* Proyecciones/pendientes en gris claro (de-enfatizadas): Confirmada (cuenta), Presupuesto y
-       Emisión Pendiente (En Desarrollo, suman 0). */
-    const enDes = clickable && (id==='pend_conf' || id==='pend_presup' || id==='pend_2025');
+    /* En gris claro solo lo "En Desarrollo" (suman 0): Presupuesto y Emisión Pendiente.
+       La Emisión Confirmada contabiliza y va normal (amarillo + valor verde). */
+    const enDes = clickable && (id==='pend_presup' || id==='pend_2025');
     const isClk = clickable;
     const click = clickable ? `onclick="toggleEjecCausa('${id}')"` : '';
     const carId = clickable ? `id="ejecCausaCar_${id}"` : '';
@@ -4458,11 +4458,11 @@ function ejecJustificacion(S, useUSD, dual, useUSDprimary){
   const _MFULLd={Ene:'enero',Feb:'febrero',Mar:'marzo',Abr:'abril',May:'mayo',Jun:'junio',Jul:'julio',Ago:'agosto',Sep:'septiembre',Oct:'octubre',Nov:'noviembre',Dic:'diciembre'};
   const _mCorteFull = _MFULLd[_mCorteD] || _mCorteD;
   /* Dos tarjetas de desvío del MISMO tamaño (compactas pero con la cifra grande), mes completo resaltado. */
-  const _dvCardBig = (titulo, dv, pct)=>`<div style="flex:1;min-width:270px;background:rgba(217,71,71,.10);border:2px solid var(--neg);border-radius:10px;padding:8px 15px">
+  const _dvCardBig = (titulo, dv, pct)=>`<div style="flex:1;min-width:260px;background:rgba(217,71,71,.10);border:1.5px solid var(--neg);border-radius:10px;padding:10px 14px">
       <div style="font-size:10.5px;color:var(--neg);text-transform:uppercase;letter-spacing:.03em;font-weight:800">${titulo} · <span style="background:var(--neg);color:#fff;padding:1px 8px;border-radius:5px;letter-spacing:.02em">${_mCorteFull}</span></div>
-      <div style="display:flex;align-items:baseline;gap:9px;margin-top:2px">
-        <span style="font-size:28px;font-weight:900;color:var(--neg);font-family:var(--font-mono);letter-spacing:-.01em">${dv>0?'−':'+'}${FMTc(Math.abs(dv))}</span>
-        <span style="font-size:14px;font-weight:800;color:var(--neg);font-family:var(--font-mono)">${pct!=null?'('+(pct>0?'−':'+')+Math.abs(Math.round(pct))+'%)':''}</span>
+      <div style="display:flex;align-items:baseline;gap:8px;margin-top:3px">
+        <span style="font-size:22px;font-weight:900;color:var(--neg);font-family:var(--font-mono);letter-spacing:-.01em">${dv>0?'−':'+'}${FMTc(Math.abs(dv))}</span>
+        <span style="font-size:13px;font-weight:800;color:var(--neg);font-family:var(--font-mono)">${pct!=null?'('+(pct>0?'−':'+')+Math.abs(Math.round(pct))+'%)':''}</span>
       </div>
     </div>`;
   const _selectorCards = `<div style="display:flex;gap:12px;margin-bottom:12px;align-items:stretch;flex-wrap:wrap">
@@ -4493,10 +4493,10 @@ function ejecJustificacion(S, useUSD, dual, useUSDprimary){
       const _mLast  = (S.lastEmis26>0) ? MESES[S.lastEmis26-1] : '—';
       const _mCorte = (S.mesCorteSet>0) ? MESES[S.mesCorteSet-1] : 'Dic';
       const fv = (v)=>FMTc(Math.abs(v));
-      const card = (bg,fg,lbl,sub,inner)=>`<div style="flex:1;background:${bg};border-radius:9px;padding:6px 11px;display:flex;flex-direction:column;justify-content:center">
-        <div style="font-size:10px;color:${fg};text-transform:uppercase;letter-spacing:.03em;font-weight:800">${lbl}${sub?' · '+sub:''}</div>
+      const card = (bg,fg,lbl,sub,inner)=>`<div style="flex:1;background:${bg};border-radius:9px;padding:10px 14px;display:flex;flex-direction:column;justify-content:center">
+        <div style="font-size:10.5px;color:${fg};text-transform:uppercase;letter-spacing:.03em;font-weight:800">${lbl}${sub?' · '+sub:''}</div>
         ${inner}</div>`;
-      const valDiv = (color,txt)=>`<div style="font-size:16px;font-weight:800;color:${color};line-height:1;font-family:var(--font-mono);margin-top:2px">${txt}</div>`;
+      const valDiv = (color,txt)=>`<div style="font-size:22px;font-weight:800;color:${color};line-height:1.05;font-family:var(--font-mono);margin-top:3px">${txt}</div>`;
       const cardBlue  = (lbl,sub,val)=> card('rgba(30,111,217,.10)','var(--accent)',lbl,sub, valDiv('var(--accent-3)',FMTc(val)));
       const cardEmis  = (lbl,sub,val)=> card('rgba(45,155,106,.12)','var(--pos)',lbl,sub, valDiv('var(--pos)',FMTc(val)));
       const cardYellow= (lbl,sub,val)=> card('rgba(255,193,7,.16)','#b8860b',lbl,sub, valDiv('#b8860b','+'+fv(val)));
@@ -4514,7 +4514,6 @@ function ejecJustificacion(S, useUSD, dual, useUSDprimary){
       return `<div style="margin-top:4px;border-top:1px solid var(--line);padding-top:6px">
         <div style="display:flex;align-items:baseline;gap:9px;margin-bottom:7px;flex-wrap:wrap">
           <span style="font-size:11.5px;font-weight:800;color:var(--accent-3);text-transform:uppercase;letter-spacing:.04em">Comparación de desvíos</span>
-          <span style="font-size:10.5px;color:var(--ink-3);font-weight:700">· con proyecciones · acumulado 2026 hasta <strong style="color:var(--accent)">${_mesFull}</strong></span>
         </div>
         <div style="display:flex;align-items:stretch;gap:8px">
           <div style="flex:1.05;display:flex;flex-direction:column;gap:6px;justify-content:center">
@@ -4528,7 +4527,6 @@ function ejecJustificacion(S, useUSD, dual, useUSDprimary){
           ${flecha('=')}
           <div style="flex:1.05;display:flex;flex-direction:column;gap:6px;justify-content:center">
             ${card('rgba(30,111,217,.10)','var(--accent)','Emisión estimada', _mesSel, valDiv('var(--accent-3)', FMTc(emisEst)))}
-            <div style="font-size:9.5px;color:var(--ink-3);font-style:italic;line-height:1.3;margin-top:1px">Desvío resultante arriba: <strong>Desvío Acumulado CON PROYECCIONES</strong></div>
           </div>
         </div>
       </div>`;
@@ -7283,7 +7281,7 @@ function drawEjecChartMensual(canvasId, polArr, presArr, mesCorte, useUSD){
   const _allVals = [...presup, ..._stackTot].filter(v=>v!=null && isFinite(v));
   const _dataMax = _allVals.length ? Math.max(..._allVals.map(Math.abs)) : 0;
   if(_dataMax>0){ opts.scales.y = opts.scales.y || {}; opts.scales.y.suggestedMax = _dataMax*1.3; }
-  opts.layout = {padding:{top:24, bottom:50, left:10}};
+  opts.layout = {padding:{top:24, bottom:66, left:10}};
   /* Filas de valores DEBAJO del gráfico, con título a la izquierda y bien separadas:
        · Emisión Real (celeste) — en el hueco, ARRIBA de los nombres de mes.
        · Proy. Actualizada (ámbar) y Estim. Inicial (gris) — debajo de los nombres de mes. */
@@ -7291,7 +7289,7 @@ function drawEjecChartMensual(canvasId, polArr, presArr, mesCorte, useUSD){
     id:'projTotals',
     afterDraw(chart){
       const xs=chart.scales.x, ctx=chart.ctx, ca=chart.chartArea, yBase=ca.bottom;
-      const yEmis=yBase+12, yConf=yBase+52, yPres=yBase+80;   /* bien separadas */
+      const yEmis=yBase+12, yConf=yBase+66, yPres=yBase+92;   /* Proy. Actualizada más abajo, separada de los meses */
       ctx.save();
       ctx.strokeStyle='rgba(120,135,160,0.22)'; ctx.lineWidth=1;
       const _sepYs = [yBase+36, yConf+13]; if(hayGris) _sepYs.push(yPres+13);
