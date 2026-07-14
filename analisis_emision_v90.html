@@ -7982,20 +7982,60 @@ function renderRubroCard(it, idx, useUSD, mesCorte, opts){
   </div></div>`;
   /* Reemplazo minimalista del grid (pedido del usuario: "sacale lo de la foto 2"): chips
      compactos y clickeables por concepto; el detalle por póliza sigue abriéndose (▸). */
+  /* Desglose por póliza (mismo formato que "Emisión por tipo", pedido del usuario): columnas
+     $ / US apiladas, cada póliza con su emisión + equivalente en la otra moneda + variaciones. */
   const _rubChips = _stat ? '' : (()=>{
-    const chip=(lbl,cid,body,accent)=>`<div onclick="toggleEjrConcepto(${idx},'${cid}')" title="Ver pólizas de ${lbl}" style="cursor:pointer;display:inline-flex;flex-direction:column;gap:2px;background:#fff;border:1px solid var(--line-2);border-left:3px solid ${accent};border-radius:7px;padding:6px 11px">
-        <span style="font-size:8.5px;text-transform:uppercase;letter-spacing:.04em;color:var(--ink-3);font-weight:800">${lbl} <span style="color:var(--accent)">▸</span></span>
-        <span style="font-size:11.5px;font-weight:700;font-family:var(--font-mono);white-space:nowrap">${body}</span></div>`;
-    const dMon=(a25,a26,u25,u26)=>{ const da=a26-a25,du=u26-u25; return `<span style="color:${da>=0?'var(--pos)':'var(--neg)'}">$ ${da>=0?'+':''}${fmtCompact(da,false)}</span> · <span style="color:${du>=0?'var(--pos)':'var(--neg)'}">US ${du>=0?'+':''}${fmtCompact(du,true)}</span>`; };
-    const dPct=(a25,a26)=>{ const d=a26-a25; return `<span style="color:${d>=0?'var(--pos)':'var(--neg)'}">${FMT_PCT_TASA(a26)}</span>`; };
-    const dSin=(a25,a26)=>{ const d=a26-a25; return `<span style="color:${d>0?'var(--neg)':(d<0?'var(--pos)':'var(--ink-2)')}">${FMT_PCT_SIN(a25)}→${FMT_PCT_SIN(a26)}</span>`; };
-    return `<div style="display:flex;gap:7px;flex-wrap:wrap;margin-top:12px">
-      ${chip('Emisión','emi', dMon(gA.e25,gA.e26,gU.e25,gU.e26), '#2d9b6a')}
-      ${chip('Proyección','proy', dMon(gA.p25,gA.p26,gU.p25,gU.p26), '#1e6fd9')}
-      ${chip('Tasa','tasa', `$ ${dPct(gA.t25,gA.t26)} · US ${dPct(gU.t25,gU.t26)}`, '#8b5cf6')}
-      ${chip('Sin. UV','uv', `UV ${dSin(gU.uv25,gU.uv26)}`, '#e89b1e')}
-      ${chip('Sin. H','sinh', `H ${dSin(gU.h25,gU.h26)}`, '#e89b1e')}
-    </div>`;
+    const pols = it.polizas || [];
+    const varLine = (label, v25, v26, fmt, neg)=>{
+      const empty = (v25==null&&v26==null)||((v25==null||v25===0)&&(v26==null||v26===0));
+      const base = 'display:grid;grid-template-columns:88px 1fr auto;gap:10px;font-size:11.5px;line-height:1.4;padding:2px 0;border-top:1px solid var(--line)';
+      if(empty) return `<div style="${base}"><span style="color:var(--accent-3);font-weight:700">${label}</span><span style="font-family:var(--font-mono);color:var(--ink-3);font-style:italic">— sin datos —</span><span></span></div>`;
+      const d=(v26||0)-(v25||0); const cT=d===0?'var(--accent)':(d>0?(neg?'var(--neg)':'var(--pos)'):(neg?'var(--pos)':'var(--neg)')); const pct=(v25!=null&&v25!==0)?d/Math.abs(v25):null;
+      return `<div style="${base}"><span style="color:var(--accent-3);font-weight:700">${label}</span><span style="font-family:var(--font-mono);color:var(--ink-2);white-space:nowrap">${fmt(v25)} <span style="color:var(--ink-3)">→</span> <strong>${fmt(v26)}</strong></span><span style="font-family:var(--font-mono);font-weight:800;color:${cT};text-align:right;white-space:nowrap">${d>=0?'+':''}${fmt(d)}${pct!=null?' ('+(d>=0?'+':'')+FMT_PCT(pct)+')':''}</span></div>`;
+    };
+    const polCard = (p)=>{
+      const isUS=p.moneda==='US';
+      const f25=calcEmisionFiltrada(p,2025,mesCorte), f26=calcEmisionFiltrada(p,2026,mesCorte);
+      const e25o=isUS?f25.totUSD:f25.totARS, e26o=isUS?f26.totUSD:f26.totARS;
+      const eOther=isUS?f26.totARS:f26.totUSD;
+      const dO=e26o-e25o, dpct=e25o?dO/Math.abs(e25o):null;
+      const cc=dO>0?'var(--pos)':(dO<0?'var(--neg)':'var(--accent)');
+      const pm25=isUS?f25.breakdownUSD.primaMin:f25.breakdownARS.primaMin, pm26=isUS?f26.breakdownUSD.primaMin:f26.breakdownARS.primaMin;
+      const pv25=isUS?(p.proyUSD2025||0):(p.proyARS2025||0), pv26=isUS?(p.proyUSD2026||0):(p.proyARS2026||0);
+      const fmtMon=(v)=>v==null?'—':fmtCompact(v,isUS), fmtTasa=(v)=>v==null?'—':FMT_PCT_TASA(v), fmtSin=(v)=>v==null?'—':FMT_PCT_SIN(v);
+      const varBox=`<div style="background:rgba(0,0,0,.03);border:1px solid var(--line);border-radius:6px;padding:5px 12px;margin-top:6px;width:100%">
+        ${varLine('Prima',pm25,pm26,fmtMon,false)}
+        ${varLine('Proy. ventas',pv25,pv26,fmtMon,false)}
+        ${varLine('Tasa',p.tasa2025,p.tasa2026,fmtTasa,false)}
+        ${varLine('Sin. UV',p.sinUV2025,p.sinUV2026,fmtSin,true)}
+        ${varLine('Sin. H',p.sinH2025,p.sinH2026,fmtSin,true)}
+      </div>`;
+      return `<div style="padding:10px 4px;border-bottom:1px solid var(--line)">
+        <div style="display:flex;justify-content:space-between;gap:14px;align-items:flex-start">
+          <div style="min-width:0;flex:1">
+            <div style="display:flex;align-items:baseline;gap:8px;flex-wrap:wrap">
+              <span style="font-size:15px;font-weight:800;color:var(--accent-3);background:var(--bg-2);padding:2px 9px;border-radius:5px">${fmtPoliza(p.poliza)}</span>
+              <span style="color:var(--ink-1);font-size:13.5px;font-weight:600;max-width:280px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${(p.asegurado||'').substring(0,32)}</span>
+            </div>
+            ${varBox}
+          </div>
+          <div style="text-align:right;font-family:var(--font-mono);white-space:nowrap;min-width:120px">
+            <div style="font-size:16px;font-weight:800;color:${cc}">${fmtCompact(e26o,isUS)}</div>
+            <div style="font-size:11.5px;color:var(--ink-3);margin-top:2px">${fmtCompact(eOther,!isUS)}</div>
+            ${dpct!=null?`<div style="font-size:13px;font-weight:800;color:${cc};margin-top:2px">${dO>=0?'+':''}${FMT_PCT(dpct)}</div>`:''}
+          </div>
+        </div>
+      </div>`;
+    };
+    const colM=(isUS)=>{
+      const ps=pols.filter(p=>(p.moneda==='US')===isUS).map(p=>{const f26=calcEmisionFiltrada(p,2026,mesCorte); return {p, v:isUS?f26.totUSD:f26.totARS};}).filter(x=>Math.abs(x.v)>0.5);
+      ps.sort((a,b)=>b.v-a.v);
+      const tot=ps.reduce((s,x)=>s+x.v,0);
+      const cab=`<div style="display:flex;align-items:center;gap:10px;margin-bottom:12px;padding:11px 14px;background:${isUS?'rgba(139,92,246,.12)':'rgba(232,155,30,.14)'};border:1.5px solid ${isUS?'#8b5cf6':'#e89b1e'};border-radius:8px">${monedaChipHTML(isUS)}<span style="margin-left:auto;font-family:var(--font-mono);font-size:19px;font-weight:800;color:var(--accent-3)">${ps.length} pól. · ${fmtCompact(tot,isUS)}</span></div>`;
+      if(ps.length===0) return `<div>${cab}<div style="font-size:13px;color:var(--ink-3);font-style:italic">— sin pólizas en esta moneda —</div></div>`;
+      return `<div>${cab}${ps.map(x=>polCard(x.p)).join('')}</div>`;
+    };
+    return `<div style="display:grid;grid-template-columns:1fr;gap:16px;margin-top:14px">${colM(false)}${colM(true)}</div>`;
   })();
   return `<div style="border:1px solid var(--line-2);border-radius:10px;padding:16px 18px;background:var(--panel);box-shadow:0 1px 3px rgba(10,31,58,.04)">
     <!-- Header -->
