@@ -911,9 +911,9 @@ function _ejecContabOn(ck, which){
   state._ejecContab = state._ejecContab || {};
   const v = state._ejecContab[ck+'_'+which];
   if(v!==undefined) return !!v;
-  /* "En Desarrollo" (pedido del usuario): Presupuesto y Emisión Pendiente NO contabilizan por
-     defecto (suman 0). Emisión Confirmada SÍ contabiliza. El usuario los enciende si quiere. */
-  if(ck==='pend_2025' || ck==='pend_presup') return false;
+  /* "En Desarrollo": solo Emisión Pendiente NO contabiliza por defecto. Confirmada y Proyectado
+     SÍ contabilizan automáticamente (el usuario destilda si no quiere). */
+  if(ck==='pend_2025') return false;
   return (which==='mes');   /* el resto de los pendientes contabilizan por defecto (el dedup evita duplicar) */
 }
 /* "Emisión pendiente (se emite este mes)" del Excel CONTABILIZADA: suma, por concepto, solo los
@@ -4124,7 +4124,7 @@ function ejecJustificacion(S, useUSD, dual, useUSDprimary){
     state._ejecNet[_sufp] = {dic:_netDic, may:_netMay};
     causas = [
       mk('pend_conf','Pendiente - Emisión Confirmada', _confV, _conf.n, '#ffd54a','pendiente'),
-      mk('pend_presup','Proyectado (En Desarrollo)', _presV, _presMeses, '#cbd5e6','pendiente'),
+      mk('pend_presup','Proyectado', _presV, _presMeses, '#8ba6c9','pendiente'),
       mk('pend_2025','Emisión Pendiente (En Desarrollo)', _p25V, _p25.n, '#cbd5e6','pendiente'),
       mk('perdidas',APP_CONFIG.textos.perdidas, mkVal(cnt.perdidas), cnt.perdidas.n, APP_CONFIG.colores.perdidas),
       mk('menor',APP_CONFIG.textos.menor || 'Menor Emisión', menorSigned, menorN, APP_CONFIG.colores.abm),
@@ -4325,7 +4325,7 @@ function ejecJustificacion(S, useUSD, dual, useUSDprimary){
        (el usuario puede activarlos desde el desglose). */
     /* En gris claro solo lo "En Desarrollo" (suman 0): Presupuesto y Emisión Pendiente.
        La Emisión Confirmada contabiliza y va normal (amarillo + valor verde). */
-    const enDes = clickable && (id==='pend_presup' || id==='pend_2025');
+    const enDes = clickable && (id==='pend_2025');
     const isClk = clickable;
     const click = clickable ? `onclick="toggleEjecCausa('${id}')"` : '';
     const carId = clickable ? `id="ejecCausaCar_${id}"` : '';
@@ -4479,7 +4479,6 @@ function ejecJustificacion(S, useUSD, dual, useUSDprimary){
     </div>`;
   const _selectorCards = `<div style="display:flex;gap:12px;margin-bottom:12px;align-items:stretch;flex-wrap:wrap">
     ${_dvCardBig('Desvío Acumulado', _dvCorte, _pctCorte)}
-    ${_dvCardBig('Desvío Acumulado CON PROYECCIONES', _dvProy, _pctProy)}
   </div>`;
   return `<div style="margin-top:${dual?8:2}px">
     ${dual?`<div style="font-size:11px;color:var(--ink-3);text-transform:uppercase;letter-spacing:.05em;font-weight:700;margin-bottom:4px">${mLbl}</div>`:''}
@@ -4499,7 +4498,8 @@ function ejecJustificacion(S, useUSD, dual, useUSDprimary){
          aunque en el donut esté "En Desarrollo". Así la Comparación construye el mismo desvío
          CON PROYECCIONES que se muestra arriba. */
       const pendMes   = (pv.confAll!=null ? pv.confAll : pv.conf) || 0;
-      const emisEst  = emisReal + pendMes;        /* Emisión estimada = Real + Emisión Confirmada proyectada */
+      const proyVal   = pv.pres || 0;             /* Proyectado (presupuestado) — cuenta si está contabilizado */
+      const emisEst  = emisReal + pendMes + proyVal;   /* Emisión estimada = Real + Confirmada + Proyectado */
       const desvAnio = emisEst - presup;
       const desvMes  = emisEst - presupEmi;
       const _mLast  = (S.lastEmis26>0) ? MESES[S.lastEmis26-1] : '—';
@@ -4535,6 +4535,7 @@ function ejecJustificacion(S, useUSD, dual, useUSDprimary){
           ${flecha('+')}
           <div style="flex:1.05;display:flex;flex-direction:column;gap:6px;justify-content:center">
             ${cardYellow('Pendiente · se emite este mes (proyección)','',pendMes)}
+            ${cardYellow('Proyectado','',proyVal)}
           </div>
           ${flecha('=')}
           <div style="flex:1.05;display:flex;flex-direction:column;gap:6px;justify-content:center">
