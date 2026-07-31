@@ -1202,6 +1202,19 @@ function _tipoToConcepto(tipo){
   if(/malus/.test(t)) return 'malus';
   return null;
 }
+/* Clave de override de un mes proyectado editable (foto4): póliza|concepto|mes. */
+function _presEditKey(poliza, ck, m){ return _polKey(poliza)+'|'+ck+'|'+m; }
+/* Valor efectivo (ARS y USD) de un mes de una fila del Presupuesto, aplicando el override
+   editable del usuario cuando existe (solo para meses PRESUPUESTADOS / no confirmados). */
+function _presMoVal(e, mo){
+  const usdRaw = (mo.usd!=null&&mo.usd!==0)?mo.usd:(mo.ars/(state._ejecTC||1400));
+  if(!mo.yellow){
+    const ck=_tipoToConcepto(e.tipo);
+    const ov = ck ? (state._ejecPresEdit||{})[_presEditKey(e.poliza,ck,mo.m)] : null;
+    if(ov) return {ars:ov.ars||0, usd:ov.usd||0};
+  }
+  return {ars:mo.ars||0, usd:usdRaw};
+}
 /* Valor de la hoja "Presup Arg HTML" para una póliza + concepto + moneda (suf 'a'=ARS / 'u'=MON.ORIG),
    filtrando por confirmado (amarillo) o presupuesto (no amarillo) o todo. Suma todos los meses. */
 function _presupArgVal(p, ck, suf, modo){
@@ -6790,13 +6803,16 @@ window.toggleEjecCausa = function(id){
     const _impNet = _imp.reduce((a,v)=>a+v.raw,0);   /* neto = suma firmada (coincide con la causa) */
     /* Gráfico compacto: una sola barra segmentada (cada concepto = un tramo) + leyenda inline. */
     const _sg = (r)=> r<0?'−':(r>0?'+':'');
+    /* TODO concepto con impacto se muestra (aunque sea chico) con ancho mínimo, así el Bono
+       nunca desaparece de la barra (pedido del usuario). */
     const _segs = _imp.filter(v=>v.val>0.5).map(v=>{ const pw=v.val/_tot*100;
-        const lbl = pw>=11 ? `<span style="color:#fff;font-family:var(--font-mono);font-weight:800;font-size:12.5px;text-shadow:0 1px 1px rgba(0,0,0,.25);white-space:nowrap">${_sg(v.raw)}${_FMc(v.val)}</span>` : '';
-        return `<div title="${v.lbl}: ${_sg(v.raw)}${_FMc(v.val)}" style="width:${pw}%;background:${v.col};height:100%;display:flex;align-items:center;justify-content:center;overflow:hidden">${lbl}</div>`; }).join('');
-    /* Leyenda: solo el nombre del concepto (los valores quedan sobre la barra). */
-    const _impLabels = _imp.map(v=>`<span style="white-space:nowrap">
-        <span style="display:inline-block;width:10px;height:10px;border-radius:2px;background:${v.val>0.5?v.col:'var(--line-2)'};vertical-align:middle;margin-right:5px"></span>
+        const lbl = pw>=13 ? `<span style="color:#fff;font-family:var(--font-mono);font-weight:800;font-size:12.5px;text-shadow:0 1px 1px rgba(0,0,0,.25);white-space:nowrap">${_sg(v.raw)}${_FMc(v.val)}</span>` : '';
+        return `<div title="${v.lbl}: ${_sg(v.raw)}${_FMc(v.val)}" style="flex:${Math.max(pw,4)} 0 auto;min-width:${pw<4?'14px':'0'};background:${v.col};height:100%;display:flex;align-items:center;justify-content:center;overflow:hidden">${lbl}</div>`; }).join('');
+    /* Leyenda: nombre del concepto CON su valor (así el Bono y los chicos también muestran el número). */
+    const _impLabels = _imp.map(v=>`<span style="white-space:nowrap;display:inline-flex;align-items:baseline;gap:5px">
+        <span style="display:inline-block;width:10px;height:10px;border-radius:2px;background:${v.val>0.5?v.col:'var(--line-2)'};vertical-align:middle"></span>
         <span style="color:var(--ink-2);font-weight:700;font-size:12.5px">${v.lbl}</span>
+        <span style="font-family:var(--font-mono);font-weight:800;font-size:12px;color:${v.val>0.5?(v.raw<0?'var(--neg)':'var(--pos)'):'var(--ink-3)'}">${v.val>0.5?_sg(v.raw)+_FMc(v.val):'—'}</span>
       </span>`).join('<span style="color:var(--line-2);margin:0 9px">·</span>');
     return _box(`
       <div style="display:flex;justify-content:space-between;align-items:baseline;margin-bottom:7px">
@@ -6804,9 +6820,7 @@ window.toggleEjecCausa = function(id){
         <span style="font-size:9px;color:var(--ink-3);font-weight:700">${_u?'USD':'ARS$'}</span>
       </div>
       <div style="display:flex;height:26px;border-radius:6px;overflow:hidden;background:rgba(0,0,0,.05);margin-bottom:8px">${_segs}</div>
-      <div style="display:flex;flex-wrap:wrap;gap:5px 0;align-items:baseline">${_impLabels}</div>
-      ${_divi}
-      ${_rubBlock}`);
+      <div style="display:flex;flex-wrap:wrap;gap:6px 0;align-items:baseline">${_impLabels}</div>`);
   })();
 
   let contenido;
@@ -6929,10 +6943,78 @@ window.toggleEjecCausa = function(id){
     variablesUI = ()=>`
       <div style="display:flex;gap:8px;margin-bottom:14px;flex-wrap:wrap" id="ejecVarSubsel">${vBtn('proy','Proyección de ventas',true)}${vBtn('tasa','Tasa',false)}${vBtn('sin','Siniestralidad',false)}</div>
       <div id="ejecVarBody">${varBody('proy')}</div>`;
-    const topNow = state._ejecMenorTop || 'emisiones';
-    /* El impacto por concepto ya va arriba (resumen minimalista); acá solo el detalle. */
-    contenido = `
-      <div id="ejecMenorTopBody">${emisionesUI()}</div>`;
+    /* ===== NUEVO (foto5): sin botones. Dos cuadros — "Detalle por tipo" y "Detalle por rubro" —
+       con 2025 → 2026 → variación. Cada fila se expande a las pólizas (2025/2026/desvío) y cada
+       póliza se expande al detalle completo (proy. ventas, prima, ajuste, bono, malus, tasa,
+       siniestralidad). Moneda según el botón 1°. Interacción por DOM (sin re-render). ===== */
+    const menorDetalleView = ()=>{
+      const u = btnUSD; const FMc = (v)=>fmtCompact(v,u);
+      const CKS = [
+        {k:'prima',  lbl:'Prima mínima', col:APP_CONFIG.colores.prima},
+        {k:'ajuste', lbl:'Ajuste',       col:APP_CONFIG.colores.abm},
+        {k:'bono',   lbl:'Bono',         col:'#d94747'},
+        {k:'malus',  lbl:'Malus',        col:'#7c4dff'},
+      ];
+      const rowsOf = (ck)=>{ let rs=[...collect(false,ck), ...collect(true,ck)]; if(ck==='prima') rs=rs.filter(r=>r.baja); return rs; };
+      const nat = (r,ck)=> ck==='prima'
+        ? {v25:u?(r.pm25USD||0):(r.pm25ARS||0), v26:u?(r.pm26USD||0):(r.pm26ARS||0)}
+        : {v25:u?(r.v25USD||0):(r.v25ARS||0),   v26:u?(r.v26USD||0):(r.v26ARS||0)};
+      const arrow=(id)=>`<span id="${id}_a" style="color:var(--ink-3);font-weight:800;display:inline-block;transition:transform .15s">▸</span>`;
+      const dvCell=(dv)=>{ const c=dv<0?'var(--neg)':(dv>0?'var(--pos)':'var(--ink-3)'); return `<span style="font-family:var(--font-mono);font-weight:800;color:${c};font-size:13px;text-align:right;white-space:nowrap">${dv<0?'−':(dv>0?'+':'')}${FMc(Math.abs(dv))}</span>`; };
+      const yrsCell=(v25,v26)=>{ const d=v26-v25; const c=d<0?'var(--neg)':(d>0?'var(--pos)':'var(--ink-3)'); const pct=(v25&&v25!==0)?d/Math.abs(v25):null;
+        return `<span style="font-family:var(--font-mono);font-size:11.5px;color:var(--ink-2);white-space:nowrap">${FMc(v25)} <span style="color:var(--ink-3)">→</span> <strong style="color:var(--accent-3)">${FMc(v26)}</strong> <span style="color:${c};font-weight:800">${d>=0?'+':'−'}${FMc(Math.abs(d))}${pct!=null?' ('+(d>=0?'+':'−')+FMT_PCT(Math.abs(pct))+')':''}</span></span>`; };
+      /* Compacto de una póliza (dentro de un tipo o rubro) → expande a filaPol (detalle completo). */
+      const polCompact = (r, v25, v26, detId)=>`
+        <div onclick="window.ejecToggleBox('${detId}')" style="display:grid;grid-template-columns:14px 1.3fr 1.5fr;gap:8px;align-items:center;padding:7px 8px;border-bottom:1px solid var(--line);cursor:pointer;font-size:12px">
+          ${arrow(detId)}
+          <div style="min-width:0;white-space:nowrap;overflow:hidden;text-overflow:ellipsis"><strong style="color:var(--accent-3)">${fmtPoliza(r.poliza)}</strong> <span style="color:var(--ink-2)">${(r.asegurado||'').substring(0,18)}</span> <span style="font-size:10px;color:var(--accent);font-weight:700;background:rgba(30,111,217,.10);padding:1px 5px;border-radius:3px">${r.rubro||'—'}</span></div>
+          <div style="text-align:right">${yrsCell(v25,v26)}</div>
+        </div>
+        <div id="${detId}" style="display:none;padding:0 4px 4px 22px;background:#fbfcff">${filaPol(r)}</div>`;
+      /* ---- POR TIPO ---- */
+      const tipos = CKS.map((c,ci)=>{ const rs=rowsOf(c.k); let s25=0,s26=0,dv=0,n=0;
+        rs.forEach(r=>{ const nn=nat(r,c.k); s25+=nn.v25; s26+=nn.v26; dv+=valBtnR(r); n+=(r._nGrupo||1); });
+        return {c,rs,s25,s26,dv,n,ci}; }).filter(t=>t.rs.length>0);
+      const tipoBloque = tipos.map(t=>{ const detId='mt_'+t.ci;
+        const pols = t.rs.map((r,j)=>{ const nn=nat(r,t.c.k); return polCompact(r, nn.v25, nn.v26, 'mtp_'+t.ci+'_'+j); }).join('');
+        return `<div>
+          <div onclick="window.ejecToggleBox('${detId}')" style="display:grid;grid-template-columns:16px 1.1fr 1.5fr auto;gap:10px;align-items:center;padding:10px 12px;border-bottom:1px solid var(--line);cursor:pointer">
+            ${arrow(detId)}
+            <div style="display:flex;align-items:center;gap:7px"><span style="width:11px;height:11px;border-radius:3px;background:${t.c.col};display:inline-block"></span><strong style="color:var(--accent-3);font-size:13px">${t.c.lbl}</strong> <span style="color:var(--ink-3);font-size:11px">${t.n} pól.</span></div>
+            <div style="text-align:right">${yrsCell(t.s25,t.s26)}</div>
+            ${dvCell(t.dv)}
+          </div>
+          <div id="${detId}" style="display:none">${pols||'<div style="padding:8px 12px;color:var(--ink-3);font-style:italic;font-size:12px">— sin pólizas —</div>'}</div>
+        </div>`; }).join('');
+      /* ---- POR RUBRO ---- */
+      const lookup=new Map(); (state.polizas||[]).forEach(p=>{ lookup.set(p.clave,p); lookup.set(p.poliza,p); });
+      const polSeen=new Map();
+      CKS.forEach(c=>{ rowsOf(c.k).forEach(r=>{ const k=r.clave||r.poliza; if(!polSeen.has(k)) polSeen.set(k,{r,dv:0}); polSeen.get(k).dv+=valBtnR(r); }); });
+      const rubMap={};
+      for(const {r,dv} of polSeen.values()){ const rubro=r.rubro||'(sin rubro)'; const p=lookup.get(r.clave)||lookup.get(r.poliza);
+        let t25=0,t26=0; if(p){ const f25=calcEmisionFiltrada(p,2025,mesCorte), f26=calcEmisionFiltrada(p,2026,mesCorte); t25=u?f25.totUSD:f25.totARS; t26=u?f26.totUSD:f26.totARS; }
+        if(!rubMap[rubro]) rubMap[rubro]={rubro,s25:0,s26:0,dv:0,rows:[]};
+        rubMap[rubro].s25+=t25; rubMap[rubro].s26+=t26; rubMap[rubro].dv+=dv; rubMap[rubro].rows.push({r,t25,t26}); }
+      const rubros=Object.values(rubMap).sort((a,b)=>a.dv-b.dv);
+      const rubroBloque = rubros.map((rb,ri)=>{ const detId='mr_'+ri;
+        const pols = rb.rows.sort((a,b)=>valBtnR(a.r)-valBtnR(b.r)).map((o,j)=>polCompact(o.r, o.t25, o.t26, 'mrp_'+ri+'_'+j)).join('');
+        return `<div>
+          <div onclick="window.ejecToggleBox('${detId}')" style="display:grid;grid-template-columns:16px 1.1fr 1.5fr auto;gap:10px;align-items:center;padding:10px 12px;border-bottom:1px solid var(--line);cursor:pointer">
+            ${arrow(detId)}
+            <div><strong style="color:var(--accent-3);font-size:13px">${rb.rubro}</strong> <span style="color:var(--ink-3);font-size:11px">${rb.rows.length} pól.</span></div>
+            <div style="text-align:right">${yrsCell(rb.s25,rb.s26)}</div>
+            ${dvCell(rb.dv)}
+          </div>
+          <div id="${detId}" style="display:none">${pols}</div>
+        </div>`; }).join('');
+      const tabBtn=(v,lbl)=>`<button onclick="window.ejecMenorVista('${v}')" data-mv="${v}" style="padding:8px 20px;font-size:13px;font-weight:800;border-radius:7px;border:1.5px solid var(--line-2);background:var(--bg-2);color:var(--ink-2);cursor:pointer">${lbl}</button>`;
+      const cab=(a,b)=>`<div style="display:grid;grid-template-columns:16px 1.1fr 1.5fr auto;gap:10px;padding:6px 12px;font-size:9px;text-transform:uppercase;letter-spacing:.04em;color:var(--ink-3);font-weight:800;background:var(--bg-2);border-bottom:1px solid var(--line-2)"><span></span><span>${a}</span><span style="text-align:right">2025 → 2026 · variación</span><span style="text-align:right">Desvío</span></div>`;
+      return `
+        <div style="display:flex;gap:8px;margin-bottom:12px" id="ejecMenorVistaSel">${tabBtn('tipo','Detalle por tipo')}${tabBtn('rubro','Detalle por rubro')}</div>
+        <div id="menorVistaTipo" style="border:1px solid var(--line-2);border-radius:9px;overflow:hidden">${cab('Concepto')}${tipoBloque||'<div style="padding:12px;color:var(--ink-3);font-style:italic">— sin datos —</div>'}</div>
+        <div id="menorVistaRubro" style="display:none;border:1px solid var(--line-2);border-radius:9px;overflow:hidden">${cab('Rubro')}${rubroBloque||'<div style="padding:12px;color:var(--ink-3);font-style:italic">— sin datos —</div>'}</div>`;
+    };
+    contenido = `<div id="ejecMenorTopBody">${menorDetalleView()}</div>`;
   } else if(id==='prima'){
     contenido = `<div id="ejecMenorBody" style="display:grid;grid-template-columns:1fr;gap:16px">${colPrima(false,'prima')}${colPrima(true,'prima')}</div>`;
   } else if(id==='abm'){
@@ -6954,20 +7036,46 @@ window.toggleEjecCausa = function(id){
     const corte = state._ejecPresCorte || 12;
     const on = _ejecContabOn('pend_presup','mes');
     state._ejecPresMes = state._ejecPresMes || {};
+    state._ejecPresOpen = state._ejecPresOpen || {};
     const _le26 = state._ejecLastEmis26||0;
     const onMes = (m)=>{ const v=state._ejecPresMes[m]; return (v!==undefined)?!!v:true; };   /* todos tildados por defecto */
     let total=0; for(let m=1;m<=12;m++){ if(onMes(m)) total+=(presArr[m-1]||0); }
-    const tc='#3a8fc0';
-    const filas = MESES.map((mn,idx)=>{ const m=idx+1; const pres=presArr[idx]||0; const conf=confM[idx]||0; const chk=onMes(m); const fut=(m<=corte);
+    const tc='#e8820e';   /* Proyectado = naranja (foto3) */
+    /* Fila de detalle por póliza de un mes (editable + comparación 2025). */
+    const detFila = (r)=>{
+      const d=r.val-r.v25; const dc=d>=0?'var(--pos)':'var(--neg)'; const pct=(r.v25&&r.v25!==0)?d/Math.abs(r.v25):null;
+      const inputVal = Math.round(r.val);
+      return `<div style="display:grid;grid-template-columns:1.5fr auto;gap:8px;align-items:center;padding:6px 10px 6px 30px;border-bottom:1px solid var(--line);font-size:12px;background:#fffdf9">
+        <div style="min-width:0">
+          <div style="white-space:nowrap;overflow:hidden;text-overflow:ellipsis"><span style="font-weight:800;color:var(--accent-3)">${fmtPoliza(r.poliza)}</span> <span style="color:var(--ink-2)">${(r.aseg||'').substring(0,20)}</span></div>
+          <div style="display:flex;align-items:baseline;gap:7px;margin-top:2px">
+            <span style="font-size:10px;color:${tc};font-weight:800;background:rgba(232,130,14,.12);padding:1px 6px;border-radius:4px">${r.lbl}</span>
+            <span style="font-family:var(--font-mono);font-size:11px;color:var(--ink-3)">'25 ${fmtCompact(r.v25,btnUSD)}</span>
+            <span style="font-family:var(--font-mono);font-size:11px;font-weight:800;color:${dc}">${d>=0?'+':'−'}${fmtCompact(Math.abs(d),btnUSD)}${pct!=null?' ('+(d>=0?'+':'−')+FMT_PCT(Math.abs(pct))+')':''}</span>
+          </div>
+        </div>
+        <div style="display:flex;align-items:center;gap:4px;justify-content:flex-end">
+          <span style="font-size:10px;color:var(--ink-3);font-weight:700">${btnUSD?'US':'$'}</span>
+          <input type="number" value="${inputVal}" onchange="window.ejecEditPresMes(this,'${r.key}',${btnUSD?1:0})" onclick="event.stopPropagation()" style="width:100px;font-family:var(--font-mono);font-weight:800;font-size:13px;color:${tc};text-align:right;border:1px solid ${r.edited?tc:'var(--line-2)'};border-radius:5px;padding:3px 6px;background:${r.edited?'rgba(232,130,14,.08)':'#fff'}"/>
+        </div>
+      </div>`;
+    };
+    const filas = MESES.map((mn,idx)=>{ const m=idx+1; const pres=presArr[idx]||0; const conf=confM[idx]||0; const chk=onMes(m); const fut=(m<=corte); const open=!!state._ejecPresOpen[m];
       if(pres<0.5 && conf<0.5 && !fut) return '';
-      return `<div onclick="window.ejecTogglePresMes(${m})" style="display:grid;grid-template-columns:18px 1fr auto;gap:10px;align-items:center;padding:8px 14px;border-bottom:1px solid var(--line);font-size:13px;cursor:pointer;${chk?'':'opacity:.5'}">
-        <span style="width:14px;height:14px;border:1.5px solid ${chk?tc:'var(--line-2)'};border-radius:3px;background:${chk?tc:'transparent'};display:inline-flex;align-items:center;justify-content:center;color:#fff;font-size:10px;font-weight:800">${chk?'✓':''}</span>
-        <span style="font-weight:700;color:var(--accent-3)">${mn}${conf>0.5?` <span style="color:#d39a00;font-weight:600;font-size:11px">· confirmado ${fmtCompact(conf,btnUSD)}</span>`:''}${m>corte?' <span style="color:var(--ink-3);font-size:10.5px">(fuera del corte)</span>':''}</span>
-        <span style="font-family:var(--font-mono);font-weight:800;color:var(--accent-3);min-width:84px;text-align:right">${fmtCompact(pres,btnUSD)}</span>
+      const canOpen = pres>0.5;
+      const det = open ? _presMesPolizas(m, suf).map(detFila).join('') : '';
+      return `<div>
+        <div style="display:grid;grid-template-columns:18px 14px 1fr auto;gap:9px;align-items:center;padding:8px 14px;border-bottom:1px solid var(--line);font-size:13px;${chk?'':'opacity:.5'}">
+          <span onclick="event.stopPropagation();window.ejecTogglePresMes(${m})" title="Contabilizar este mes" style="width:14px;height:14px;border:1.5px solid ${chk?tc:'var(--line-2)'};border-radius:3px;background:${chk?tc:'transparent'};display:inline-flex;align-items:center;justify-content:center;color:#fff;font-size:10px;font-weight:800;cursor:pointer">${chk?'✓':''}</span>
+          <span onclick="${canOpen?`window.ejecTogglePresOpen(${m})`:''}" style="color:${canOpen?tc:'var(--line-2)'};font-weight:800;cursor:${canOpen?'pointer':'default'};transition:transform .15s;${open?'transform:rotate(90deg)':''}">${canOpen?'▸':''}</span>
+          <span onclick="${canOpen?`window.ejecTogglePresOpen(${m})`:''}" style="font-weight:700;color:var(--accent-3);cursor:${canOpen?'pointer':'default'}">${mn}${conf>0.5?` <span style="color:#d39a00;font-weight:600;font-size:11px">· confirmado ${fmtCompact(conf,btnUSD)}</span>`:''}${m>corte?' <span style="color:var(--ink-3);font-size:10.5px">(fuera del corte)</span>':''}</span>
+          <span style="font-family:var(--font-mono);font-weight:800;color:var(--accent-3);min-width:84px;text-align:right">${fmtCompact(pres,btnUSD)}</span>
+        </div>
+        ${det}
       </div>`; }).join('');
-    contenido = `<div style="border:1px solid var(--line-2);border-radius:9px;overflow:hidden;max-width:560px;${on?'':'opacity:.6'}">
+    contenido = `<div style="border:1px solid var(--line-2);border-radius:9px;overflow:hidden;max-width:600px;${on?'':'opacity:.6'}">
       <div style="display:flex;justify-content:space-between;align-items:center;gap:10px;padding:11px 14px;background:${tc}22;border-bottom:1px solid var(--line)">
-        <span style="font-weight:800;color:${tc};text-transform:uppercase;letter-spacing:.03em;font-size:12px">Proyectado <span style="color:var(--ink-3);font-weight:600;text-transform:none">· tildá los meses que cuentan</span></span>
+        <span style="font-weight:800;color:${tc};text-transform:uppercase;letter-spacing:.03em;font-size:12px">Proyectado <span style="color:var(--ink-3);font-weight:600;text-transform:none">· tildá los meses · ▸ para ver/editar pólizas</span></span>
         <button onclick="ejecToggleContab('pend_presup','mes')" title="Contabilizar el presupuesto en el desvío" style="font-size:10px;font-weight:800;border-radius:5px;padding:4px 10px;cursor:pointer;white-space:nowrap;border:1.5px solid ${on?'var(--pos)':'var(--line-2)'};background:${on?'var(--pos)':'var(--panel)'};color:${on?'#fff':'var(--ink-2)'}">Contabilizar: ${on?'SÍ':'NO'}</button>
       </div>
       <div style="font-family:var(--font-mono);font-size:17px;font-weight:800;color:${tc};padding:9px 14px;border-bottom:1px solid var(--line)">Total: ${fmtCompact(total,btnUSD)}</div>
@@ -7037,6 +7145,8 @@ window.toggleEjecCausa = function(id){
   _openEjecDrawer();   /* Opción 2: mostrar el desglose en el panel lateral */
   if(id==='menor'){
     state._ejecMenorSub='prima';
+    /* Marcar activa la vista "Detalle por tipo" al abrir (foto5). */
+    setTimeout(()=>{ if(typeof window.ejecMenorVista==='function' && document.getElementById('ejecMenorVistaSel')) window.ejecMenorVista('tipo'); },0);
     const fEjec = d.f||state.sectionFilters.ejecutivo;
     /* Cambiar entre los dos modos de arriba (Emisiones / Variables). */
     window._rebuildEjecMenorTop = function(top){
@@ -7188,10 +7298,33 @@ function presupArgMensual(suf){
     if(e.months.some(mo=>mo.yellow)) confKeys.add(_polKey(e.poliza)+'|'+ck); }
   for(const e of pa.rows){ const ck=_tipoToConcepto(e.tipo); if(!ck) continue; const sgn=(ck==='bono')?-1:1;
     const key=_polKey(e.poliza)+'|'+ck;
-    for(const mo of e.months){ const v=(suf==='u')?((mo.usd!=null&&mo.usd!==0)?mo.usd:(mo.ars/(state._ejecTC||1400))):mo.ars; if(!isFinite(v)||!v) continue; const mi=mo.m-1; if(mi<0||mi>11)continue;
+    for(const mo of e.months){ const vv=_presMoVal(e,mo); const v=(suf==='u')?vv.usd:vv.ars; if(!isFinite(v)||!v) continue; const mi=mo.m-1; if(mi<0||mi>11)continue;
       if(mo.yellow){ out.conf[mi]+=sgn*v; out.total[mi]+=sgn*v; }
       else if(!confKeys.has(key)){ out.total[mi]+=sgn*v; }   /* gris solo si NO está confirmada esa póliza+concepto */
     } }
+  return out;
+}
+/* Detalle POR PÓLIZA del Proyectado de un mes (foto4): cada póliza que aporta al proyectado de
+   ese mes con su concepto, su valor (editable) y la comparación contra el 2025 de esa póliza. */
+const _CK_LBL = {primaMin:'Prima mín.', ajuste:'Ajuste', bono:'Bono', malus:'Malus'};
+function _presMesPolizas(m, suf){
+  const pa=state._presupArg; if(!pa||!pa.ok) return [];
+  const confKeys=new Set();
+  for(const e of pa.rows){ const ck=_tipoToConcepto(e.tipo); if(ck && e.months.some(mo=>mo.yellow)) confKeys.add(_polKey(e.poliza)+'|'+ck); }
+  const lookup=new Map(); (state.polizas||[]).forEach(p=>{ const k=_polKey(p.poliza); if(k) lookup.set(k,p); });
+  const out=[];
+  for(const e of pa.rows){ const ck=_tipoToConcepto(e.tipo); if(!ck) continue;
+    if(confKeys.has(_polKey(e.poliza)+'|'+ck)) continue;
+    const mo=e.months.find(x=>x.m===m && !x.yellow); if(!mo) continue;
+    const vv=_presMoVal(e,mo); const raw=(suf==='u')?vv.usd:vv.ars; if(!isFinite(raw)||Math.abs(raw)<0.5) continue;
+    const sgn=(ck==='bono')?-1:1;
+    const p=lookup.get(_polKey(e.poliza));
+    let v25=0; if(p){ try{ const f=calcEmisionFiltrada(p,2025,0); const bd=(suf==='u')?f.breakdownUSD:f.breakdownARS; v25=(bd&&bd[ck])?bd[ck]:0; }catch(err){} }
+    out.push({poliza:e.poliza, aseg:e.aseg||(p&&p.asegurado)||'', rubro:(p&&p.rubro)||'', ck, lbl:_CK_LBL[ck]||e.tipo,
+      val:sgn*raw, raw, v25, sgn, edited:!!(state._ejecPresEdit||{})[_presEditKey(e.poliza,ck,m)], key:_presEditKey(e.poliza,ck,m),
+      moArs:mo.ars||0, moUsd:(mo.usd!=null&&mo.usd!==0)?mo.usd:0});
+  }
+  out.sort((a,b)=>Math.abs(b.val)-Math.abs(a.val));
   return out;
 }
 /* Cuadro RESUMEN del PROYECTADO (hoja "Presupuesto Argentina", presupuestado sin confirmar):
@@ -7210,7 +7343,7 @@ function ejecProyectadoResumen(useUSD){
   for(const e of pa.rows){ const ck=_tipoToConcepto(e.tipo); if(!ck) continue;
     if(confKeys.has(_polKey(e.poliza)+'|'+ck)) continue;
     const isSeg=/2da|segunda/i.test(e.tipo||'');
-    for(const mo of e.months){ if(mo.yellow) continue; const a=mo.ars||0, u=valU(mo); if(!a&&!u) continue;
+    for(const mo of e.months){ if(mo.yellow) continue; const vv=_presMoVal(e,mo); const a=vv.ars, u=vv.usd; if(!a&&!u) continue;
       const sgn=(ck==='bono')?-1:1;
       const key = ck==='primaMin' ? (isSeg?'seg':'reno') : ck;
       if(C[key]){ C[key].a+=sgn*a; C[key].u+=sgn*u; }
@@ -13095,6 +13228,22 @@ function drawTop10(){
 
 /* Top Casos: abre/cierra el detalle de una fila de mejoras/caídas. */
 window.toggleTopDetalle = function(id){ const d=document.getElementById(id); if(d) d.style.display = (d.style.display==='none'||!d.style.display)?'block':'none'; };
+/* Menor Emisión (foto5): abre/cierra un bloque por id y rota la flecha ${id}_a. */
+window.ejecToggleBox = function(id){
+  const d=document.getElementById(id); if(!d) return;
+  const open = (d.style.display==='none' || !d.style.display);
+  d.style.display = open ? 'block' : 'none';
+  const a=document.getElementById(id+'_a'); if(a) a.style.transform = open ? 'rotate(90deg)' : '';
+};
+/* Menor Emisión (foto5): alterna entre "Detalle por tipo" y "Detalle por rubro". */
+window.ejecMenorVista = function(v){
+  const t=document.getElementById('menorVistaTipo'), r=document.getElementById('menorVistaRubro');
+  if(t) t.style.display = (v==='tipo')?'block':'none';
+  if(r) r.style.display = (v==='rubro')?'block':'none';
+  const sel=document.getElementById('ejecMenorVistaSel');
+  if(sel) sel.querySelectorAll('button').forEach(b=>{ const on=b.dataset.mv===v;
+    b.style.background = on?'var(--accent)':'var(--bg-2)'; b.style.color = on?'#fff':'var(--ink-2)'; b.style.borderColor = on?'var(--accent)':'var(--line-2)'; });
+};
 /* Toggle de un mes del Presupuesto (drill). Cambia el estado, re-dibuja el Resumen Ejecutivo y
    re-abre el desglose de "Presupuesto" para seguir editando. */
 window.ejecTogglePresMes = function(m){
@@ -13102,6 +13251,33 @@ window.ejecTogglePresMes = function(m){
   const cur = state._ejecPresMes[m];
   const def = (()=>{ const corte=state._ejecPresCorte||12; const le26=state._ejecLastEmis26||0; return (m>=le26+2)&&(m<=corte); })();
   state._ejecPresMes[m] = (cur===undefined) ? !def : !cur;
+  if(typeof drawEjecutivo==='function') drawEjecutivo();
+  setTimeout(()=>{ if(typeof window.toggleEjecCausa==='function') window.toggleEjecCausa('pend_presup'); }, 0);
+};
+/* Expande/colapsa el detalle por póliza de un mes del Proyectado (foto4). */
+window.ejecTogglePresOpen = function(m){
+  state._ejecPresOpen = state._ejecPresOpen || {};
+  state._ejecPresOpen[m] = !state._ejecPresOpen[m];
+  if(typeof drawEjecutivo==='function') drawEjecutivo();
+  setTimeout(()=>{ if(typeof window.toggleEjecCausa==='function') window.toggleEjecCausa('pend_presup'); }, 0);
+};
+/* Edita el valor proyectado de una póliza en un mes (foto4). Guarda override en ambas monedas
+   (deriva la otra por proporción/TC) y recalcula todo el desvío. */
+window.ejecEditPresMes = function(inputEl, key, isUSD){
+  const nv = parseFloat(String(inputEl.value).replace(/[^\d.\-]/g,''));
+  state._ejecPresEdit = state._ejecPresEdit || {};
+  if(!isFinite(nv)){ delete state._ejecPresEdit[key]; }
+  else {
+    /* Buscar la fila original para derivar la otra moneda por su proporción real. */
+    const [pk, ck, mStr] = key.split('|'); const m=parseInt(mStr,10);
+    const pa=state._presupArg; let moArs=0, moUsd=0;
+    if(pa && pa.ok){ for(const e of pa.rows){ if(_polKey(e.poliza)!==pk || _tipoToConcepto(e.tipo)!==ck) continue; const mo=e.months.find(x=>x.m===m && !x.yellow); if(mo){ moArs=mo.ars||0; moUsd=(mo.usd!=null&&mo.usd!==0)?mo.usd:0; break; } } }
+    const tc = state._ejecTC||1400;
+    let ars, usd;
+    if(isUSD){ usd=nv; ars = (moUsd>0 && moArs>0) ? nv*(moArs/moUsd) : nv*tc; }
+    else { ars=nv; usd = (moArs>0 && moUsd>0) ? nv*(moUsd/moArs) : nv/tc; }
+    state._ejecPresEdit[key] = {ars, usd};
+  }
   if(typeof drawEjecutivo==='function') drawEjecutivo();
   setTimeout(()=>{ if(typeof window.toggleEjecCausa==='function') window.toggleEjecCausa('pend_presup'); }, 0);
 };
