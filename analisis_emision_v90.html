@@ -1208,12 +1208,14 @@ function _presEditKey(poliza, ck, m){ return _polKey(poliza)+'|'+ck+'|'+m; }
 /* Valor efectivo (ARS y USD) de un mes de una fila del Presupuesto, aplicando el override
    editable del usuario cuando existe (solo para meses PRESUPUESTADOS / no confirmados). */
 function _presMoVal(e, mo){
-  /* Si la columna US viene vacía, se deriva de ARS usando el TC DEL MES de la mini-tabla
-     "MES / TIPO DE CAMBIO" de la propia hoja (dinámico), NO un TC plano. Ese TC plano (1400)
-     inflaba el total (p. ej. ARS 310M en agosto daba US 221K con 1400 en vez de US 200K con
-     el TC real 1550). Fallback al TC general solo si no hay TC de ese mes. */
-  const _tcMes = (state._presupArgTC && state._presupArgTC[mo.m]) || state._ejecTC || 1400;
-  const usdRaw = (mo.usd!=null&&mo.usd!==0)?mo.usd:(mo.ars/_tcMes);
+  /* USD = la columna US de la hoja TAL CUAL. Si la celda US viene VACÍA se cuenta 0 (NO se
+     convierte ARS→US), igual que el "Resumen mensual" del Excel del usuario: sumar la columna
+     US directo, celda vacía = 0. (mo.usd===null lo pone el parser nuevo cuando la celda US está
+     vacía; mo.usd===undefined es el layout viejo SIN columna US, ahí sí se deriva de ARS/TC.) */
+  let usdRaw;
+  if(typeof mo.usd==='number' && mo.usd!==0) usdRaw = mo.usd;
+  else if(mo.usd===null) usdRaw = 0;
+  else usdRaw = mo.ars/(state._ejecTC||1400);
   if(!mo.yellow){
     const ck=_tipoToConcepto(e.tipo);
     const ov = ck ? (state._ejecPresEdit||{})[_presEditKey(e.poliza,ck,mo.m)] : null;
