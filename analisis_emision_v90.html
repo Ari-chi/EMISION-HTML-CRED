@@ -3154,7 +3154,7 @@ function drawInsurChart(canvasId, presup, real, lastEmis){
   const datasets = [
     {label:'Presupuesto 2026', data:presup, type:'line', stack:'pl26', borderColor:'#0a3d7a', backgroundColor:'rgba(10,61,122,.08)', pointBackgroundColor:'#0a3d7a', pointBorderColor:'#fff', pointBorderWidth:1, borderWidth:1.8, borderDash:[2,3], pointRadius:2.4, pointHoverRadius:4, fill:false, tension:.25, spanGaps:true},
     {label:'Real 2026', data:realBars, stack:'y26', backgroundColor:'rgba(108,189,237,.88)', borderColor:'#4aa3e0', borderWidth:1.5, borderRadius:3, barPercentage:.7, categoryPercentage:.8},
-    {label:'Presupuestado (sin emitir)', data:projBudget, stack:'y26', backgroundColor:_stripeGray(), borderColor:'#aab4c2', borderWidth:1, borderRadius:3, barPercentage:.7, categoryPercentage:.8},
+    {label:'Presupuestado (sin emitir)', data:projBudget, stack:'y26', backgroundColor:_stripeOrange(), borderColor:'#d8760a', borderWidth:1, borderRadius:3, barPercentage:.7, categoryPercentage:.8},
   ];
   const opts = chartOpts({yMoney:'ars',legend:true});
   opts.scales.x = opts.scales.x||{}; opts.scales.x.stacked=true;
@@ -4135,7 +4135,7 @@ function ejecJustificacion(S, useUSD, dual, useUSDprimary){
     state._ejecNet[_sufp] = {dic:_netDic, may:_netMay};
     causas = [
       mk('pend_conf','Pendiente - Emisión Confirmada', _confV, _conf.n, '#ffd54a','pendiente'),
-      mk('pend_presup','Proyectado', _presV, _presMeses, '#8ba6c9','pendiente'),
+      mk('pend_presup','Proyectado', _presV, _presMeses, '#e8820e','pendiente'),
       mk('pend_2025','Emisión Pendiente (En Desarrollo)', _p25V, _p25.n, '#cbd5e6','pendiente'),
       mk('perdidas',APP_CONFIG.textos.perdidas, mkVal(cnt.perdidas), cnt.perdidas.n, APP_CONFIG.colores.perdidas),
       mk('menor',APP_CONFIG.textos.menor || 'Menor Emisión', menorSigned, menorN, APP_CONFIG.colores.abm),
@@ -4516,13 +4516,14 @@ function ejecJustificacion(S, useUSD, dual, useUSDprimary){
       const _mLast  = (S.lastEmis26>0) ? MESES[S.lastEmis26-1] : '—';
       const _mCorte = (S.mesCorteSet>0) ? MESES[S.mesCorteSet-1] : 'Dic';
       const fv = (v)=>FMTc(Math.abs(v));
-      const card = (bg,fg,lbl,sub,inner)=>`<div style="flex:1;background:${bg};border-radius:9px;padding:10px 14px;display:flex;flex-direction:column;justify-content:center">
-        <div style="font-size:10.5px;color:${fg};text-transform:uppercase;letter-spacing:.03em;font-weight:800">${lbl}${sub?' · '+sub:''}</div>
+      const card = (bg,fg,lbl,sub,inner,soft)=>`<div style="flex:1;background:${bg};border-radius:9px;padding:10px 14px;display:flex;flex-direction:column;justify-content:center">
+        <div style="align-self:flex-start"><span style="display:inline-flex;align-items:center;font-size:10px;color:${fg};text-transform:uppercase;letter-spacing:.04em;font-weight:800;background:${soft||'rgba(255,255,255,.75)'};padding:3px 10px;border-radius:20px;box-shadow:0 1px 2px rgba(10,31,58,.06)">${lbl}${sub?' · '+sub:''}</span></div>
         ${inner}</div>`;
-      const valDiv = (color,txt)=>`<div style="font-size:22px;font-weight:800;color:${color};line-height:1.05;font-family:var(--font-mono);margin-top:3px">${txt}</div>`;
-      const cardBlue  = (lbl,sub,val)=> card('rgba(30,111,217,.10)','var(--accent)',lbl,sub, valDiv('var(--accent-3)',FMTc(val)));
-      const cardEmis  = (lbl,sub,val)=> card('rgba(45,155,106,.12)','var(--pos)',lbl,sub, valDiv('var(--pos)',FMTc(val)));
-      const cardYellow= (lbl,sub,val)=> card('rgba(255,193,7,.16)','#b8860b',lbl,sub, valDiv('#b8860b','+'+fv(val)));
+      const valDiv = (color,txt)=>`<div style="font-size:22px;font-weight:800;color:${color};line-height:1.05;font-family:var(--font-mono);margin-top:6px">${txt}</div>`;
+      const cardBlue  = (lbl,sub,val)=> card('rgba(30,111,217,.10)','var(--accent)',lbl,sub, valDiv('var(--accent-3)',FMTc(val)),'rgba(30,111,217,.18)');
+      const cardEmis  = (lbl,sub,val)=> card('rgba(45,155,106,.12)','var(--pos)',lbl,sub, valDiv('var(--pos)',FMTc(val)),'rgba(45,155,106,.20)');
+      const cardYellow= (lbl,sub,val)=> card('rgba(255,193,7,.16)','#b8860b',lbl,sub, valDiv('#b8860b','+'+fv(val)),'rgba(255,193,7,.28)');
+      const cardOrange= (lbl,sub,val)=> card('rgba(232,130,14,.12)','#c25e00',lbl,sub, valDiv('#c25e00','+'+fv(val)),'rgba(232,130,14,.22)');
       const _MFULL={Ene:'enero',Feb:'febrero',Mar:'marzo',Abr:'abril',May:'mayo',Jun:'junio',Jul:'julio',Ago:'agosto',Sep:'septiembre',Oct:'octubre',Nov:'noviembre',Dic:'diciembre'};
       const cardDesv  = (lbl,sub,val,base)=>{ const neg=val<0; const c=neg?'var(--neg)':'var(--pos)';
         const pct = base ? `(${neg?'−':'+'}${Math.round(Math.abs(val/base*100))}%)` : '';
@@ -4546,7 +4547,7 @@ function ejecJustificacion(S, useUSD, dual, useUSDprimary){
           ${flecha('+')}
           <div style="flex:1.05;display:flex;flex-direction:column;gap:6px;justify-content:center">
             ${cardYellow('Pendiente · se emite este mes','',pendMes)}
-            ${cardYellow('Proyectado','',proyVal)}
+            ${cardOrange('Proyectado','',proyVal)}
           </div>
           ${flecha('=')}
           <div style="flex:1.05;display:flex;flex-direction:column;gap:6px;justify-content:center">
@@ -7277,6 +7278,16 @@ function _stripeGray(){
   x.beginPath(); x.moveTo(-1,7); x.lineTo(7,-1); x.moveTo(3,9); x.lineTo(9,3); x.stroke();
   _stripeGrayCache=x.createPattern(c,'repeat'); return _stripeGrayCache;
 }
+/* Patrón rayado NARANJA para el "Proyectado" (pedido del usuario). */
+let _stripeOrangeCache=null;
+function _stripeOrange(){
+  if(_stripeOrangeCache) return _stripeOrangeCache;
+  const c=document.createElement('canvas'); c.width=c.height=7; const x=c.getContext('2d');
+  x.fillStyle='rgba(232,130,14,0.16)'; x.fillRect(0,0,7,7);
+  x.strokeStyle='rgba(216,118,10,0.70)'; x.lineWidth=1.5;
+  x.beginPath(); x.moveTo(-1,7); x.lineTo(7,-1); x.moveTo(3,9); x.lineTo(9,3); x.stroke();
+  _stripeOrangeCache=x.createPattern(c,'repeat'); return _stripeOrangeCache;
+}
 function drawEjecChartMensual(canvasId, polArr, presArr, mesCorte, useUSD){
   if(!document.getElementById(canvasId)) return;
   const md = computeMensual(polArr);
@@ -7307,12 +7318,12 @@ function drawEjecChartMensual(canvasId, polArr, presArr, mesCorte, useUSD){
   const datasets = [];
   datasets.push({label:'Presupuesto 2026', data:presup, type:'line', stack:'pl26', borderColor:'#0a3d7a', backgroundColor:'rgba(10,61,122,.08)', pointBackgroundColor:'#0a3d7a', pointBorderColor:'#fff', pointBorderWidth:1, borderWidth:1.8, borderDash:[2,3], pointRadius:2.4, pointHoverRadius:4, fill:false, tension:.25, spanGaps:true});
   /* Emisión Real 2026 + Proyección Actualizada apiladas en el mismo stack 'y26'. */
-  datasets.push({label:'Emisión Real 2026', data:r26, stack:'y26', backgroundColor:'rgba(108,189,237,.88)', borderColor:'#4aa3e0', borderWidth:1.5, borderRadius:3, barPercentage:.7, categoryPercentage:.8});
+  datasets.push({label:'Emisión Real 2026', data:r26, stack:'y26', backgroundColor:'rgba(108,189,237,.88)', borderColor:'#4aa3e0', borderWidth:1.5, borderRadius:3, barPercentage:.85, categoryPercentage:.62});
   if(hayPres){
-    datasets.push({label:'Proyectado', data:projPres, stack:'y26', backgroundColor:_stripeGray(), borderColor:'#8894a6', borderWidth:1, borderRadius:3, barPercentage:.7, categoryPercentage:.8});
+    datasets.push({label:'Proyectado', data:projPres, stack:'y26', backgroundColor:_stripeOrange(), borderColor:'#d8760a', borderWidth:1, borderRadius:3, barPercentage:.85, categoryPercentage:.62});
   }
   if(hayAmar){
-    datasets.push({label:'Proyección Actualizada', data:projConf, stack:'y26', backgroundColor:'#ffe14d', borderColor:'#e0a800', borderWidth:1, borderRadius:3, barPercentage:.7, categoryPercentage:.8});
+    datasets.push({label:'Proyección Actualizada', data:projConf, stack:'y26', backgroundColor:'#ffe14d', borderColor:'#e0a800', borderWidth:1, borderRadius:3, barPercentage:.85, categoryPercentage:.62});
   }
   /* Opciones base + meses más grandes (pedido del usuario) + margen superior
      para que entren las etiquetas de valor arriba de las barras/puntos. */
@@ -7346,7 +7357,7 @@ function drawEjecChartMensual(canvasId, polArr, presArr, mesCorte, useUSD){
       html+=row('#0a3d7a','Presupuesto 2026',pres,false);
       if(real!=null) html+=row('rgba(108,189,237,.95)','Emisión Real 2026',real,false);
       if(proj!=null) html+=row('#ffe14d','Proy. Actualizada',proj,false);
-      if(presProy!=null) html+=row('#a7b2c4','Proyectado',presProy,false);
+      if(presProy!=null) html+=row('#e8820e','Proyectado',presProy,false);
       const bd=[['Prima mín.',_c26.pm[i]],['Ajuste',_c26.aj[i]],['Bono',_c26.bo[i]],['Malus',_c26.ma[i]]].filter(x=>Math.abs(x[1]||0)>0.5);
       if(real!=null && bd.length){
         html+=`<div style="border-top:1px solid #eef2f7;margin:6px 0 4px"></div><div style="font-size:9.5px;text-transform:uppercase;letter-spacing:.03em;color:#8a98ad;font-weight:800;margin-bottom:3px">Emitido este mes</div>`;
@@ -7362,10 +7373,10 @@ function drawEjecChartMensual(canvasId, polArr, presArr, mesCorte, useUSD){
       el.style.left=left+'px'; el.style.top=top+'px';
     }
   };
-  opts.scales.x.ticks.font = {family:'Calibri', size:14.5, weight:'700'};
-  opts.scales.x.ticks.color = '#3d5475';
-  /* Meses más abajo: deja un hueco entre las barras y los nombres para la fila de Emisión Real. */
-  opts.scales.x.ticks.padding = 26;
+  /* Los nombres de mes se dibujan a mano (con recuadro) en projTotalPlugin, así que se
+     apaga el tick nativo para tener control total de posición y evitar solapes. */
+  opts.scales.x.ticks.display = false;
+  opts.scales.x.ticks.padding = 0;
   /* Apilado: la proyección (confirmado + presupuestado) se apila sobre Real 2026 en su mes.
      Las líneas de presupuesto tienen stack propio, así no se apilan con las barras. */
   opts.scales.x = opts.scales.x || {}; opts.scales.x.stacked = true;
@@ -7376,8 +7387,8 @@ function drawEjecChartMensual(canvasId, polArr, presArr, mesCorte, useUSD){
   const _stackTot = r26.map((v,i)=>(v||0)+(projConf[i]||0)+(grayEstim[i]||0));
   const _allVals = [...presup, ..._stackTot].filter(v=>v!=null && isFinite(v));
   const _dataMax = _allVals.length ? Math.max(..._allVals.map(Math.abs)) : 0;
-  if(_dataMax>0){ opts.scales.y = opts.scales.y || {}; opts.scales.y.suggestedMax = _dataMax*1.3; }
-  opts.layout = {padding:{top:24, bottom:66, left:10}};
+  if(_dataMax>0){ opts.scales.y = opts.scales.y || {}; opts.scales.y.suggestedMax = _dataMax*1.4; }
+  opts.layout = {padding:{top:26, bottom: hayAmar?108:82, left:10}};
   /* Filas de valores DEBAJO del gráfico, con título a la izquierda y bien separadas:
        · Emisión Real (celeste) — en el hueco, ARRIBA de los nombres de mes.
        · Proy. Actualizada (ámbar) y Estim. Inicial (gris) — debajo de los nombres de mes. */
@@ -7385,25 +7396,50 @@ function drawEjecChartMensual(canvasId, polArr, presArr, mesCorte, useUSD){
     id:'projTotals',
     afterDraw(chart){
       const xs=chart.scales.x, ctx=chart.ctx, ca=chart.chartArea, yBase=ca.bottom;
-      const yEmis=yBase+12, yConf=yBase+66, yPres=yBase+92;   /* Proy. Actualizada más abajo, separada de los meses */
+      const ORANGE='#e8820e', ORANGE_DK='#b5620a';
+      /* Distribución vertical DEBAJO del gráfico (sin solapes):
+           yVal   = número del mes (azul=emisión real / naranja=proyectado)
+           yNames = nombre del mes dentro de un recuadro
+           yConf  = fila "Proy. Actualizada" (ámbar), solo si hay confirmada proyectada */
+      const yVal=yBase+15, yNames=yBase+42, yConf=yBase+78;
       ctx.save();
-      ctx.strokeStyle='rgba(120,135,160,0.22)'; ctx.lineWidth=1;
-      const _sepYs = [yBase+36, yConf+13]; if(hayGris) _sepYs.push(yPres+13);
-      _sepYs.forEach(y=>{ ctx.beginPath(); ctx.moveTo(ca.left,y); ctx.lineTo(ca.right,y); ctx.stroke(); });
-      /* Títulos de fila a la izquierda (alineados al borde, margen chico). */
-      ctx.textAlign='left'; ctx.textBaseline='middle'; ctx.font='800 11px Calibri';
-      const lblX=2;
-      ctx.fillStyle='#1565c0'; ctx.fillText('Emisión Real', lblX, yEmis);
-      if(hayAmar){ ctx.fillStyle='#d39a00'; ctx.fillText('Proy. Actualizada', lblX, yConf); }
-      if(hayGris){ ctx.fillStyle='#8894a6'; ctx.fillText('Estim. Inicial', lblX, yPres); }
-      /* Valores por mes. */
-      ctx.textAlign='center'; ctx.font='800 13px Calibri';
+      /* 1) Número por mes: emisión real (azul) o, si el mes es proyectado, el proyectado (naranja). */
+      ctx.textAlign='center'; ctx.textBaseline='middle'; ctx.font='800 13.5px Calibri';
+      const esProj=(i)=> (r26[i]==null || Math.abs(r26[i])<=0.5) && projPres[i]!=null && Math.abs(projPres[i])>0.5;
       for(let i=0;i<labels.length;i++){
         const x=xs.getPixelForValue(i);
         const e=r26[i];
-        if(e!=null && Math.abs(e)>0.5){ ctx.fillStyle='#1565c0'; ctx.fillText(fmtCompact(e,useUSD), x, yEmis); }
-        if(projConf[i]!=null && Math.abs(projConf[i])>0.5){ ctx.fillStyle='#d39a00'; ctx.fillText(fmtCompact(projConf[i],useUSD), x, yConf); }
-        if(grayEstim[i]!=null && Math.abs(grayEstim[i])>0.5){ ctx.fillStyle='#8894a6'; ctx.fillText(fmtCompact(grayEstim[i],useUSD), x, yPres); }
+        if(e!=null && Math.abs(e)>0.5){ ctx.fillStyle='#1565c0'; ctx.fillText(fmtCompact(e,useUSD), x, yVal); }
+        else if(esProj(i)){ ctx.fillStyle=ORANGE_DK; ctx.fillText(fmtCompact(projPres[i],useUSD), x, yVal); }
+      }
+      /* Etiqueta de la fila a la izquierda (dos colores: Emisión Real / Proyectado). */
+      ctx.textAlign='left'; ctx.font='800 10px Calibri';
+      ctx.fillStyle='#1565c0'; ctx.fillText('EMISIÓN REAL', 2, yVal-8);
+      if(hayPres){ ctx.fillStyle=ORANGE_DK; ctx.fillText('· PROYECTADO', 2, yVal+8); }
+      /* 2) Nombres de mes con recuadro (azul para meses emitidos, naranja para proyectados). */
+      ctx.textAlign='center'; ctx.textBaseline='middle';
+      const bw=44, bh=21, rr=6;
+      for(let i=0;i<labels.length;i++){
+        const x=xs.getPixelForValue(i), pr=esProj(i);
+        ctx.beginPath();
+        if(ctx.roundRect) ctx.roundRect(x-bw/2, yNames-bh/2, bw, bh, rr);
+        else ctx.rect(x-bw/2, yNames-bh/2, bw, bh);
+        ctx.fillStyle = pr ? 'rgba(232,130,14,.10)' : 'rgba(21,101,192,.08)';
+        ctx.fill();
+        ctx.lineWidth=1; ctx.strokeStyle = pr ? 'rgba(216,118,10,.40)' : 'rgba(21,101,192,.24)';
+        ctx.stroke();
+        ctx.fillStyle = pr ? ORANGE_DK : '#1e5aa8';
+        ctx.font='800 13.5px Calibri';
+        ctx.fillText(labels[i], x, yNames+0.5);
+      }
+      /* 3) Fila "Proy. Actualizada" (ámbar), solo si existe. */
+      if(hayAmar){
+        ctx.textAlign='left'; ctx.font='800 10px Calibri';
+        ctx.fillStyle='#d39a00'; ctx.fillText('PROY. ACTUALIZADA', 2, yConf);
+        ctx.textAlign='center'; ctx.font='800 13px Calibri'; ctx.fillStyle='#d39a00';
+        for(let i=0;i<labels.length;i++){
+          if(projConf[i]!=null && Math.abs(projConf[i])>0.5){ ctx.fillText(fmtCompact(projConf[i],useUSD), xs.getPixelForValue(i), yConf); }
+        }
       }
       ctx.restore();
     }
@@ -7422,6 +7458,9 @@ function drawEjecChartMensual(canvasId, polArr, presArr, mesCorte, useUSD){
       const wantLine = (lbl)=> lbl==='Presupuesto 2026';
       const colorOf = (lbl)=> lbl==='Emisión Real 2026' ? '#1565c0'
                             : lbl==='Presupuesto 2026' ? '#0a3d7a' : '#94a8c2';
+      const yScale = chart.scales.y;
+      /* Alto de la barra apilada de cada mes (real + proyectado + confirmada). */
+      const barTopVal = (i)=> (r26[i]||0)+(projPres[i]||0)+(projConf[i]||0);
       const items = [];
       chart.data.datasets.forEach((ds, di)=>{
         const meta = chart.getDatasetMeta(di);
@@ -7432,10 +7471,12 @@ function drawEjecChartMensual(canvasId, polArr, presArr, mesCorte, useUSD){
           const v = ds.data[i];
           if(v==null || v===0) return;
           /* La etiqueta de la LÍNEA Presupuesto se ubica PEGADA a su punto del gráfico (apenas
-             arriba del marcador), no flotando sobre la barra del mes. */
+             arriba del marcador). Pero si la barra de ese mes es MÁS ALTA que el punto, la
+             etiqueta se sube por encima de la barra para que JAMÁS quede sobre ella. */
           let ly = el.y - (isLine?11:6);
+          if(isLine){ const bt=barTopVal(i); if(bt>0.5 && yScale){ const yBar=yScale.getPixelForValue(bt); if(yBar < el.y) ly = Math.min(ly, yBar - 12); } }
           items.push({x:el.x, ly, text:fmtCompact(v,useUSD),
-                      color:colorOf(ds.label), font:'800 11.5px Calibri'});
+                      color:colorOf(ds.label), font:'800 12px Calibri'});
         });
       });
       /* Anti-solape real: se calcula el medio-ancho de cada etiqueta y se considera que
