@@ -1207,7 +1207,12 @@ function _presEditKey(poliza, ck, m){ return _polKey(poliza)+'|'+ck+'|'+m; }
 /* Valor efectivo (ARS y USD) de un mes de una fila del Presupuesto, aplicando el override
    editable del usuario cuando existe (solo para meses PRESUPUESTADOS / no confirmados). */
 function _presMoVal(e, mo){
-  const usdRaw = (mo.usd!=null&&mo.usd!==0)?mo.usd:(mo.ars/(state._ejecTC||1400));
+  /* Si la columna US viene vacía, se deriva de ARS usando el TC DEL MES de la mini-tabla
+     "MES / TIPO DE CAMBIO" de la propia hoja (dinámico), NO un TC plano. Ese TC plano (1400)
+     inflaba el total (p. ej. ARS 310M en agosto daba US 221K con 1400 en vez de US 200K con
+     el TC real 1550). Fallback al TC general solo si no hay TC de ese mes. */
+  const _tcMes = (state._presupArgTC && state._presupArgTC[mo.m]) || state._ejecTC || 1400;
+  const usdRaw = (mo.usd!=null&&mo.usd!==0)?mo.usd:(mo.ars/_tcMes);
   if(!mo.yellow){
     const ck=_tipoToConcepto(e.tipo);
     const ov = ck ? (state._ejecPresEdit||{})[_presEditKey(e.poliza,ck,mo.m)] : null;
@@ -13356,7 +13361,7 @@ window.ejecEditPresMes = function(inputEl, key, isUSD){
     const [pk, ck, mStr] = key.split('|'); const m=parseInt(mStr,10);
     const pa=state._presupArg; let moArs=0, moUsd=0;
     if(pa && pa.ok){ for(const e of pa.rows){ if(_polKey(e.poliza)!==pk || _tipoToConcepto(e.tipo)!==ck) continue; const mo=e.months.find(x=>x.m===m && !x.yellow); if(mo){ moArs=mo.ars||0; moUsd=(mo.usd!=null&&mo.usd!==0)?mo.usd:0; break; } } }
-    const tc = state._ejecTC||1400;
+    const tc = (state._presupArgTC && state._presupArgTC[m]) || state._ejecTC || 1400;
     let ars, usd;
     if(isUSD){ usd=nv; ars = (moUsd>0 && moArs>0) ? nv*(moArs/moUsd) : nv*tc; }
     else { ars=nv; usd = (moArs>0 && moUsd>0) ? nv*(moUsd/moArs) : nv/tc; }
