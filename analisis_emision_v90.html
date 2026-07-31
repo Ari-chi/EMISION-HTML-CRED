@@ -4093,8 +4093,12 @@ function ejecJustificacion(S, useUSD, dual, useUSDprimary){
     /* PRESUPUESTO de emisión: suma del presupuesto 2026 mensual de los meses "tildados". Cada mes
        tiene un toggle en el desglose. Por defecto cuentan los meses ≤ corte SIN emisión confirmada
        (los confirmados, ej. junio, van DESTILDADOS porque ya están en "Emisión Confirmada"). */
-    const _paMc = presupArgMensual(_sufp).conf;
-    const _presArr = S.presArr || Array(12).fill(0);
+    const _paM = presupArgMensual(_sufp);
+    const _paMc = _paM.conf;
+    /* PROYECTADO (hoja "Presupuesto Argentina", por póliza y por mes) = lo PRESUPUESTADO sin
+       confirmar = total − confirmado (el confirmado ya va en "Emisión Confirmada"). Antes usaba
+       S.presArr (bloque de la hoja principal), que venía en 0 → no se veía. */
+    const _presArr = _paM.total.map((t,i)=> (t||0) - (_paM.conf[i]||0));
     state._ejecPresArr = state._ejecPresArr || {}; state._ejecPresArr[_sufp] = _presArr;   /* para el drill por mes */
     state._ejecPresCorte = _pendCut;
     state._ejecPresMes = state._ejecPresMes || {};
@@ -7196,20 +7200,28 @@ function drawEjecChartMensual(canvasId, polArr, presArr, mesCorte, useUSD){
   /* AMARILLO = "Proyección Actualizada" (Emisión Confirmada) en los meses SIN emisión real.
      El presupuesto va como línea punteada. */
   const paM = presupArgMensual(useUSD?'u':'a');
-  const projConf=[], grayEstim=[];
+  const projConf=[], grayEstim=[], projPres=[];
   for(let i=0;i<lim;i++){
     const actual=r26full[i]||0;
-    if(actual>0.5){ projConf[i]=null; }
-    else { const conf=paM.conf[i]||0; projConf[i]= conf>0.5?conf:null; }
+    if(actual>0.5){ projConf[i]=null; projPres[i]=null; }
+    else {
+      const conf=paM.conf[i]||0; projConf[i]= conf>0.5?conf:null;
+      /* PROYECTADO (presupuestado sin confirmar) = total − confirmado, en los meses sin emisión real. */
+      const pres=(paM.total[i]||0)-(paM.conf[i]||0); projPres[i]= pres>0.5?pres:null;
+    }
     grayEstim[i]=null;
   }
   const hayAmar = projConf.some(v=>v!=null);
+  const hayPres = projPres.some(v=>v!=null);
   const hayGris = false;
-  const hayProj = hayAmar;
+  const hayProj = hayAmar || hayPres;
   const datasets = [];
   datasets.push({label:'Presupuesto 2026', data:presup, type:'line', stack:'pl26', borderColor:'#0a3d7a', backgroundColor:'rgba(10,61,122,.08)', pointBackgroundColor:'#0a3d7a', pointBorderColor:'#fff', pointBorderWidth:1, borderWidth:1.8, borderDash:[2,3], pointRadius:2.4, pointHoverRadius:4, fill:false, tension:.25, spanGaps:true});
   /* Emisión Real 2026 + Proyección Actualizada apiladas en el mismo stack 'y26'. */
   datasets.push({label:'Emisión Real 2026', data:r26, stack:'y26', backgroundColor:'rgba(108,189,237,.88)', borderColor:'#4aa3e0', borderWidth:1.5, borderRadius:3, barPercentage:.7, categoryPercentage:.8});
+  if(hayPres){
+    datasets.push({label:'Proyectado', data:projPres, stack:'y26', backgroundColor:_stripeGray(), borderColor:'#8894a6', borderWidth:1, borderRadius:3, barPercentage:.7, categoryPercentage:.8});
+  }
   if(hayAmar){
     datasets.push({label:'Proyección Actualizada', data:projConf, stack:'y26', backgroundColor:'#ffe14d', borderColor:'#e0a800', borderWidth:1, borderRadius:3, barPercentage:.7, categoryPercentage:.8});
   }
@@ -7238,13 +7250,14 @@ function drawEjecChartMensual(canvasId, polArr, presArr, mesCorte, useUSD){
       if(!tooltip || tooltip.opacity===0){ el.style.opacity='0'; return; }
       const i = (tooltip.dataPoints && tooltip.dataPoints.length) ? tooltip.dataPoints[0].dataIndex : -1;
       if(i<0){ el.style.opacity='0'; return; }
-      const pres=presup[i], real=r26[i], proj=projConf[i];
+      const pres=presup[i], real=r26[i], proj=projConf[i], presProy=projPres[i];
       const FMc=(v)=>fmtCompact(Math.abs(v),useUSD);
       const row=(sw,lbl,val,neg)=>`<div style="display:flex;justify-content:space-between;gap:18px;font-size:12px;padding:2.5px 0"><span style="color:#3d5475"><span style="display:inline-block;width:9px;height:9px;border-radius:2px;background:${sw};margin-right:6px;vertical-align:middle"></span>${lbl}</span><strong style="font-family:var(--font-mono);color:${neg?'#c0392b':'#0a1f3a'}">${val==null?'—':((neg?'−':'')+FMc(val))}</strong></div>`;
       let html=`<div style="font-size:10.5px;text-transform:uppercase;letter-spacing:.04em;font-weight:800;color:#1e6fd9;margin-bottom:6px">${labels[i]}</div>`;
       html+=row('#0a3d7a','Presupuesto 2026',pres,false);
       if(real!=null) html+=row('rgba(108,189,237,.95)','Emisión Real 2026',real,false);
       if(proj!=null) html+=row('#ffe14d','Proy. Actualizada',proj,false);
+      if(presProy!=null) html+=row('#a7b2c4','Proyectado',presProy,false);
       const bd=[['Prima mín.',_c26.pm[i]],['Ajuste',_c26.aj[i]],['Bono',_c26.bo[i]],['Malus',_c26.ma[i]]].filter(x=>Math.abs(x[1]||0)>0.5);
       if(real!=null && bd.length){
         html+=`<div style="border-top:1px solid #eef2f7;margin:6px 0 4px"></div><div style="font-size:9.5px;text-transform:uppercase;letter-spacing:.03em;color:#8a98ad;font-weight:800;margin-bottom:3px">Emitido este mes</div>`;
