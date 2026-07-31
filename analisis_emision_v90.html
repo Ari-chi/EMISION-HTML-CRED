@@ -3758,7 +3758,7 @@ function ejecFlujo(S, useUSD){
   const _bubbleTitle = 'Emisión 2026 por tipo:\n' + _brows.map(r=>`• ${r.lbl}: ${r.neg?'−':''}${FMTc(Math.abs(r.val))} (${r.n})`).join('\n');
   const _bubbleHTML = `<div id="emisBubble_${sufijo}" style="display:none;position:absolute;top:100%;left:0;margin-top:6px;z-index:40;background:#fff;border:1px solid var(--line-2);border-radius:9px;box-shadow:0 6px 20px rgba(10,31,58,.20);padding:11px 13px;min-width:250px;text-align:left;cursor:default" onclick="event.stopPropagation()"><div style="font-size:10.5px;text-transform:uppercase;letter-spacing:.04em;font-weight:800;color:var(--pos);margin-bottom:6px">Emisión 2026 por tipo</div>${_bubbleRows||'<div style="font-size:12px;color:var(--ink-3)">— sin desglose —</div>'}</div>`;
   /* Título tipo "pill" (chip con fondo suave) para diferenciarlo bien del dato grande. */
-  const _pill=(col,soft,txt,extra='')=>`<span style="display:inline-flex;align-items:center;gap:5px;font-size:9.5px;color:${col};text-transform:uppercase;letter-spacing:.06em;font-weight:800;background:${soft};padding:3px 9px;border-radius:20px">${txt}${extra}</span>`;
+  const _pill=(col,soft,txt,extra='')=>`<span style="display:inline-flex;align-items:center;gap:5px;font-size:11.5px;color:${col};text-transform:uppercase;letter-spacing:.04em;font-weight:800;background:${soft};padding:4px 11px;border-radius:20px">${txt}${extra}</span>`;
   const _num=(col,txt,sz)=>`<div style="font-size:${sz||20}px;font-weight:800;color:${col};line-height:1;font-family:var(--font-mono);margin-top:7px">${txt}</div>`;
   const flecha=(s)=>`<div style="display:flex;align-items:center;color:var(--line-2);font-size:22px;font-weight:400">${s}</div>`;
   /* Barra de progreso "% del objetivo" (las "cositas" pedidas). */
@@ -3773,14 +3773,12 @@ function ejecFlujo(S, useUSD){
   const cumplEmi = S.presup26_emi>0 ? S.emis26/S.presup26_emi : null;
   /* Desvío: card con pill + valor + mini-barra de magnitud sobre el presupuesto. */
   const subCard = (titulo, sub, val, pct)=>{ const neg=val>0; const c=neg?'var(--neg)':'var(--pos)'; const soft=neg?'rgba(217,71,71,.14)':'rgba(45,155,106,.16)';
-    const mag=Math.max(0,Math.min(100,Math.abs(pct||0)));
     return `<div style="flex:1;background:${neg?'rgba(217,71,71,.07)':'rgba(45,155,106,.07)'};border-radius:10px;padding:10px 13px;border-left:3px solid ${c};display:flex;flex-direction:column;justify-content:center">
       ${_pill(c,soft,titulo+' · '+sub)}
       <div style="display:flex;align-items:baseline;gap:8px;margin-top:7px">
         <span style="font-size:20px;font-weight:800;color:${c};font-family:var(--font-mono)">${neg?'−':'+'}${FMTc(Math.abs(val))}</span>
         <span style="font-size:12.5px;font-weight:800;color:${c};font-family:var(--font-mono)">${pct!=null?'('+(pct>0?'−':'+')+Math.abs(pct).toFixed(0)+'%)':''}</span>
       </div>
-      <div style="height:5px;background:${neg?'rgba(217,71,71,.14)':'rgba(45,155,106,.16)'};border-radius:4px;margin-top:6px;overflow:hidden"><div style="height:100%;width:${mag}%;background:${c};border-radius:4px"></div></div>
     </div>`; };
   return `<div style="margin-top:8px">
     <div style="font-size:11px;color:var(--ink-3);text-transform:uppercase;letter-spacing:.05em;font-weight:700;margin-bottom:6px">${mLbl}</div>
@@ -4115,7 +4113,7 @@ function ejecJustificacion(S, useUSD, dual, useUSDprimary){
     state._ejecPresArr = state._ejecPresArr || {}; state._ejecPresArr[_sufp] = _presArr;   /* para el drill por mes */
     state._ejecPresCorte = _pendCut;
     state._ejecPresMes = state._ejecPresMes || {};
-    const _presMesDefault = (m)=> (m >= (S.lastEmis26||0) + 2) && (m <= _pendCut);   /* desde julio en adelante (salta junio = se emite este mes), hasta el corte */
+    const _presMesDefault = (m)=> true;   /* todos los meses tildados por defecto (el usuario destilda si no quiere) */
     const _presMesOn = (m)=>{ const v = state._ejecPresMes[m]; return (v!==undefined) ? !!v : _presMesDefault(m); };
     let presFull = 0, _presMeses = 0;
     if(_ejecContabOn('pend_presup','mes')){ for(let m=1;m<=12;m++){ if(_presMesOn(m)){ presFull += (_presArr[m-1]||0); _presMeses++; } } }
@@ -4547,12 +4545,14 @@ function ejecJustificacion(S, useUSD, dual, useUSDprimary){
           </div>
           ${flecha('+')}
           <div style="flex:1.05;display:flex;flex-direction:column;gap:6px;justify-content:center">
-            ${cardYellow('Pendiente · se emite este mes (proyección)','',pendMes)}
+            ${cardYellow('Pendiente · se emite este mes','',pendMes)}
             ${cardYellow('Proyectado','',proyVal)}
           </div>
           ${flecha('=')}
           <div style="flex:1.05;display:flex;flex-direction:column;gap:6px;justify-content:center">
-            ${card('rgba(30,111,217,.10)','var(--accent)','Emisión estimada', _mesSel, valDiv('var(--accent-3)', FMTc(emisEst)))}
+            ${card('rgba(30,111,217,.10)','var(--accent)','Emisión estimada', _mesSel, valDiv('var(--accent-3)', FMTc(emisEst)) + (()=>{ const dv=emisEst-presup; const neg=dv<0; const c=neg?'var(--neg)':'var(--pos)'; const pct=presup?Math.round(Math.abs(dv/presup*100)):null;
+              return `<div style="display:flex;align-items:baseline;gap:6px;margin-top:6px;padding-top:6px;border-top:1px dashed var(--line)"><span style="font-size:9px;text-transform:uppercase;letter-spacing:.03em;color:${c};font-weight:800">Desvío</span><span style="font-family:var(--font-mono);font-weight:800;color:${c};font-size:15px">${neg?'−':'+'}${FMTc(Math.abs(dv))}</span><span style="font-family:var(--font-mono);font-weight:800;color:${c};font-size:11.5px">${pct!=null?'('+(neg?'−':'+')+pct+'%)':''}</span></div>`;
+            })())}
           </div>
         </div>
       </div>`;
@@ -6954,7 +6954,7 @@ window.toggleEjecCausa = function(id){
     const on = _ejecContabOn('pend_presup','mes');
     state._ejecPresMes = state._ejecPresMes || {};
     const _le26 = state._ejecLastEmis26||0;
-    const onMes = (m)=>{ const v=state._ejecPresMes[m]; return (v!==undefined)?!!v:((m>=_le26+2)&&(m<=corte)); };
+    const onMes = (m)=>{ const v=state._ejecPresMes[m]; return (v!==undefined)?!!v:true; };   /* todos tildados por defecto */
     let total=0; for(let m=1;m<=12;m++){ if(onMes(m)) total+=(presArr[m-1]||0); }
     const tc='#3a8fc0';
     const filas = MESES.map((mn,idx)=>{ const m=idx+1; const pres=presArr[idx]||0; const conf=confM[idx]||0; const chk=onMes(m); const fut=(m<=corte);
@@ -7362,7 +7362,7 @@ function drawEjecChartMensual(canvasId, polArr, presArr, mesCorte, useUSD){
       el.style.left=left+'px'; el.style.top=top+'px';
     }
   };
-  opts.scales.x.ticks.font = {family:'Calibri', size:13, weight:'700'};
+  opts.scales.x.ticks.font = {family:'Calibri', size:14.5, weight:'700'};
   opts.scales.x.ticks.color = '#3d5475';
   /* Meses más abajo: deja un hueco entre las barras y los nombres para la fila de Emisión Real. */
   opts.scales.x.ticks.padding = 26;
@@ -7391,13 +7391,13 @@ function drawEjecChartMensual(canvasId, polArr, presArr, mesCorte, useUSD){
       const _sepYs = [yBase+36, yConf+13]; if(hayGris) _sepYs.push(yPres+13);
       _sepYs.forEach(y=>{ ctx.beginPath(); ctx.moveTo(ca.left,y); ctx.lineTo(ca.right,y); ctx.stroke(); });
       /* Títulos de fila a la izquierda (alineados al borde, margen chico). */
-      ctx.textAlign='left'; ctx.textBaseline='middle'; ctx.font='700 9px Calibri';
+      ctx.textAlign='left'; ctx.textBaseline='middle'; ctx.font='800 11px Calibri';
       const lblX=2;
       ctx.fillStyle='#1565c0'; ctx.fillText('Emisión Real', lblX, yEmis);
       if(hayAmar){ ctx.fillStyle='#d39a00'; ctx.fillText('Proy. Actualizada', lblX, yConf); }
       if(hayGris){ ctx.fillStyle='#8894a6'; ctx.fillText('Estim. Inicial', lblX, yPres); }
       /* Valores por mes. */
-      ctx.textAlign='center'; ctx.font='800 11px Calibri';
+      ctx.textAlign='center'; ctx.font='800 13px Calibri';
       for(let i=0;i<labels.length;i++){
         const x=xs.getPixelForValue(i);
         const e=r26[i];
@@ -7435,7 +7435,7 @@ function drawEjecChartMensual(canvasId, polArr, presArr, mesCorte, useUSD){
              arriba del marcador), no flotando sobre la barra del mes. */
           let ly = el.y - (isLine?11:6);
           items.push({x:el.x, ly, text:fmtCompact(v,useUSD),
-                      color:colorOf(ds.label), font:'700 9.5px Calibri'});
+                      color:colorOf(ds.label), font:'800 11.5px Calibri'});
         });
       });
       /* Anti-solape real: se calcula el medio-ancho de cada etiqueta y se considera que
