@@ -4911,7 +4911,7 @@ function ejecEmitido(S, useUSD, dual){
   return `<div style="margin-top:${dual?14:8}px">
     ${dual?`<div style="font-size:11px;color:var(--ink-3);text-transform:uppercase;letter-spacing:.05em;font-weight:700;margin-bottom:8px">${mLbl}</div>`:''}
     ${items.length>0 ? `
-    <div style="display:grid;grid-template-columns:auto 1fr;gap:4px;align-items:center;margin-bottom:10px">
+    <div style="display:grid;grid-template-columns:auto auto;justify-content:center;gap:48px;align-items:center;margin-bottom:10px">
       ${chartsBlock}
       <div>${leyendaFull}</div>
     </div>
