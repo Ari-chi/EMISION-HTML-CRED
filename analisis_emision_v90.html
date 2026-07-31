@@ -1060,6 +1060,10 @@ function parsePresupArgBudget(ws){
   const colBy=lbl=>{ for(let c=range.s.c;c<=range.e.c;c++){ if(_accent(hdr[c])===lbl) return c; } return -1; };
   const cPol=colBy('poliza'), cAseg=colBy('nombre asegurado'), cMon=colBy('moneda'), cMesGen=colBy('mes');
   if(cPol<0) return;
+  /* TC por mes (mini-tabla MES + TIPO DE CAMBIO a la izquierda) — para mostrarlo chiquito en el resumen. */
+  state._presupArgTC = {};
+  const cTC=colBy('tipo de cambio');
+  if(cMesGen>=0 && cTC>=0){ for(let r=1;r<=range.e.r;r++){ const mn=_mesToNum(getv(r,cMesGen)); const tc=_numv(getv(r,cTC)); if(mn>=1 && tc>0) state._presupArgTC[mn]=tc; } }
   /* Cada concepto tiene 3 columnas de valor (Moneda Original / ARS / US) + "MES ESTIMADO EMISION".
      Se detecta por PALABRA CLAVE del encabezado (tolera renombres: "PM RENOVACIÓN", "PM 2da ANUAL.",
      "PRIMA MINIMA 2DA ANUALIDAD", "AJUSTE PRESUPUESTADO", "PROFIT ESTIMADO", "MALUS ESTIMADO").
@@ -4550,6 +4554,7 @@ function ejecJustificacion(S, useUSD, dual, useUSDprimary){
       <div style="width:100%;max-width:340px;justify-self:center"><canvas id="${pieIdDes}" style="max-height:290px"></canvas></div>
       <div>${leyendaDes}</div>
     </div>` : ''}
+    ${ejecProyectadoResumen(useUSD)}
   </div>`;
 }
 
@@ -7178,6 +7183,80 @@ function presupArgMensual(suf){
       else if(!confKeys.has(key)){ out.total[mi]+=sgn*v; }   /* gris solo si NO está confirmada esa póliza+concepto */
     } }
   return out;
+}
+/* Cuadro RESUMEN del PROYECTADO (hoja "Presupuesto Argentina", presupuestado sin confirmar):
+   por concepto (Prima mín. Renovación / 2ª anualidad, Ajuste, Bono, Malus) comparado contra el
+   2025 de las mismas pólizas, y por mes con su TC. Dinámico: sale del Excel cargado. */
+function ejecProyectadoResumen(useUSD){
+  const pa=state._presupArg; if(!pa||!pa.ok) return '';
+  const TCm=state._presupArgTC||{};
+  const us=useUSD; const F=(v)=>fmtCompact(v, us);
+  const valU=(mo)=> (mo.usd!=null&&mo.usd!==0)?mo.usd:(mo.ars/(state._ejecTC||1400));
+  const C={reno:{a:0,u:0},seg:{a:0,u:0},ajuste:{a:0,u:0},bono:{a:0,u:0},malus:{a:0,u:0}};
+  const byMonth={}; const polSet=new Set();
+  /* Dedup igual que el gráfico/causa: si (póliza,concepto) está confirmada, su parte presupuestada no cuenta. */
+  const confKeys=new Set();
+  for(const e of pa.rows){ const ck=_tipoToConcepto(e.tipo); if(ck && e.months.some(mo=>mo.yellow)) confKeys.add(_polKey(e.poliza)+'|'+ck); }
+  for(const e of pa.rows){ const ck=_tipoToConcepto(e.tipo); if(!ck) continue;
+    if(confKeys.has(_polKey(e.poliza)+'|'+ck)) continue;
+    const isSeg=/2da|segunda/i.test(e.tipo||'');
+    for(const mo of e.months){ if(mo.yellow) continue; const a=mo.ars||0, u=valU(mo); if(!a&&!u) continue;
+      const sgn=(ck==='bono')?-1:1;
+      const key = ck==='primaMin' ? (isSeg?'seg':'reno') : ck;
+      if(C[key]){ C[key].a+=sgn*a; C[key].u+=sgn*u; }
+      const m=mo.m; if(!byMonth[m]) byMonth[m]={a:0,u:0}; byMonth[m].a+=sgn*a; byMonth[m].u+=sgn*u;
+      polSet.add(_polKey(e.poliza));
+    } }
+  if(polSet.size===0) return '';
+  const V25={prima:{a:0,u:0},ajuste:{a:0,u:0},bono:{a:0,u:0},malus:{a:0,u:0}};
+  for(const p of state.polizas){ if(!polSet.has(_polKey(p.poliza))) continue;
+    const f=calcEmisionFiltrada(p,2025,0);
+    V25.prima.a+=f.breakdownARS.primaMin; V25.prima.u+=f.breakdownUSD.primaMin;
+    V25.ajuste.a+=f.breakdownARS.ajuste;  V25.ajuste.u+=f.breakdownUSD.ajuste;
+    V25.bono.a +=f.breakdownARS.bono;     V25.bono.u +=f.breakdownUSD.bono;
+    V25.malus.a+=f.breakdownARS.malus;    V25.malus.u+=f.breakdownUSD.malus;
+  }
+  const g=(o)=> o?(us?o.u:o.a):0;
+  const primaProy=g(C.reno)+g(C.seg);
+  /* Fila concepto: 2025 → Proyectado 2026 + variación. */
+  const fila=(lbl, p, y, opts={})=>{ const d=(y!=null)?p-y:null; const dc=d==null?'var(--ink-3)':(d>=0?'var(--pos)':'var(--neg)'); const pct=(y&&y!==0)?d/Math.abs(y):null;
+    return `<div style="display:grid;grid-template-columns:1.3fr 1fr 12px 1fr 96px;gap:8px;align-items:baseline;padding:5px 8px;border-top:1px solid var(--line);${opts.head?'background:var(--bg-2);font-weight:800':''}">
+      <span style="color:var(--accent-3);font-weight:${opts.head?800:700};font-size:12.5px">${lbl}</span>
+      <span style="font-family:var(--font-mono);text-align:right;color:var(--ink-2);font-size:12px">${y!=null?F(y):'—'}</span>
+      <span style="color:var(--ink-3);text-align:center;font-size:11px">→</span>
+      <span style="font-family:var(--font-mono);text-align:right;font-weight:800;color:var(--accent-3);font-size:13px">${F(p)}</span>
+      <span style="font-family:var(--font-mono);text-align:right;font-weight:800;color:${dc};font-size:11.5px">${d==null?'':((d>=0?'+':'')+F(d)+(pct!=null?' ('+(d>=0?'+':'')+FMT_PCT(pct)+')':''))}</span>
+    </div>`; };
+  const concTbl=`
+    <div style="display:grid;grid-template-columns:1.3fr 1fr 12px 1fr 96px;gap:8px;padding:0 8px 4px;font-size:9px;text-transform:uppercase;letter-spacing:.04em;color:var(--ink-3);font-weight:800">
+      <span>Concepto</span><span style="text-align:right">2025</span><span></span><span style="text-align:right">Proyectado</span><span style="text-align:right">Var.</span>
+    </div>
+    ${fila('Prima mín. · Renovación', g(C.reno), null)}
+    ${fila('Prima mín. · 2ª anualidad', g(C.seg), null)}
+    ${fila('Prima mínima (total)', primaProy, g(V25.prima), {head:true})}
+    ${fila('Ajuste', g(C.ajuste), g(V25.ajuste))}
+    ${fila('Bono', g(C.bono), g(V25.bono))}
+    ${fila('Malus', g(C.malus), g(V25.malus))}`;
+  /* Por mes (futuros) con TC. */
+  const meses=Object.keys(byMonth).map(Number).sort((a,b)=>a-b);
+  let totA=0,totU=0;
+  const mesRows=meses.map(m=>{ const o=byMonth[m]; totA+=o.a; totU+=o.u; const tc=TCm[m];
+    return `<div style="display:grid;grid-template-columns:1fr 1fr 1fr 60px;gap:8px;align-items:baseline;padding:4px 8px;border-top:1px solid var(--line);font-size:12px">
+      <span style="color:var(--accent-3);font-weight:700">${MESES[m-1]||m}</span>
+      <span style="font-family:var(--font-mono);text-align:right;color:var(--ink-2)">${fmtCompact(o.a,false)}</span>
+      <span style="font-family:var(--font-mono);text-align:right;color:var(--ink-2)">${fmtCompact(o.u,true)}</span>
+      <span style="font-family:var(--font-mono);text-align:right;color:var(--ink-3);font-size:9.5px">${tc?('TC '+Math.round(tc)):''}</span>
+    </div>`; }).join('');
+  return `<div style="margin-top:14px;border-top:1px solid var(--line);padding-top:12px">
+    <div style="font-size:11.5px;font-weight:800;color:var(--accent-3);text-transform:uppercase;letter-spacing:.04em;margin-bottom:8px">Proyectado · resumen por concepto (vs 2025) · ${us?'USD':'ARS$'}</div>
+    <div style="border:1px solid var(--line-2);border-radius:9px;overflow:hidden;max-width:640px;margin-bottom:14px">${concTbl}</div>
+    <div style="font-size:11px;font-weight:800;color:var(--accent-3);text-transform:uppercase;letter-spacing:.04em;margin-bottom:6px">Proyectado por mes <span style="color:var(--ink-3);font-weight:600;text-transform:none">· con TC usado</span></div>
+    <div style="border:1px solid var(--line-2);border-radius:9px;overflow:hidden;max-width:520px">
+      <div style="display:grid;grid-template-columns:1fr 1fr 1fr 60px;gap:8px;padding:6px 8px;font-size:9px;text-transform:uppercase;letter-spacing:.04em;color:var(--ink-3);font-weight:800;background:var(--bg-2)"><span>Mes</span><span style="text-align:right">Total ARS</span><span style="text-align:right">Total USD</span><span style="text-align:right">TC</span></div>
+      ${mesRows}
+      <div style="display:grid;grid-template-columns:1fr 1fr 1fr 60px;gap:8px;padding:7px 8px;border-top:2px solid var(--line-2);font-family:var(--font-mono);font-weight:800;color:var(--accent-3);font-size:12.5px"><span style="font-family:var(--font)">Total</span><span style="text-align:right">${fmtCompact(totA,false)}</span><span style="text-align:right">${fmtCompact(totU,true)}</span><span></span></div>
+    </div>
+  </div>`;
 }
 /* Patrón rayado gris para la parte PRESUPUESTADA (no confirmada) de los meses proyectados. */
 let _stripeGrayCache=null;
