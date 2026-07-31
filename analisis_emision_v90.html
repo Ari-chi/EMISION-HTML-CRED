@@ -7053,31 +7053,30 @@ window.toggleEjecCausa = function(id){
     const onMes = (m)=>{ const v=state._ejecPresMes[m]; return (v!==undefined)?!!v:true; };   /* todos tildados por defecto */
     let total=0; for(let m=1;m<=12;m++){ if(onMes(m)) total+=(presArr[m-1]||0); }
     const tc='#d68c4a';   /* Proyectado = naranja suave */
-    /* Fila de detalle por póliza de un mes: recuadro claro con Emitido 2025 · Proyectado 2026
-       (editable) · Variación, bien separados (pedido del usuario). */
+    /* Detalle por póliza como CUADRO: a la izquierda la póliza, y columnas alineadas
+       Emisión 2025 · Proyectado 2026 (editable) · Variación. */
+    const _detGrid = 'grid-template-columns:1.6fr 1fr 1.15fr 1.15fr;gap:10px';
+    const detHeader = `<div style="display:grid;${_detGrid};padding:6px 12px 6px 30px;background:var(--bg-2);border-bottom:1px solid var(--line-2);font-size:9px;text-transform:uppercase;letter-spacing:.04em;color:var(--ink-3);font-weight:800">
+        <span>Póliza</span><span style="text-align:right">Emisión 2025</span><span style="text-align:right">Proyectado 2026</span><span style="text-align:right">Variación</span>
+      </div>`;
     const detFila = (r)=>{
       const d=r.val-r.v25; const dc=d>=0?'var(--pos)':'var(--neg)'; const pct=(r.v25&&r.v25!==0)?d/Math.abs(r.v25):null;
       const inputVal = Math.round(r.val).toLocaleString('es-AR');   /* con puntito de miles */
       const cur = btnUSD?'US':'$';
-      const yr=(lbl,col)=>`<span style="font-size:8.5px;text-transform:uppercase;letter-spacing:.03em;color:${col};font-weight:800">${lbl}</span>`;
-      return `<div style="padding:8px 12px 9px 30px;border-bottom:1px solid var(--line);background:#fffdf9">
-        <div style="display:flex;align-items:center;gap:8px;margin-bottom:6px;flex-wrap:wrap">
-          <span style="font-weight:800;color:var(--accent-3);font-size:14px">${fmtPoliza(r.poliza)}</span>
-          <span style="color:var(--ink-2);font-size:13px;max-width:240px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${(r.aseg||'').substring(0,30)}</span>
-          <span style="font-size:9.5px;color:${tc};font-weight:800;background:rgba(214,140,74,.16);padding:1px 7px;border-radius:4px">${r.lbl}</span>
+      return `<div style="display:grid;${_detGrid};align-items:center;padding:8px 12px 8px 30px;border-bottom:1px solid var(--line);background:#fffdf9">
+        <div style="min-width:0">
+          <div style="white-space:nowrap;overflow:hidden;text-overflow:ellipsis"><strong style="color:var(--accent-3);font-size:13.5px">${fmtPoliza(r.poliza)}</strong> <span style="color:var(--ink-2);font-size:12px">${(r.aseg||'').substring(0,18)}</span></div>
+          <span style="display:inline-block;margin-top:2px;font-size:9.5px;color:${tc};font-weight:800;background:rgba(214,140,74,.16);padding:1px 6px;border-radius:4px">${r.lbl}</span>
         </div>
-        <div style="display:flex;align-items:center;gap:9px;flex-wrap:wrap;font-family:var(--font-mono)">
-          <span style="display:inline-flex;align-items:baseline;gap:5px">${yr('2025','var(--ink-3)')}<span style="font-size:14.5px;font-weight:800;color:var(--ink-2)">${fmtCompact(r.v25,btnUSD)}</span></span>
-          <span style="color:var(--ink-3);font-size:15px">→</span>
-          <span style="display:inline-flex;align-items:center;gap:4px">${yr('2026',tc)}<span style="font-size:10px;color:var(--ink-3);font-weight:700">${cur}</span><input type="text" inputmode="numeric" value="${inputVal}" onchange="window.ejecEditPresMes(this,'${r.key}',${btnUSD?1:0})" onclick="event.stopPropagation()" style="width:104px;font-family:var(--font-mono);font-weight:800;font-size:14px;color:${tc};text-align:right;border:1px solid ${r.edited?tc:'var(--line-2)'};border-radius:5px;padding:2px 7px;background:${r.edited?'rgba(214,140,74,.12)':'#fff'}"/></span>
-          <span style="margin-left:auto;display:inline-flex;align-items:baseline;gap:5px">${yr('Var.','var(--ink-3)')}<span style="font-size:14.5px;font-weight:800;color:${dc};white-space:nowrap">${d>=0?'+':'−'}${fmtCompact(Math.abs(d),btnUSD)}${pct!=null?` (${d>=0?'+':'−'}${FMT_PCT(Math.abs(pct))})`:''}</span></span>
-        </div>
+        <div style="font-family:var(--font-mono);font-weight:800;font-size:14px;color:var(--ink-2);text-align:right">${fmtCompact(r.v25,btnUSD)}</div>
+        <div style="text-align:right"><span style="display:inline-flex;align-items:center;gap:4px;justify-content:flex-end"><span style="font-size:10px;color:var(--ink-3);font-weight:700">${cur}</span><input type="text" inputmode="numeric" value="${inputVal}" onchange="window.ejecEditPresMes(this,'${r.key}',${btnUSD?1:0})" onclick="event.stopPropagation()" style="width:94px;font-family:var(--font-mono);font-weight:800;font-size:13.5px;color:${tc};text-align:right;border:1px solid ${r.edited?tc:'var(--line-2)'};border-radius:5px;padding:2px 6px;background:${r.edited?'rgba(214,140,74,.12)':'#fff'}"/></span></div>
+        <div style="font-family:var(--font-mono);font-weight:800;font-size:14px;color:${dc};text-align:right;white-space:nowrap">${d>=0?'+':'−'}${fmtCompact(Math.abs(d),btnUSD)}${pct!=null?` <span style="font-size:11px">(${d>=0?'+':'−'}${FMT_PCT(Math.abs(pct))})</span>`:''}</div>
       </div>`;
     };
     const filas = MESES.map((mn,idx)=>{ const m=idx+1; const pres=presArr[idx]||0; const conf=confM[idx]||0; const chk=onMes(m); const fut=(m<=corte); const open=!!state._ejecPresOpen[m];
       if(pres<0.5 && conf<0.5 && !fut) return '';
       const canOpen = pres>0.5;
-      const det = open ? _presMesPolizas(m, suf).map(detFila).join('') : '';
+      const det = open ? (()=>{ const pl=_presMesPolizas(m, suf); return pl.length ? detHeader + pl.map(detFila).join('') : ''; })() : '';
       return `<div>
         <div style="display:grid;grid-template-columns:18px 14px 1fr auto;gap:9px;align-items:center;padding:8px 14px;border-bottom:1px solid var(--line);font-size:13px;${chk?'':'opacity:.5'}">
           <span onclick="event.stopPropagation();window.ejecTogglePresMes(${m})" title="Contabilizar este mes" style="width:14px;height:14px;border:1.5px solid ${chk?tc:'var(--line-2)'};border-radius:3px;background:${chk?tc:'transparent'};display:inline-flex;align-items:center;justify-content:center;color:#fff;font-size:10px;font-weight:800;cursor:pointer">${chk?'✓':''}</span>
