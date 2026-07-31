@@ -3167,7 +3167,7 @@ function drawInsurChart(canvasId, presup, real, lastEmis){
   const datasets = [
     {label:'Presupuesto 2026', data:presup, type:'line', stack:'pl26', borderColor:'#0a3d7a', backgroundColor:'rgba(10,61,122,.08)', pointBackgroundColor:'#0a3d7a', pointBorderColor:'#fff', pointBorderWidth:1, borderWidth:1.8, borderDash:[2,3], pointRadius:2.4, pointHoverRadius:4, fill:false, tension:.25, spanGaps:true},
     {label:'Real 2026', data:realBars, stack:'y26', backgroundColor:'rgba(108,189,237,.88)', borderColor:'#4aa3e0', borderWidth:1.5, borderRadius:3, barPercentage:.7, categoryPercentage:.8},
-    {label:'Presupuestado (sin emitir)', data:projBudget, stack:'y26', backgroundColor:_stripeOrange(), borderColor:'#d8760a', borderWidth:1, borderRadius:3, barPercentage:.7, categoryPercentage:.8},
+    {label:'Presupuestado (sin emitir)', data:projBudget, stack:'y26', backgroundColor:_stripeOrange(), borderColor:'#e0a15c', borderWidth:1, borderRadius:3, barPercentage:.7, categoryPercentage:.8},
   ];
   const opts = chartOpts({yMoney:'ars',legend:true});
   opts.scales.x = opts.scales.x||{}; opts.scales.x.stacked=true;
@@ -4148,7 +4148,7 @@ function ejecJustificacion(S, useUSD, dual, useUSDprimary){
     state._ejecNet[_sufp] = {dic:_netDic, may:_netMay};
     causas = [
       mk('pend_conf','Pendiente - Emisión Confirmada', _confV, _conf.n, '#ffd54a','pendiente'),
-      mk('pend_presup','Proyectado', _presV, _presMeses, '#e8820e','pendiente'),
+      mk('pend_presup','Proyectado', _presV, _presMeses, '#e0a15c','pendiente'),
       mk('pend_2025','Emisión Pendiente (En Desarrollo)', _p25V, _p25.n, '#cbd5e6','pendiente'),
       mk('perdidas',APP_CONFIG.textos.perdidas, mkVal(cnt.perdidas), cnt.perdidas.n, APP_CONFIG.colores.perdidas),
       mk('menor',APP_CONFIG.textos.menor || 'Menor Emisión', menorSigned, menorN, APP_CONFIG.colores.abm),
@@ -7044,23 +7044,24 @@ window.toggleEjecCausa = function(id){
     const _le26 = state._ejecLastEmis26||0;
     const onMes = (m)=>{ const v=state._ejecPresMes[m]; return (v!==undefined)?!!v:true; };   /* todos tildados por defecto */
     let total=0; for(let m=1;m<=12;m++){ if(onMes(m)) total+=(presArr[m-1]||0); }
-    const tc='#e8820e';   /* Proyectado = naranja (foto3) */
-    /* Fila de detalle por póliza de un mes (editable + comparación 2025). */
+    const tc='#d68c4a';   /* Proyectado = naranja suave */
+    /* Fila de detalle por póliza de un mes: recuadro claro con Emitido 2025 · Proyectado 2026
+       (editable) · Variación, bien separados (pedido del usuario). */
     const detFila = (r)=>{
       const d=r.val-r.v25; const dc=d>=0?'var(--pos)':'var(--neg)'; const pct=(r.v25&&r.v25!==0)?d/Math.abs(r.v25):null;
       const inputVal = Math.round(r.val);
-      return `<div style="display:grid;grid-template-columns:1.5fr auto;gap:8px;align-items:center;padding:6px 10px 6px 30px;border-bottom:1px solid var(--line);font-size:12px;background:#fffdf9">
-        <div style="min-width:0">
-          <div style="white-space:nowrap;overflow:hidden;text-overflow:ellipsis"><span style="font-weight:800;color:var(--accent-3)">${fmtPoliza(r.poliza)}</span> <span style="color:var(--ink-2)">${(r.aseg||'').substring(0,20)}</span></div>
-          <div style="display:flex;align-items:baseline;gap:7px;margin-top:2px">
-            <span style="font-size:10px;color:${tc};font-weight:800;background:rgba(232,130,14,.12);padding:1px 6px;border-radius:4px">${r.lbl}</span>
-            <span style="font-family:var(--font-mono);font-size:11px;color:var(--ink-3)">'25 ${fmtCompact(r.v25,btnUSD)}</span>
-            <span style="font-family:var(--font-mono);font-size:11px;font-weight:800;color:${dc}">${d>=0?'+':'−'}${fmtCompact(Math.abs(d),btnUSD)}${pct!=null?' ('+(d>=0?'+':'−')+FMT_PCT(Math.abs(pct))+')':''}</span>
-          </div>
+      const miniBox=(lbl, inner, accent)=>`<div style="flex:1;min-width:96px;background:#fff;border:1px solid ${accent||'var(--line-2)'};border-radius:7px;padding:5px 9px">
+        <div style="font-size:8.5px;text-transform:uppercase;letter-spacing:.04em;color:var(--ink-3);font-weight:800;margin-bottom:3px">${lbl}</div>${inner}</div>`;
+      return `<div style="padding:9px 12px 11px 30px;border-bottom:1px solid var(--line);background:#fffdf9">
+        <div style="display:flex;align-items:center;gap:8px;margin-bottom:7px;flex-wrap:wrap">
+          <span style="font-weight:800;color:var(--accent-3);font-size:12.5px">${fmtPoliza(r.poliza)}</span>
+          <span style="color:var(--ink-2);font-size:12px;max-width:230px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${(r.aseg||'').substring(0,28)}</span>
+          <span style="font-size:9.5px;color:${tc};font-weight:800;background:rgba(214,140,74,.16);padding:1px 7px;border-radius:4px">${r.lbl}</span>
         </div>
-        <div style="display:flex;align-items:center;gap:4px;justify-content:flex-end">
-          <span style="font-size:10px;color:var(--ink-3);font-weight:700">${btnUSD?'US':'$'}</span>
-          <input type="number" value="${inputVal}" onchange="window.ejecEditPresMes(this,'${r.key}',${btnUSD?1:0})" onclick="event.stopPropagation()" style="width:100px;font-family:var(--font-mono);font-weight:800;font-size:13px;color:${tc};text-align:right;border:1px solid ${r.edited?tc:'var(--line-2)'};border-radius:5px;padding:3px 6px;background:${r.edited?'rgba(232,130,14,.08)':'#fff'}"/>
+        <div style="display:flex;gap:8px;align-items:stretch">
+          ${miniBox('Emitido 2025', `<div style="font-family:var(--font-mono);font-size:13.5px;font-weight:800;color:var(--ink-2)">${fmtCompact(r.v25,btnUSD)}</div>`)}
+          ${miniBox('Proyectado 2026', `<div style="display:flex;align-items:center;gap:4px"><span style="font-size:10px;color:var(--ink-3);font-weight:700">${btnUSD?'US':'$'}</span><input type="number" value="${inputVal}" onchange="window.ejecEditPresMes(this,'${r.key}',${btnUSD?1:0})" onclick="event.stopPropagation()" style="width:100%;min-width:64px;font-family:var(--font-mono);font-weight:800;font-size:13.5px;color:${tc};text-align:right;border:1px solid ${r.edited?tc:'var(--line-2)'};border-radius:5px;padding:2px 5px;background:${r.edited?'rgba(214,140,74,.12)':'#fff'}"/></div>`, r.edited?tc:null)}
+          ${miniBox('Variación', `<div style="font-family:var(--font-mono);font-size:13.5px;font-weight:800;color:${dc};white-space:nowrap">${d>=0?'+':'−'}${fmtCompact(Math.abs(d),btnUSD)}${pct!=null?` <span style="font-size:11px">(${d>=0?'+':'−'}${FMT_PCT(Math.abs(pct))})</span>`:''}</div>`)}
         </div>
       </div>`;
     };
@@ -7470,16 +7471,18 @@ function ejecProyectadoResumen(useUSD){
       <span style="color:var(--accent-3);font-weight:700">${MESES[m-1]||m}</span>
       <span style="font-family:var(--font-mono);text-align:right;font-weight:800;color:${tc?'var(--accent-3)':'var(--ink-3)'}">${tc?('$'+Math.round(tc).toLocaleString('es-AR')):'—'}</span>
     </div>`; }).join('');
-  const _titCss='font-size:12px;font-weight:800;color:#fff;text-transform:uppercase;letter-spacing:.04em;padding:8px 12px;background:linear-gradient(90deg,#e8820e,#f0a13e);border-radius:8px 8px 0 0';
+  const _titCss='font-size:12px;font-weight:800;color:#fff;text-transform:uppercase;letter-spacing:.04em;padding:8px 12px;background:linear-gradient(90deg,#d68c4a,#e6a968);border-radius:8px 8px 0 0';
   return `<div style="margin-top:16px;border-top:1px solid var(--line);padding-top:14px">
-    <div style="border:1px solid var(--line-2);border-radius:9px;overflow:hidden;margin-bottom:16px">
-      <div style="${_titCss}">Proyectado · resumen por concepto (vs 2025) · ${us?'USD':'ARS$'}</div>
-      ${concTbl}
-    </div>
-    <div style="border:1px solid var(--line-2);border-radius:9px;overflow:hidden;max-width:340px">
-      <div style="${_titCss}">Tipo de cambio por mes</div>
-      <div style="display:grid;grid-template-columns:1fr auto;gap:10px;padding:6px 14px;font-size:9.5px;text-transform:uppercase;letter-spacing:.04em;color:var(--ink-3);font-weight:800;background:var(--bg-2);border-bottom:1px solid var(--line-2)"><span>Mes</span><span style="text-align:right">TC usado</span></div>
-      ${tcRows||'<div style="padding:10px 14px;color:var(--ink-3);font-style:italic;font-size:12px">— sin TC cargado —</div>'}
+    <div style="display:flex;gap:16px;align-items:flex-start;flex-wrap:wrap">
+      <div style="flex:1;min-width:420px;border:1px solid var(--line-2);border-radius:9px;overflow:hidden">
+        <div style="${_titCss}">Proyectado · resumen por concepto (vs 2025) · ${us?'USD':'ARS$'}</div>
+        ${concTbl}
+      </div>
+      <div style="flex:0 0 260px;border:1px solid var(--line-2);border-radius:9px;overflow:hidden">
+        <div style="${_titCss}">Tipo de cambio por mes</div>
+        <div style="display:grid;grid-template-columns:1fr auto;gap:10px;padding:6px 14px;font-size:9.5px;text-transform:uppercase;letter-spacing:.04em;color:var(--ink-3);font-weight:800;background:var(--bg-2);border-bottom:1px solid var(--line-2)"><span>Mes</span><span style="text-align:right">TC usado</span></div>
+        ${tcRows||'<div style="padding:10px 14px;color:var(--ink-3);font-style:italic;font-size:12px">— sin TC cargado —</div>'}
+      </div>
     </div>
   </div>`;
 }
@@ -7498,8 +7501,8 @@ let _stripeOrangeCache=null;
 function _stripeOrange(){
   if(_stripeOrangeCache) return _stripeOrangeCache;
   const c=document.createElement('canvas'); c.width=c.height=7; const x=c.getContext('2d');
-  x.fillStyle='rgba(232,130,14,0.16)'; x.fillRect(0,0,7,7);
-  x.strokeStyle='rgba(216,118,10,0.70)'; x.lineWidth=1.5;
+  x.fillStyle='rgba(233,167,102,0.14)'; x.fillRect(0,0,7,7);
+  x.strokeStyle='rgba(214,140,74,0.52)'; x.lineWidth=1.5;
   x.beginPath(); x.moveTo(-1,7); x.lineTo(7,-1); x.moveTo(3,9); x.lineTo(9,3); x.stroke();
   _stripeOrangeCache=x.createPattern(c,'repeat'); return _stripeOrangeCache;
 }
@@ -7535,7 +7538,7 @@ function drawEjecChartMensual(canvasId, polArr, presArr, mesCorte, useUSD){
   /* Emisión Real 2026 + Proyección Actualizada apiladas en el mismo stack 'y26'. */
   datasets.push({label:'Emisión Real 2026', data:r26, stack:'y26', backgroundColor:'rgba(108,189,237,.88)', borderColor:'#4aa3e0', borderWidth:1.5, borderRadius:3, barPercentage:.85, categoryPercentage:.62});
   if(hayPres){
-    datasets.push({label:'Proyectado', data:projPres, stack:'y26', backgroundColor:_stripeOrange(), borderColor:'#d8760a', borderWidth:1, borderRadius:3, barPercentage:.85, categoryPercentage:.62});
+    datasets.push({label:'Proyectado', data:projPres, stack:'y26', backgroundColor:_stripeOrange(), borderColor:'#e0a15c', borderWidth:1, borderRadius:3, barPercentage:.85, categoryPercentage:.62});
   }
   if(hayAmar){
     datasets.push({label:'Proyección Actualizada', data:projConf, stack:'y26', backgroundColor:'#ffe14d', borderColor:'#e0a800', borderWidth:1, borderRadius:3, barPercentage:.85, categoryPercentage:.62});
@@ -7572,7 +7575,7 @@ function drawEjecChartMensual(canvasId, polArr, presArr, mesCorte, useUSD){
       html+=row('#0a3d7a','Presupuesto 2026',pres,false);
       if(real!=null) html+=row('rgba(108,189,237,.95)','Emisión Real 2026',real,false);
       if(proj!=null) html+=row('#ffe14d','Proy. Actualizada',proj,false);
-      if(presProy!=null) html+=row('#e8820e','Proyectado',presProy,false);
+      if(presProy!=null) html+=row('#cf8a4a','Proyectado',presProy,false);
       const bd=[['Prima mín.',_c26.pm[i]],['Ajuste',_c26.aj[i]],['Bono',_c26.bo[i]],['Malus',_c26.ma[i]]].filter(x=>Math.abs(x[1]||0)>0.5);
       if(real!=null && bd.length){
         html+=`<div style="border-top:1px solid #eef2f7;margin:6px 0 4px"></div><div style="font-size:9.5px;text-transform:uppercase;letter-spacing:.03em;color:#8a98ad;font-weight:800;margin-bottom:3px">Emitido este mes</div>`;
@@ -7611,7 +7614,7 @@ function drawEjecChartMensual(canvasId, polArr, presArr, mesCorte, useUSD){
     id:'projTotals',
     afterDraw(chart){
       const xs=chart.scales.x, ctx=chart.ctx, ca=chart.chartArea, yBase=ca.bottom;
-      const ORANGE='#e8820e', ORANGE_DK='#b5620a';
+      const ORANGE='#e0a15c', ORANGE_DK='#c47a37';
       /* Distribución vertical DEBAJO del gráfico (sin solapes):
            yVal   = número del mes (azul=emisión real / naranja=proyectado)
            yNames = nombre del mes dentro de un recuadro
@@ -7627,10 +7630,6 @@ function drawEjecChartMensual(canvasId, polArr, presArr, mesCorte, useUSD){
         if(e!=null && Math.abs(e)>0.5){ ctx.fillStyle='#1565c0'; ctx.fillText(fmtCompact(e,useUSD), x, yVal); }
         else if(esProj(i)){ ctx.fillStyle=ORANGE_DK; ctx.fillText(fmtCompact(projPres[i],useUSD), x, yVal); }
       }
-      /* Etiqueta de la fila a la izquierda (dos colores: Emisión Real / Proyectado). */
-      ctx.textAlign='left'; ctx.font='800 10px Calibri';
-      ctx.fillStyle='#1565c0'; ctx.fillText('EMISIÓN REAL', 2, yVal-8);
-      if(hayPres){ ctx.fillStyle=ORANGE_DK; ctx.fillText('· PROYECTADO', 2, yVal+8); }
       /* 2) Nombres de mes con recuadro (azul para meses emitidos, naranja para proyectados). */
       ctx.textAlign='center'; ctx.textBaseline='middle';
       const bw=44, bh=21, rr=6;
@@ -7639,9 +7638,9 @@ function drawEjecChartMensual(canvasId, polArr, presArr, mesCorte, useUSD){
         ctx.beginPath();
         if(ctx.roundRect) ctx.roundRect(x-bw/2, yNames-bh/2, bw, bh, rr);
         else ctx.rect(x-bw/2, yNames-bh/2, bw, bh);
-        ctx.fillStyle = pr ? 'rgba(232,130,14,.10)' : 'rgba(21,101,192,.08)';
+        ctx.fillStyle = pr ? 'rgba(233,167,102,.12)' : 'rgba(21,101,192,.08)';
         ctx.fill();
-        ctx.lineWidth=1; ctx.strokeStyle = pr ? 'rgba(216,118,10,.40)' : 'rgba(21,101,192,.24)';
+        ctx.lineWidth=1; ctx.strokeStyle = pr ? 'rgba(214,140,74,.34)' : 'rgba(21,101,192,.24)';
         ctx.stroke();
         ctx.fillStyle = pr ? ORANGE_DK : '#1e5aa8';
         ctx.font='800 13.5px Calibri';
@@ -7673,9 +7672,6 @@ function drawEjecChartMensual(canvasId, polArr, presArr, mesCorte, useUSD){
       const wantLine = (lbl)=> lbl==='Presupuesto 2026';
       const colorOf = (lbl)=> lbl==='Emisión Real 2026' ? '#1565c0'
                             : lbl==='Presupuesto 2026' ? '#0a3d7a' : '#94a8c2';
-      const yScale = chart.scales.y;
-      /* Alto de la barra apilada de cada mes (real + proyectado + confirmada). */
-      const barTopVal = (i)=> (r26[i]||0)+(projPres[i]||0)+(projConf[i]||0);
       const items = [];
       chart.data.datasets.forEach((ds, di)=>{
         const meta = chart.getDatasetMeta(di);
@@ -7686,10 +7682,8 @@ function drawEjecChartMensual(canvasId, polArr, presArr, mesCorte, useUSD){
           const v = ds.data[i];
           if(v==null || v===0) return;
           /* La etiqueta de la LÍNEA Presupuesto se ubica PEGADA a su punto del gráfico (apenas
-             arriba del marcador). Pero si la barra de ese mes es MÁS ALTA que el punto, la
-             etiqueta se sube por encima de la barra para que JAMÁS quede sobre ella. */
+             arriba del marcador), siempre — aunque quede sobre una barra. */
           let ly = el.y - (isLine?11:6);
-          if(isLine){ const bt=barTopVal(i); if(bt>0.5 && yScale){ const yBar=yScale.getPixelForValue(bt); if(yBar < el.y) ly = Math.min(ly, yBar - 12); } }
           items.push({x:el.x, ly, text:fmtCompact(v,useUSD),
                       color:colorOf(ds.label), font:'800 12px Calibri'});
         });
@@ -13326,6 +13320,16 @@ window.ejecMenorVista = function(v){
   if(sel) sel.querySelectorAll('button').forEach(b=>{ const on=b.dataset.mv===v;
     b.style.background = on?'var(--accent)':'var(--bg-2)'; b.style.color = on?'#fff':'var(--ink-2)'; b.style.borderColor = on?'var(--accent)':'var(--line-2)'; });
 };
+/* Re-renderiza y RE-ABRE el desglose "Proyectado" sin cerrarlo. toggleEjecCausa cierra si el
+   drawer ya está abierto en ese id; por eso primero limpiamos dataset.open para forzar el
+   re-render (que la ventana NO se cierre al expandir/editar — foto4). */
+function _reopenPresupDrawer(){
+  if(typeof drawEjecutivo==='function') drawEjecutivo();
+  setTimeout(()=>{
+    const panel=document.getElementById('ejecCausaDetalle'); if(panel) panel.dataset.open='';
+    if(typeof window.toggleEjecCausa==='function') window.toggleEjecCausa('pend_presup');
+  }, 0);
+}
 /* Toggle de un mes del Presupuesto (drill). Cambia el estado, re-dibuja el Resumen Ejecutivo y
    re-abre el desglose de "Presupuesto" para seguir editando. */
 window.ejecTogglePresMes = function(m){
@@ -13333,15 +13337,13 @@ window.ejecTogglePresMes = function(m){
   const cur = state._ejecPresMes[m];
   const def = (()=>{ const corte=state._ejecPresCorte||12; const le26=state._ejecLastEmis26||0; return (m>=le26+2)&&(m<=corte); })();
   state._ejecPresMes[m] = (cur===undefined) ? !def : !cur;
-  if(typeof drawEjecutivo==='function') drawEjecutivo();
-  setTimeout(()=>{ if(typeof window.toggleEjecCausa==='function') window.toggleEjecCausa('pend_presup'); }, 0);
+  _reopenPresupDrawer();
 };
 /* Expande/colapsa el detalle por póliza de un mes del Proyectado (foto4). */
 window.ejecTogglePresOpen = function(m){
   state._ejecPresOpen = state._ejecPresOpen || {};
   state._ejecPresOpen[m] = !state._ejecPresOpen[m];
-  if(typeof drawEjecutivo==='function') drawEjecutivo();
-  setTimeout(()=>{ if(typeof window.toggleEjecCausa==='function') window.toggleEjecCausa('pend_presup'); }, 0);
+  _reopenPresupDrawer();
 };
 /* Edita el valor proyectado de una póliza en un mes (foto4). Guarda override en ambas monedas
    (deriva la otra por proporción/TC) y recalcula todo el desvío. */
