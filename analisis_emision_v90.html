@@ -4578,9 +4578,9 @@ function ejecJustificacion(S, useUSD, dual, useUSDprimary){
     })()}
     <div style="margin-top:10px;border-top:1px solid var(--line);padding-top:8px"></div>
     ${causas.length>0 ? `
-    <div style="display:grid;grid-template-columns:minmax(280px,340px) minmax(0,620px);gap:34px;align-items:center;margin-bottom:4px;max-width:1000px">
-      <div style="width:100%;max-width:340px;justify-self:center"><canvas id="${pieIdDes}" style="max-height:290px"></canvas></div>
-      <div>${leyendaDes}</div>
+    <div style="display:flex;justify-content:center;align-items:center;gap:40px;flex-wrap:wrap;margin-bottom:4px">
+      <div style="flex:0 0 auto;width:330px"><canvas id="${pieIdDes}" style="max-height:290px"></canvas></div>
+      <div style="flex:0 1 600px">${leyendaDes}</div>
     </div>` : ''}
     ${ejecProyectadoResumen(useUSD)}
   </div>`;
@@ -4911,7 +4911,7 @@ function ejecEmitido(S, useUSD, dual){
   return `<div style="margin-top:${dual?14:8}px">
     ${dual?`<div style="font-size:11px;color:var(--ink-3);text-transform:uppercase;letter-spacing:.05em;font-weight:700;margin-bottom:8px">${mLbl}</div>`:''}
     ${items.length>0 ? `
-    <div style="display:grid;grid-template-columns:auto auto;justify-content:center;gap:48px;align-items:center;margin-bottom:10px">
+    <div style="display:flex;justify-content:center;align-items:center;gap:48px;flex-wrap:wrap;margin-bottom:10px">
       ${chartsBlock}
       <div>${leyendaFull}</div>
     </div>
@@ -7482,7 +7482,7 @@ function ejecProyectadoResumen(useUSD){
     </div>`; }).join('');
   const _titCss='font-size:12px;font-weight:800;color:#fff;text-transform:uppercase;letter-spacing:.04em;padding:8px 12px;background:linear-gradient(90deg,#d68c4a,#e6a968);border-radius:8px 8px 0 0';
   return `<div style="margin-top:16px;border-top:1px solid var(--line);padding-top:14px">
-    <div style="display:flex;gap:16px;align-items:flex-start;flex-wrap:wrap;max-width:980px">
+    <div style="display:flex;gap:16px;align-items:flex-start;flex-wrap:wrap;justify-content:center;max-width:980px;margin:0 auto">
       <div style="flex:1 1 520px;min-width:420px;max-width:700px;border:1px solid var(--line-2);border-radius:9px;overflow:hidden">
         <div style="${_titCss}">Proyectado · resumen por concepto (vs 2025) · ${us?'USD':'ARS$'}</div>
         ${concTbl}
