@@ -1208,14 +1208,13 @@ function _presEditKey(poliza, ck, m){ return _polKey(poliza)+'|'+ck+'|'+m; }
 /* Valor efectivo (ARS y USD) de un mes de una fila del Presupuesto, aplicando el override
    editable del usuario cuando existe (solo para meses PRESUPUESTADOS / no confirmados). */
 function _presMoVal(e, mo){
-  /* USD = la columna US de la hoja TAL CUAL. Si la celda US viene VACÍA se cuenta 0 (NO se
-     convierte ARS→US), igual que el "Resumen mensual" del Excel del usuario: sumar la columna
-     US directo, celda vacía = 0. (mo.usd===null lo pone el parser nuevo cuando la celda US está
-     vacía; mo.usd===undefined es el layout viejo SIN columna US, ahí sí se deriva de ARS/TC.) */
+  /* USD = la columna US de la hoja TAL CUAL. Celda US vacía o 0 → cuenta 0 (NO se convierte
+     ARS→US), igual que el "Resumen mensual" del Excel del usuario. SOLO se deriva de ARS/TC
+     cuando NO existe columna US (mo.usd===undefined, layout viejo). OJO: el parser del
+     presupuesto guarda 0 (no null) para celdas vacías, así que hay que contemplar el 0. */
   let usdRaw;
-  if(typeof mo.usd==='number' && mo.usd!==0) usdRaw = mo.usd;
-  else if(mo.usd===null) usdRaw = 0;
-  else usdRaw = mo.ars/(state._ejecTC||1400);
+  if(mo.usd===undefined) usdRaw = mo.ars/(state._ejecTC||1400);   /* sin columna US → derivar */
+  else usdRaw = mo.usd || 0;                                       /* US de la hoja; vacío/0 = 0 */
   if(!mo.yellow){
     const ck=_tipoToConcepto(e.tipo);
     const ov = ck ? (state._ejecPresEdit||{})[_presEditKey(e.poliza,ck,mo.m)] : null;
