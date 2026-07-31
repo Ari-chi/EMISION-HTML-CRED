@@ -1060,22 +1060,28 @@ function parsePresupArgBudget(ws){
   const colBy=lbl=>{ for(let c=range.s.c;c<=range.e.c;c++){ if(_accent(hdr[c])===lbl) return c; } return -1; };
   const cPol=colBy('poliza'), cAseg=colBy('nombre asegurado'), cMon=colBy('moneda'), cMesGen=colBy('mes');
   if(cPol<0) return;
-  /* Cada concepto tiene 3 columnas de valor: "<concepto> Moneda Original", "<concepto> ARS",
-     "<concepto> US" y luego "MES ESTIMADO EMISION". (Layout nuevo con equivalente en dólares.)
-     Se mantiene compatibilidad con el layout viejo (sin columna US): orig, ars, mes. */
-  const mkConc=(tipo,pre)=>{
-    const colOrig = colBy(pre+' moneda original'); const colArs = colBy(pre+' ars'); const colUs = colBy(pre+' us');
-    const base = (colOrig>=0)?colOrig : colBy(pre);   /* fallback layout viejo */
-    const colMes = (colUs>=0) ? colUs+1 : ((colArs>=0)?colArs+1 : (base>=0?base+2:-1));
-    return {tipo, colOrig: (colOrig>=0?colOrig:base), colArs: (colArs>=0?colArs:(base>=0?base+1:-1)), colUs, colMes};
+  /* Cada concepto tiene 3 columnas de valor (Moneda Original / ARS / US) + "MES ESTIMADO EMISION".
+     Se detecta por PALABRA CLAVE del encabezado (tolera renombres: "PM RENOVACIÓN", "PM 2da ANUAL.",
+     "PRIMA MINIMA 2DA ANUALIDAD", "AJUSTE PRESUPUESTADO", "PROFIT ESTIMADO", "MALUS ESTIMADO").
+     El "MES ESTIMADO EMISION" es la columna inmediatamente posterior al bloque del concepto. */
+  const colByC=(kw, kind)=>{ for(let c=range.s.c;c<=range.e.c;c++){ const h=_accent(hdr[c]); if(!kw.every(k=>h.includes(k))) continue;
+      if(kind==='orig' && h.includes('moneda original')) return c;
+      if(kind==='ars'  && /(^|[^a-z])ars$/.test(h)) return c;
+      if(kind==='us'   && /(^|[^a-z])us$/.test(h)) return c;
+    } return -1; };
+  const mkConc=(tipo, ...kw)=>{
+    const colOrig=colByC(kw,'orig'), colArs=colByC(kw,'ars'), colUs=colByC(kw,'us');
+    const anchor = (colUs>=0)?colUs : ((colArs>=0)?colArs : colOrig);
+    const colMes = (anchor>=0) ? anchor+1 : -1;   /* "MES ESTIMADO EMISION" va justo después */
+    return {tipo, colOrig, colArs, colUs, colMes};
   };
   const conceptos=[
-    mkConc('Renovación','prima minima renovacion'),
-    mkConc('Prima Minima 2da Anualidad','prima minima 2da anualidad'),
-    mkConc('Ajuste','ajuste presupuestado'),
-    mkConc('Bono','profit estimado'),
-    mkConc('Malus','malus estimado'),
-  ].filter(x=>x.colOrig>=0 || x.colArs>=0);
+    mkConc('Renovación','renovacion'),
+    mkConc('Prima Minima 2da Anualidad','2da'),
+    mkConc('Ajuste','ajuste'),
+    mkConc('Bono','profit'),
+    mkConc('Malus','malus'),
+  ].filter(x=>x.colOrig>=0 || x.colArs>=0 || x.colUs>=0);
   for(let r=1;r<=range.e.r;r++){
     const pol=getv(r,cPol), aseg=(cAseg>=0?getv(r,cAseg):null); if(pol==null&&aseg==null) continue;
     const monedaRaw=String((cMon>=0?getv(r,cMon):'')||'').toUpperCase();
@@ -4114,7 +4120,7 @@ function ejecJustificacion(S, useUSD, dual, useUSDprimary){
     state._ejecNet[_sufp] = {dic:_netDic, may:_netMay};
     causas = [
       mk('pend_conf','Pendiente - Emisión Confirmada', _confV, _conf.n, '#ffd54a','pendiente'),
-      mk('pend_presup','Presupuesto (En Desarrollo)', _presV, _presMeses, '#cbd5e6','pendiente'),
+      mk('pend_presup','Proyectado (En Desarrollo)', _presV, _presMeses, '#cbd5e6','pendiente'),
       mk('pend_2025','Emisión Pendiente (En Desarrollo)', _p25V, _p25.n, '#cbd5e6','pendiente'),
       mk('perdidas',APP_CONFIG.textos.perdidas, mkVal(cnt.perdidas), cnt.perdidas.n, APP_CONFIG.colores.perdidas),
       mk('menor',APP_CONFIG.textos.menor || 'Menor Emisión', menorSigned, menorN, APP_CONFIG.colores.abm),
@@ -6515,7 +6521,7 @@ window.toggleEjecCausa = function(id){
     </div>`;
   }
 
-  const titulos = {pendiente:'Pendiente de emisión', pend_conf:'Pendiente - Emisión Confirmada', pend_presup:'Presupuesto', pend_2025:'Emisión Pendiente', pend_prima:'Prima mínima pendiente', pend_ajuste:'Ajuste pendiente', pend_bono:'Bono pendiente', pend_malus:'Malus pendiente', perdidas:'Pólizas que se fueron', prima:'Prima mínima', ajuste:'Ajuste', bono:'Bono', malus:'Malus', menor:'Menor Emisión', sinjust:'Pólizas que no crecieron'};
+  const titulos = {pendiente:'Pendiente de emisión', pend_conf:'Pendiente - Emisión Confirmada', pend_presup:'Proyectado', pend_2025:'Emisión Pendiente', pend_prima:'Prima mínima pendiente', pend_ajuste:'Ajuste pendiente', pend_bono:'Bono pendiente', pend_malus:'Malus pendiente', perdidas:'Pólizas que se fueron', prima:'Prima mínima', ajuste:'Ajuste', bono:'Bono', malus:'Malus', menor:'Menor Emisión', sinjust:'Pólizas que no crecieron'};
 
   /* Resumen pre-card de las pólizas involucradas en ESTA causa, antes del
      desglose por póliza. Mismo formato que en "Emisión 2026": Proyección $/US,
@@ -6941,7 +6947,7 @@ window.toggleEjecCausa = function(id){
       </div>`; }).join('');
     contenido = `<div style="border:1px solid var(--line-2);border-radius:9px;overflow:hidden;max-width:560px;${on?'':'opacity:.6'}">
       <div style="display:flex;justify-content:space-between;align-items:center;gap:10px;padding:11px 14px;background:${tc}22;border-bottom:1px solid var(--line)">
-        <span style="font-weight:800;color:${tc};text-transform:uppercase;letter-spacing:.03em;font-size:12px">Presupuesto <span style="color:var(--ink-3);font-weight:600;text-transform:none">· tildá los meses que cuentan</span></span>
+        <span style="font-weight:800;color:${tc};text-transform:uppercase;letter-spacing:.03em;font-size:12px">Proyectado <span style="color:var(--ink-3);font-weight:600;text-transform:none">· tildá los meses que cuentan</span></span>
         <button onclick="ejecToggleContab('pend_presup','mes')" title="Contabilizar el presupuesto en el desvío" style="font-size:10px;font-weight:800;border-radius:5px;padding:4px 10px;cursor:pointer;white-space:nowrap;border:1.5px solid ${on?'var(--pos)':'var(--line-2)'};background:${on?'var(--pos)':'var(--panel)'};color:${on?'#fff':'var(--ink-2)'}">Contabilizar: ${on?'SÍ':'NO'}</button>
       </div>
       <div style="font-family:var(--font-mono);font-size:17px;font-weight:800;color:${tc};padding:9px 14px;border-bottom:1px solid var(--line)">Total: ${fmtCompact(total,btnUSD)}</div>
@@ -6962,7 +6968,7 @@ window.toggleEjecCausa = function(id){
     const on = _ejecContabOn(id,'mes');
     const tc = id==='pend_conf' ? '#d39a00' : id==='pend_presup' ? '#3a8fc0' : '#3a8a82';
     const tlbl = id==='pend_conf' ? 'Pendiente - Emisión Confirmada'
-               : id==='pend_presup' ? 'Presupuesto' : 'Emisión Pendiente';
+               : id==='pend_presup' ? 'Proyectado' : 'Emisión Pendiente';
     const CN = {primaMin:'Prima Mínima', ajuste:'Ajuste', malus:'Malus', bono:'Bono'};
     const totAbs = ['primaMin','ajuste','malus','bono'].reduce((a,k)=>a+Math.abs(g.c[k]),0) || 1;
     const filas = ['primaMin','ajuste','malus','bono'].filter(k=>Math.abs(g.c[k])>0.5).map(k=>{
