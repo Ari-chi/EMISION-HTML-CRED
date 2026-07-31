@@ -1085,7 +1085,6 @@ function parsePresupArgBudget(ws){
     mkConc('Ajuste','ajuste'),
     mkConc('Bono','profit'),
     mkConc('Malus','malus'),
-    mkConc('Mantención','mantencion'),   /* pedido del usuario: acumular TODOS los conceptos */
   ].filter(x=>x.colOrig>=0 || x.colArs>=0 || x.colUs>=0);
   for(let r=1;r<=range.e.r;r++){
     const pol=getv(r,cPol), aseg=(cAseg>=0?getv(r,cAseg):null); if(pol==null&&aseg==null) continue;
@@ -1201,7 +1200,7 @@ function _tipoToConcepto(tipo){
   if(/ajuste/.test(t)) return 'ajuste';
   if(/bono/.test(t)) return 'bono';
   if(/malus/.test(t)) return 'malus';
-  if(/mantenci/.test(t)) return 'mantencion';   /* Mantención = concepto propio (se acumula en el proyectado) */
+  /* Mantención NO cuenta como emisión (pedido del usuario): solo prima mínima / ajuste / bono / malus. */
   return null;
 }
 /* Clave de override de un mes proyectado editable (foto4): póliza|concepto|mes. */
@@ -7385,7 +7384,7 @@ function presupArgMensual(suf){
 }
 /* Detalle POR PÓLIZA del Proyectado de un mes (foto4): cada póliza que aporta al proyectado de
    ese mes con su concepto, su valor (editable) y la comparación contra el 2025 de esa póliza. */
-const _CK_LBL = {primaMin:'Prima mín.', ajuste:'Ajuste', bono:'Bono', malus:'Malus', mantencion:'Mantención'};
+const _CK_LBL = {primaMin:'Prima mín.', ajuste:'Ajuste', bono:'Bono', malus:'Malus'};
 function _presMesPolizas(m, suf){
   const pa=state._presupArg; if(!pa||!pa.ok) return [];
   const confKeys=new Set();
@@ -7414,7 +7413,7 @@ function ejecProyectadoResumen(useUSD){
   const TCm=state._presupArgTC||{};
   const us=useUSD; const F=(v)=>fmtCompact(v, us);
   const valU=(mo)=> (mo.usd!=null&&mo.usd!==0)?mo.usd:(mo.ars/(state._ejecTC||1400));
-  const C={reno:{a:0,u:0},seg:{a:0,u:0},ajuste:{a:0,u:0},bono:{a:0,u:0},malus:{a:0,u:0},mantencion:{a:0,u:0}};
+  const C={reno:{a:0,u:0},seg:{a:0,u:0},ajuste:{a:0,u:0},bono:{a:0,u:0},malus:{a:0,u:0}};
   const byMonth={}; const polSet=new Set();
   /* Dedup igual que el gráfico/causa: si (póliza,concepto) está confirmada, su parte presupuestada no cuenta. */
   const confKeys=new Set();
@@ -7447,8 +7446,8 @@ function ejecProyectadoResumen(useUSD){
   const g=(o)=> o?(us?o.u:o.a):0;
   const primaProy=g(C.reno)+g(C.seg);
   const prima25 = g(V25.reno)+g(V25.seg);
-  const proyTot = primaProy + g(C.ajuste) + g(C.bono) + g(C.malus) + g(C.mantencion);
-  const tot25   = prima25   + g(V25.ajuste) + g(V25.bono) + g(V25.malus);   /* Mantención no tiene 2025 en la emisión */
+  const proyTot = primaProy + g(C.ajuste) + g(C.bono) + g(C.malus);
+  const tot25   = prima25   + g(V25.ajuste) + g(V25.bono) + g(V25.malus);
   /* Fila concepto: 2025 → Proyectado + variación. head=subtotal (prima), tot=total general,
      sub=sub-item (renovación/2ª anualidad, sangrado). */
   const fila=(lbl, p, y, opts={})=>{ const d=(y!=null)?p-y:null; const dc=d==null?'var(--ink-3)':(d>=0?'var(--pos)':'var(--neg)'); const pct=(y&&y!==0)?d/Math.abs(y):null;
@@ -7473,7 +7472,6 @@ function ejecProyectadoResumen(useUSD){
     ${fila('Ajuste', g(C.ajuste), g(V25.ajuste))}
     ${fila('Bono', g(C.bono), g(V25.bono))}
     ${fila('Malus', g(C.malus), g(V25.malus))}
-    ${g(C.mantencion)?fila('Mantención', g(C.mantencion), null):''}
     ${fila('TOTAL PROYECTADO', proyTot, tot25, {tot:true})}`;
   /* Tipo de cambio por mes (SOLO el TC, sin emisión — pedido del usuario). */
   const meses=Object.keys(byMonth).map(Number).sort((a,b)=>a-b);
