@@ -176,12 +176,15 @@ main{padding:28px 32px 60px;max-width:2000px;margin:0 auto}
   #content{ display:block!important; }
   .section{ display:none!important; }
   .section[data-section="ejecutivo"]{ display:block!important; animation:none!important; }
-  /* Apilar los dos gráficos de la comparación (total | concepto) para que no se deformen en el PDF. */
-  .grid-2{ grid-template-columns:1fr!important; }
   /* Evitar cortes feos de bloques chicos y gráficos. */
   .ejec-block, .dual-kpi-item, .chart-box{ page-break-inside:avoid; break-inside:avoid; }
-  /* Salto de página entre "Emisión por rubro" y "Resumen por rubro" (para que no salga cortado). */
+  /* Cada bloque en su propia hoja del PDF:
+     Hoja 1 = Presupuesto vs Emisión Real · Hoja 2 = Desvío · Hoja 3 = Comparación 2025 vs 2026
+     Hoja 4 = Emisión por rubro · Hoja 5 = Resumen por rubro. */
+  #ejecDesvioCard, #ejecComparCard, #ejecRubroCard{ page-break-before:always; break-before:page; }
   #ejecRubroMiniWrap{ page-break-before:always; break-before:page; }
+  /* En la hoja 3 los dos gráficos (total | concepto) van lado a lado, no apilados. */
+  #ejecComparCard .grid-2{ grid-template-columns:1fr 1fr!important; }
 }
 .timeline-filter .tf-label{font-family:var(--font-mono);font-size:11px;color:var(--ink-3);text-transform:uppercase;letter-spacing:.08em;font-weight:600}
 .timeline-months{display:flex;gap:4px;flex-wrap:wrap}
@@ -3661,7 +3664,7 @@ function drawEjecutivo(){
     </div>
 
     <!-- COMPARACIÓN 2025 vs 2026 + EMISIÓN 2026 (unificados, debajo del Desvío) -->
-    <div class="card">
+    <div class="card" id="ejecComparCard">
       <div class="ejec-block-title">Comparación de emisión 2025 vs 2026 ${(()=>{const _M={1:'enero',2:'febrero',3:'marzo',4:'abril',5:'mayo',6:'junio',7:'julio',8:'agosto',9:'septiembre',10:'octubre',11:'noviembre',12:'diciembre'};const m=primary.mesCorteSet||12;return `<span style="margin-left:12px;font-family:var(--font-mono);font-size:12.5px;font-weight:800;background:rgba(255,255,255,.20);color:#fff;padding:3px 11px;border-radius:6px;text-transform:none;letter-spacing:0">acumulado 2025/2026 · hasta ${_M[m]}</span>`;})()}</div>
       ${setU?ejecComparacion(setU,true,dual):''}
       ${setA?ejecComparacion(setA,false,dual):''}
@@ -3672,7 +3675,7 @@ function drawEjecutivo(){
     </div>
 
     <!-- BLOQUE 5 -->
-    <div class="card">
+    <div class="card" id="ejecRubroCard">
       <div class="ejec-block-title">Emisión por rubro 2025 VS 2026</div>
       <!-- 5.1 Comparativo emisión 2025 vs 2026 por rubro (PRIMERO, pedido del usuario) -->
       <div id="ejecRubroChartWrap" style="margin-top:12px"></div>
