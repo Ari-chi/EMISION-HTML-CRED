@@ -8164,10 +8164,12 @@ function drawEjecRubroMini(polArr, f, useUSD){
 
 /* Mini-gráfico comparativo: emisión 2025 vs 2026 por rubro, en la moneda y mes
    de corte seleccionados en los filtros de la sección. */
-/* REGLA de conteo (confirmada por el usuario): una póliza cuenta en el rubro y se compara
-   2026 vs 2025 SOLO si tiene prima mínima 2026 (aunque sea vacío/0) CON categoría. Si no tiene
-   ni prima mínima 2026 ni categoría, se excluye. */
-function _cuentaRubro(p){ const rPM = p && p.conceptos && p.conceptos['Prima Minima']; return !!(rPM && rPM.categoria); }
+/* REGLA de conteo (confirmada por el usuario 2026-08): una póliza cuenta SI Y SOLO SI tiene
+   una CATEGORÍA 2026 con información. Si la categoría está vacía → NO cuenta. El monto de la
+   prima mínima ya no importa: alcanza con que la categoría tenga datos. Esta misma regla se
+   usa en las tres vistas (Emisión por rubro, Resumen por rubro y el detalle lateral), así
+   todas suman EXACTAMENTE las mismas pólizas. */
+function _cuentaRubro(p){ const rPM = p && p.conceptos && p.conceptos['Prima Minima']; return !!(rPM && rPM.categoria && String(rPM.categoria).trim()); }
 function drawEjecRubroChart(polArr, f, useUSD){
   const wrap = document.getElementById('ejecRubroChartWrap');
   if(!wrap) return;
@@ -8230,7 +8232,7 @@ function drawEjecRubroChart(polArr, f, useUSD){
         <span style="font-family:var(--font-mono);text-align:right;color:var(--ink-2)">${FMTc(it.v25)}</span>
         <span style="font-family:var(--font-mono);text-align:right;font-weight:800;color:var(--accent-3)">${FMTc(it.v26)}</span>
         <span style="font-family:var(--font-mono);text-align:right;font-weight:800;color:${dc}">${pp!=null?((d>=0?'+':'')+FMT_PCT(pp)):((d>=0?'+':'')+FMTc(d))}</span>
-        <span style="font-family:var(--font-mono);text-align:right;color:var(--ink-3)">${it.n26}</span>
+        <span style="font-family:var(--font-mono);text-align:right;color:var(--ink-3)">${it.n}</span>
       </div>
       <div id="ejecRubroChartDet_${idx}" style="display:none;padding:2px 4px 10px 26px">${conceptoBreak(it)}</div>
     </div>`;
@@ -8260,7 +8262,9 @@ function drawEjecRubroTabla(polArr, f, useUSD){
     const k = p.rubro || '(sin rubro)';
     const f25=calcEmisionFiltrada(p,2025,mesCorte), f26=calcEmisionFiltrada(p,2026,mesCorte);
     const em25=tuvoEmision(f25), em26=tuvoEmision(f26);
-    if(!em25 && !em26) continue;
+    /* Conteo unificado (pedido del usuario): cuenta toda póliza con categoría 2026,
+       aunque no haya tenido emisión — así el detalle coincide con "Resumen por rubro"
+       y con "Emisión por rubro". NO se filtra por em25/em26. */
     if(!grupos[k]) grupos[k]={u25:0,u26:0,a25:0,a26:0,n:0,n25:0,n26:0, polizas:[]};
     grupos[k].u25+=f25.totUSD; grupos[k].u26+=f26.totUSD;
     grupos[k].a25+=f25.totARS; grupos[k].a26+=f26.totARS;
