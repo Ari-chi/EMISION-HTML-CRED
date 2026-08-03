@@ -3763,11 +3763,12 @@ function ejecFlujo(S, useUSD){
   /* Segundo desvío: hasta el último mes con emisión real 2026 (comparación a la fecha). */
   const desvioEmi = S.desvio_emi||0, dvAbsEmi=Math.abs(desvioEmi);
   const desvPctEmi = S.presup26_emi>0 ? (desvioEmi/S.presup26_emi*100) : null;
-  /* Meses de corte: nombre COMPLETO y DESTACADO en un badge (pedido del usuario). */
+  /* Meses de corte: nombre COMPLETO y DESTACADO en un badge que toma el COLOR de su propia
+     tarjeta (coherencia pedida por el usuario), en negrita y con espacio del título. */
   const _MFN=['Enero','Febrero','Marzo','Abril','Mayo','Junio','Julio','Agosto','Septiembre','Octubre','Noviembre','Diciembre'];
-  const _hlMes=(m)=>`<span style="display:inline-block;background:var(--accent-3);color:#fff;padding:0 8px;border-radius:6px;font-weight:900;letter-spacing:.02em;box-shadow:0 1px 2px rgba(10,31,58,.25)">${m}</span>`;
-  const _mLast  = (S.lastEmis26>0) ? _hlMes(_MFN[S.lastEmis26-1]) : '—';
-  const _mCorte = (S.mesCorteSet>0) ? _hlMes(_MFN[S.mesCorteSet-1]) : _hlMes('Diciembre');
+  const _mesBadge=(name,col)=>`<span style="display:inline-block;background:${col};color:#fff;padding:1px 9px;border-radius:6px;font-weight:900;font-size:11.5px;letter-spacing:.03em;text-transform:uppercase;box-shadow:0 1px 2px rgba(10,31,58,.18)">${name}</span>`;
+  const _mLastN  = (S.lastEmis26>0)  ? _MFN[S.lastEmis26-1]  : '—';
+  const _mCorteN = (S.mesCorteSet>0) ? _MFN[S.mesCorteSet-1] : 'Diciembre';
   /* Títulos de las 3 tarjetas más prominentes (pedido del usuario): subir el
      tamaño y el peso, mantener el color sutil de cada bloque. Se quita
      "objetivo del período" debajo del presupuesto. */
@@ -3791,8 +3792,8 @@ function ejecFlujo(S, useUSD){
   /* Barra de progreso "% del objetivo" (las "cositas" pedidas). */
   const barLinea=(pct,sub)=>{ const p=Math.max(0,Math.min(100,Math.round((pct||0)*100)));
     return `<div style="margin-top:9px">
-      <div style="display:flex;justify-content:space-between;align-items:baseline;font-size:10.5px;color:var(--ink-3);font-weight:600">
-        <span>del objetivo · <strong style="color:var(--pos)">${sub}</strong></span>
+      <div style="display:flex;justify-content:space-between;align-items:center;font-size:10.5px;color:var(--ink-3);font-weight:600">
+        <span style="display:inline-flex;align-items:center;gap:6px">del objetivo ${_mesBadge(sub,'var(--pos)')}</span>
         <strong style="font-size:13.5px;color:var(--pos);font-family:var(--font-mono)">${pct!=null?p+'%':'—'}</strong>
       </div>
       <div style="height:7px;background:rgba(45,155,106,.16);border-radius:4px;margin-top:3px;overflow:hidden"><div style="height:100%;width:${p}%;background:var(--pos);border-radius:4px;transition:width .3s"></div></div>
@@ -3801,7 +3802,7 @@ function ejecFlujo(S, useUSD){
   /* Desvío: card con pill + valor + mini-barra de magnitud sobre el presupuesto. */
   const subCard = (titulo, sub, val, pct)=>{ const neg=val>0; const c=neg?'var(--neg)':'var(--pos)'; const soft=neg?'rgba(217,71,71,.14)':'rgba(45,155,106,.16)';
     return `<div style="flex:1;background:${neg?'rgba(217,71,71,.07)':'rgba(45,155,106,.07)'};border-radius:10px;padding:10px 13px;border-left:3px solid ${c};display:flex;flex-direction:column;justify-content:center">
-      ${_pill(c,soft,titulo+' · '+sub)}
+      ${_pill(c,soft,titulo,_mesBadge(sub,c))}
       <div style="display:flex;align-items:baseline;gap:8px;margin-top:7px">
         <span style="font-size:20px;font-weight:800;color:${c};font-family:var(--font-mono)">${neg?'−':'+'}${FMTc(Math.abs(val))}</span>
         <span style="font-size:12.5px;font-weight:800;color:${c};font-family:var(--font-mono)">${pct!=null?'('+(pct>0?'−':'+')+Math.abs(pct).toFixed(0)+'%)':''}</span>
@@ -3812,11 +3813,11 @@ function ejecFlujo(S, useUSD){
     <div style="display:flex;align-items:stretch;gap:8px">
       <div style="flex:1;display:flex;flex-direction:column;gap:6px;justify-content:center">
         <div style="flex:1;background:rgba(30,111,217,.07);border-radius:10px;padding:10px 13px;border-left:3px solid var(--accent);display:flex;flex-direction:column;justify-content:center">
-          ${_pill('var(--accent)','rgba(30,111,217,.14)','Presupuesto Acum. · '+_mLast)}
+          ${_pill('var(--accent)','rgba(30,111,217,.14)','Presupuesto Acum.',_mesBadge(_mLastN,'var(--accent)'))}
           ${_num('var(--accent-3)',FMTc(S.presup26_emi))}
         </div>
         <div style="flex:1;background:rgba(30,111,217,.07);border-radius:10px;padding:10px 13px;border-left:3px solid var(--accent);display:flex;flex-direction:column;justify-content:center">
-          ${_pill('var(--accent)','rgba(30,111,217,.14)','Presupuesto Acum. · '+_mCorte)}
+          ${_pill('var(--accent)','rgba(30,111,217,.14)','Presupuesto Acum.',_mesBadge(_mCorteN,'var(--accent)'))}
           ${_num('var(--accent-3)',FMTc(S.presup26))}
         </div>
       </div>
@@ -3824,14 +3825,14 @@ function ejecFlujo(S, useUSD){
       <div title="${_bubbleTitle.replace(/"/g,'&quot;')}" onclick="window.toggleEmisBubble('${sufijo}')" style="flex:1;position:relative;background:rgba(45,155,106,.07);border-radius:10px;padding:10px 13px;border-left:3px solid var(--pos);cursor:pointer">
         ${_pill('var(--pos)','rgba(45,155,106,.16)','Emisión Real 2026','<span style="font-size:9px">▾</span>')}
         ${_num('var(--pos)',FMTc(S.emis26),22)}
-        ${barLinea(cumplEmi,_mLast)}
-        ${barLinea(S.cumpl,_mCorte)}
+        ${barLinea(cumplEmi,_mLastN)}
+        ${barLinea(S.cumpl,_mCorteN)}
         ${_bubbleHTML}
       </div>
       ${flecha('=')}
       <div style="flex:1.15;display:flex;flex-direction:column;gap:6px">
-        ${subCard('Desvío Acum.', _mLast, desvioEmi, desvPctEmi)}
-        ${subCard('Desvío Acum.', _mCorte, desvio, desvPct)}
+        ${subCard('Desvío Acum.', _mLastN, desvioEmi, desvPctEmi)}
+        ${subCard('Desvío Acum.', _mCorteN, desvio, desvPct)}
       </div>
     </div>
   </div>`;
