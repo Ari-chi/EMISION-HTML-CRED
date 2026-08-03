@@ -3028,10 +3028,12 @@ window.descargarPDF = function(){
   try{ if(typeof redrawSectionCharts==='function') redrawSectionCharts('ejecutivo'); }catch(e){}
   setTimeout(()=>{ try{ window.print(); }catch(e){ alert('No se pudo abrir la impresión: '+e.message); } }, 350);
 };
-/* Al entrar/salir de impresión, redimensionar los charts para que se ajusten al ancho de página
-   del PDF (Chart.js no reacciona solo al cambio de medio de impresión). */
-window.addEventListener('beforeprint', ()=>{ try{ for(const k in charts){ try{ charts[k].resize(); charts[k].update('none'); }catch(e){} } }catch(e){} });
-window.addEventListener('afterprint',  ()=>{ try{ for(const k in charts){ try{ charts[k].resize(); }catch(e){} } }catch(e){} });
+/* Al entrar/salir de impresión, redimensionar SOLO los gráficos de barras/líneas para que se
+   ajusten al ancho de página (Chart.js no reacciona solo al cambio de medio). Los DONUTS/tortas
+   NO se redimensionan: al hacerlo se recortaban en el PDF; a su tamaño de pantalla salen enteros. */
+const _esTorta = (c)=>{ const t=c&&c.config&&c.config.type; return t==='doughnut'||t==='pie'; };
+window.addEventListener('beforeprint', ()=>{ try{ for(const k in charts){ try{ const c=charts[k]; if(_esTorta(c)) continue; c.resize(); c.update('none'); }catch(e){} } }catch(e){} });
+window.addEventListener('afterprint',  ()=>{ try{ for(const k in charts){ try{ const c=charts[k]; if(_esTorta(c)) continue; c.resize(); }catch(e){} } }catch(e){} });
 function redrawSectionCharts(target){
   /* Para cada chart cuyo canvas esté dentro de la sección target, llamamos a chart.resize() */
   const sec = document.querySelector(`.section[data-section="${target}"]`);
