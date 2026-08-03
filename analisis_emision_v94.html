@@ -1091,6 +1091,10 @@ function parsePresupArgBudget(ws){
     const monedaRaw=String((cMon>=0?getv(r,cMon):'')||'').toUpperCase();
     const esUS=/US|U\$|USD|DOLAR|DÓLAR/.test(monedaRaw);
     for(const cc of conceptos){
+      /* REGLA (Resumen mensual del usuario): el AJUSTE presupuestado se cuenta SOLO para pólizas
+         en pesos ($). El ajuste de pólizas en US$ NO se proyecta acá. Renovación / 2ª anualidad /
+         bono / malus se cuentan para todas las pólizas. */
+      if(_tipoToConcepto(cc.tipo)==='ajuste' && esUS) continue;
       let orig=cc.colOrig>=0?_numv(getv(r,cc.colOrig)):0;
       let ars =cc.colArs>=0 ?_numv(getv(r,cc.colArs)) :0;
       let usd =cc.colUs>=0  ?_numv(getv(r,cc.colUs))  :null;
@@ -3759,8 +3763,11 @@ function ejecFlujo(S, useUSD){
   /* Segundo desvío: hasta el último mes con emisión real 2026 (comparación a la fecha). */
   const desvioEmi = S.desvio_emi||0, dvAbsEmi=Math.abs(desvioEmi);
   const desvPctEmi = S.presup26_emi>0 ? (desvioEmi/S.presup26_emi*100) : null;
-  const _mLast  = (S.lastEmis26>0) ? MESES[S.lastEmis26-1] : '—';
-  const _mCorte = (S.mesCorteSet>0) ? MESES[S.mesCorteSet-1] : 'Dic';
+  /* Meses de corte: nombre COMPLETO y DESTACADO en un badge (pedido del usuario). */
+  const _MFN=['Enero','Febrero','Marzo','Abril','Mayo','Junio','Julio','Agosto','Septiembre','Octubre','Noviembre','Diciembre'];
+  const _hlMes=(m)=>`<span style="display:inline-block;background:var(--accent-3);color:#fff;padding:0 8px;border-radius:6px;font-weight:900;letter-spacing:.02em;box-shadow:0 1px 2px rgba(10,31,58,.25)">${m}</span>`;
+  const _mLast  = (S.lastEmis26>0) ? _hlMes(_MFN[S.lastEmis26-1]) : '—';
+  const _mCorte = (S.mesCorteSet>0) ? _hlMes(_MFN[S.mesCorteSet-1]) : _hlMes('Diciembre');
   /* Títulos de las 3 tarjetas más prominentes (pedido del usuario): subir el
      tamaño y el peso, mantener el color sutil de cada bloque. Se quita
      "objetivo del período" debajo del presupuesto. */
