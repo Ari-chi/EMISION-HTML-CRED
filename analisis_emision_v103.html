@@ -169,15 +169,19 @@ main{padding:28px 32px 60px;max-width:2000px;margin:0 auto}
   html,body{ background:#fff!important; }
   /* Colores/fondos fieles al dashboard (los navegadores los quitan por defecto en impresión). */
   *{ -webkit-print-color-adjust:exact!important; print-color-adjust:exact!important; }
-  /* Ocultar todo lo que NO es el Resumen Ejecutivo (chrome + desgloses laterales + tooltips). */
-  .uploader-wrap, .tabs-wrap, #tabsWrap, #emptyState, #ejecCausaDetalle, .ejec-drawer-backdrop, .no-print, #btnPDF{ display:none!important; }
+  /* Ocultar todo lo que NO es el Resumen Ejecutivo (chrome + filtros + desgloses laterales + tooltips). */
+  .uploader-wrap, .tabs-wrap, #tabsWrap, #emptyState, #ejecCausaDetalle, .ejec-drawer-backdrop, .no-print, #btnPDF, .sf-bar{ display:none!important; }
   [id^="mtt_"], [id^="emisBubble_"]{ display:none!important; }
   /* Mostrar SOLO la sección "ejecutivo". */
   #content{ display:block!important; }
   .section{ display:none!important; }
   .section[data-section="ejecutivo"]{ display:block!important; animation:none!important; }
-  /* Evitar cortes feos de tarjetas/bloques entre páginas. */
-  .card, .ejec-block, .er-section, .dual-kpi-item{ page-break-inside:avoid; break-inside:avoid; }
+  /* Apilar los dos gráficos de la comparación (total | concepto) para que no se deformen en el PDF. */
+  .grid-2{ grid-template-columns:1fr!important; }
+  /* Evitar cortes feos de bloques chicos y gráficos. */
+  .ejec-block, .dual-kpi-item, .chart-box{ page-break-inside:avoid; break-inside:avoid; }
+  /* Salto de página entre "Emisión por rubro" y "Resumen por rubro" (para que no salga cortado). */
+  #ejecRubroMiniWrap{ page-break-before:always; break-before:page; }
 }
 .timeline-filter .tf-label{font-family:var(--font-mono);font-size:11px;color:var(--ink-3);text-transform:uppercase;letter-spacing:.08em;font-weight:600}
 .timeline-months{display:flex;gap:4px;flex-wrap:wrap}
@@ -3024,6 +3028,10 @@ window.descargarPDF = function(){
   try{ if(typeof redrawSectionCharts==='function') redrawSectionCharts('ejecutivo'); }catch(e){}
   setTimeout(()=>{ try{ window.print(); }catch(e){ alert('No se pudo abrir la impresión: '+e.message); } }, 350);
 };
+/* Al entrar/salir de impresión, redimensionar los charts para que se ajusten al ancho de página
+   del PDF (Chart.js no reacciona solo al cambio de medio de impresión). */
+window.addEventListener('beforeprint', ()=>{ try{ for(const k in charts){ try{ charts[k].resize(); charts[k].update('none'); }catch(e){} } }catch(e){} });
+window.addEventListener('afterprint',  ()=>{ try{ for(const k in charts){ try{ charts[k].resize(); }catch(e){} } }catch(e){} });
 function redrawSectionCharts(target){
   /* Para cada chart cuyo canvas esté dentro de la sección target, llamamos a chart.resize() */
   const sec = document.querySelector(`.section[data-section="${target}"]`);
@@ -4551,7 +4559,13 @@ function ejecJustificacion(S, useUSD, dual, useUSDprimary){
         <span style="font-size:13px;font-weight:800;color:var(--neg);font-family:var(--font-mono)">${pct!=null?'('+(pct>0?'−':'+')+Math.abs(Math.round(pct))+'%)':''}</span>
       </div>
     </div>`;
-  const _selectorCards = `<div style="display:flex;gap:12px;margin-bottom:12px;align-items:stretch;flex-wrap:wrap">
+  /* Presupuesto acumulado (arriba, al lado del Desvío acumulado — pedido del usuario). */
+  const _presCardBig = `<div style="flex:1;min-width:260px;background:rgba(30,111,217,.08);border:1.5px solid var(--accent);border-radius:10px;padding:10px 14px">
+      <div style="font-size:10.5px;color:var(--accent);text-transform:uppercase;letter-spacing:.03em;font-weight:800">Presupuesto Acumulado · <span style="background:var(--accent);color:#fff;padding:1px 8px;border-radius:5px;letter-spacing:.02em">${_mCorteFull}</span></div>
+      <div style="margin-top:3px"><span style="font-size:22px;font-weight:900;color:var(--accent-3);font-family:var(--font-mono);letter-spacing:-.01em">${FMTc(S.presup26||0)}</span></div>
+    </div>`;
+  const _selectorCards = `<div style="display:flex;gap:12px;margin-bottom:18px;align-items:stretch;flex-wrap:wrap">
+    ${_presCardBig}
     ${_dvCardBig('Desvío Acumulado', _dvCorte, _pctCorte)}
   </div>`;
   return `<div style="margin-top:${dual?8:2}px">
@@ -4608,9 +4622,7 @@ function ejecJustificacion(S, useUSD, dual, useUSDprimary){
           <span style="font-size:11.5px;font-weight:800;color:var(--accent-3);text-transform:uppercase;letter-spacing:.04em">Comparación de desvíos</span>
           <span style="font-size:10px;color:var(--ink-3)">Emisión real + Proyectado = Emisión estimada · vs Presupuesto</span>
         </div>
-        <div style="display:flex;align-items:stretch;gap:7px;flex-wrap:wrap">
-          ${esCorte ? cardBlue('Presupuesto Acum.',_mCorte,presup) : cardBlue('Presupuesto Acum.',_mLast,presupEmi)}
-          ${_sep}
+        <div style="display:flex;align-items:stretch;gap:8px;flex-wrap:wrap">
           ${cardEmis('Emisión Real',_mLast,emisReal)}
           ${flecha('+')}
           ${cardOrange('Proyectado','',proyVal)}
@@ -8115,23 +8127,31 @@ function drawEjecRubroMini(polArr, f, useUSD){
   /* Tasa / Siniestralidad: se muestra el VALOR 2026, verde si SUBIÓ vs 2025, rojo si BAJÓ, + % var. */
   const valDir=(v25,v26,n,fmt)=>{ if(!n) return `<span style="color:var(--ink-3)">— sin datos —</span>`; const d=v26-v25; const z=Math.abs(d)<1e-9; const c=z?'var(--ink-3)':(d>0?'var(--pos)':'var(--neg)'); const pct=(v25&&v25!==0)?d/Math.abs(v25):null;
     return `<span style="font-weight:800;color:${c}">${fmt(v26)}</span> <span style="color:${c};font-weight:800">${z?'→':(d>0?'▲':'▼')}</span>${pct!=null?` <span style="font-size:10px;color:var(--ink-3)">(${d>=0?'+':'−'}${FMT_PCT(Math.abs(pct))})</span>`:''}`; };
-  const grid = 'grid-template-columns:minmax(90px,1fr) 1.4fr 1.2fr 2.6fr';
-  const rows = filas.map(r=>{
+  /* Más grande (pedido del usuario) + columna "Pól." (cantidad analizada) + fila clickeable para
+     ver el desglose de esas pólizas en el panel lateral. */
+  const grid = 'grid-template-columns:16px minmax(120px,1.1fr) 1.35fr 1.1fr 2.3fr 60px';
+  const rows = filas.map((r,ri)=>{
     const dProy=r.p26-r.p25, dPp=r.p25?dProy/Math.abs(r.p25):null;
-    return `<div style="display:grid;${grid};gap:14px;align-items:center;padding:8px 12px;border-bottom:1px solid var(--line);font-size:12px">
-      <div style="font-weight:800;color:var(--accent-3);white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${r.rubro}</div>
+    return `<div onclick="toggleEjecRubroChartRow(${ri},'${r.rubro.replace(/'/g,"\\'")}')" style="display:grid;${grid};gap:14px;align-items:center;padding:11px 14px;border-bottom:1px solid var(--line);font-size:14px;cursor:pointer" onmouseover="this.style.background='var(--bg-2)'" onmouseout="this.style.background=''">
+      <span style="color:var(--accent);font-size:13px;font-weight:800">▸</span>
+      <div style="font-weight:800;color:var(--accent-3);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;font-size:15.5px">${r.rubro}</div>
       <div style="font-family:var(--font-mono);white-space:nowrap">${proyCell(dProy,dPp)}</div>
       <div style="font-family:var(--font-mono);white-space:nowrap">${valDir(r.t25,r.t26,r.tn26,FMT_PCT_TASA)}</div>
-      <div style="display:flex;gap:22px;align-items:baseline;font-family:var(--font-mono);font-size:11px;white-space:nowrap">
+      <div style="display:flex;gap:22px;align-items:baseline;font-family:var(--font-mono);font-size:13px;white-space:nowrap">
         <span><span style="font-weight:800;color:var(--ink-3);margin-right:6px">UV</span>${valDir(r.uv25,r.uv26,r.uvn26,FMT_PCT_SIN)}</span>
         <span><span style="font-weight:800;color:var(--ink-3);margin-right:6px">H</span>${valDir(r.h25,r.h26,r.hn26,FMT_PCT_SIN)}</span>
       </div>
+      <div style="font-family:var(--font-mono);text-align:right;font-weight:800;color:var(--accent-3);font-size:15px">${r.n}</div>
     </div>`;
   }).join('');
-  wrap.innerHTML = `<div style="border:1px solid var(--line-2);border-radius:9px;overflow:hidden;background:var(--panel);box-shadow:0 1px 3px rgba(10,31,58,.04)">
-    <div style="padding:8px 12px;background:#f3f1fb;color:#5a3db8;font-weight:800;font-size:12px;text-transform:uppercase;letter-spacing:.04em;border-bottom:1px solid var(--line-2)">Resumen por rubro · proyección · tasa · siniestralidad</div>
-    <div style="display:grid;${grid};gap:14px;padding:6px 12px;background:var(--bg-2);font-size:10px;text-transform:uppercase;letter-spacing:.04em;color:var(--ink-3);font-weight:700">
-      <div>Rubro</div><div>Proyección</div><div>Tasa prom.</div><div>Siniestralidad UV / H (2025 → 2026)</div>
+  const _totPol = filas.reduce((s,r)=>s+r.n,0);
+  wrap.innerHTML = `<div style="border:1px solid var(--line-2);border-radius:10px;overflow:hidden;background:var(--panel);box-shadow:0 1px 4px rgba(10,31,58,.06)">
+    <div style="padding:12px 14px;background:#f3f1fb;color:#5a3db8;font-weight:800;font-size:16.5px;text-transform:uppercase;letter-spacing:.04em;border-bottom:1px solid var(--line-2);display:flex;justify-content:space-between;align-items:baseline;flex-wrap:wrap;gap:10px">
+      <span>Resumen por rubro · proyección · tasa · siniestralidad</span>
+      <span style="font-size:12px;font-weight:600;text-transform:none;letter-spacing:0;color:#7a5fc0">${_totPol} pólizas analizadas · ▸ click en un rubro para ver sus pólizas</span>
+    </div>
+    <div style="display:grid;${grid};gap:14px;padding:9px 14px;background:var(--bg-2);font-size:11px;text-transform:uppercase;letter-spacing:.04em;color:var(--ink-2);font-weight:800">
+      <span></span><div>Rubro</div><div>Proyección</div><div>Tasa prom.</div><div>Siniestralidad UV / H (2025 → 2026)</div><div style="text-align:right">Pól.</div>
     </div>
     ${rows}
   </div>`;
@@ -8229,10 +8249,10 @@ function drawEjecRubroTabla(polArr, f, useUSD){
   const mesCorte = f.mes;
   const grupos = {};
   for(const p of polArr){
+    /* MISMA regla que la tabla (prima mín. 2026 + categoría): el desglose lateral debe mostrar
+       SOLO esas pólizas, no todas las del rubro (pedido del usuario). */
+    if(!_cuentaRubro(p)) continue;
     const k = p.rubro || '(sin rubro)';
-    /* EMISIÓN: 2025 y 2026 acumulados hasta el mes de corte. La póliza entra al detalle si
-       emitió en cualquiera de los dos años; los conteos por año (n25/n26) pueden diferir,
-       igual que en el comparativo de barras. */
     const f25=calcEmisionFiltrada(p,2025,mesCorte), f26=calcEmisionFiltrada(p,2026,mesCorte);
     const em25=tuvoEmision(f25), em26=tuvoEmision(f26);
     if(!em25 && !em26) continue;
