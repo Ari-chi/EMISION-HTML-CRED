@@ -165,13 +165,19 @@ main{padding:28px 32px 60px;max-width:2000px;margin:0 auto}
 .exec-report .er-callout strong{color:var(--accent-3)}
 
 @media print{
-  body > *:not(.modal-overlay){display:none!important}
-  .modal-overlay{position:static;background:none;padding:0;display:block!important}
-  .modal-content{box-shadow:none;max-width:none;margin:0}
-  .modal-head{display:none}
-  .modal-body{padding:0}
-  .exec-report .er-section{page-break-inside:avoid}
-  @page{margin:1.5cm}
+  @page{ size:A4 landscape; margin:0.8cm; }
+  html,body{ background:#fff!important; }
+  /* Colores/fondos fieles al dashboard (los navegadores los quitan por defecto en impresión). */
+  *{ -webkit-print-color-adjust:exact!important; print-color-adjust:exact!important; }
+  /* Ocultar todo lo que NO es el Resumen Ejecutivo (chrome + desgloses laterales + tooltips). */
+  .uploader-wrap, .tabs-wrap, #tabsWrap, #emptyState, #ejecCausaDetalle, .ejec-drawer-backdrop, .no-print, #btnPDF{ display:none!important; }
+  [id^="mtt_"], [id^="emisBubble_"]{ display:none!important; }
+  /* Mostrar SOLO la sección "ejecutivo". */
+  #content{ display:block!important; }
+  .section{ display:none!important; }
+  .section[data-section="ejecutivo"]{ display:block!important; animation:none!important; }
+  /* Evitar cortes feos de tarjetas/bloques entre páginas. */
+  .card, .ejec-block, .er-section, .dual-kpi-item{ page-break-inside:avoid; break-inside:avoid; }
 }
 .timeline-filter .tf-label{font-family:var(--font-mono);font-size:11px;color:var(--ink-3);text-transform:uppercase;letter-spacing:.08em;font-weight:600}
 .timeline-months{display:flex;gap:4px;flex-wrap:wrap}
@@ -547,12 +553,13 @@ h4.section-title{margin:14px 0 8px 0;font-size:13px;color:var(--accent-3);font-w
   </label>
 </div>
 
-<div class="tabs-wrap" id="tabsWrap" style="display:none">
+<div class="tabs-wrap" id="tabsWrap" style="display:none;position:relative">
   <nav class="tabs" id="tabs">
     <button class="tab active" data-tab="ejecutivo"><span class="num">01</span>Resumen Ejecutivo</button>
     <button class="tab" data-tab="polizas"><span class="num">02</span>Justificación por Póliza</button>
     <button class="tab" data-tab="top10"><span class="num">03</span>Top Casos</button>
   </nav>
+  <button id="btnPDF" class="no-print" onclick="window.descargarPDF()" title="Descargar el Resumen Ejecutivo en PDF (Guardar como PDF en el diálogo de impresión)" style="position:absolute;right:0;bottom:8px;display:inline-flex;align-items:center;gap:7px;background:var(--accent);color:#fff;border:none;border-radius:7px;padding:7px 14px;font-size:12.5px;font-weight:700;cursor:pointer;box-shadow:0 2px 6px rgba(30,111,217,.28)"><span style="font-size:15px">⤓</span> Descargar PDF</button>
 </div>
 
 <!-- BARRA GLOBAL DE MES — reemplazada por menú compacto en la cabecera -->
@@ -3001,6 +3008,22 @@ function setupTabs(){
     });
   });
 }
+/* Descargar el Resumen Ejecutivo en PDF: activa la pestaña 01, cierra el desglose lateral y
+   dispara el diálogo de impresión (el usuario elige "Guardar como PDF"). El @media print aísla
+   el bloque manteniendo el formato y el orden vigente. */
+window.descargarPDF = function(){
+  /* Asegurar que la pestaña "Resumen Ejecutivo" esté activa. */
+  document.querySelectorAll('.tab').forEach(x=>x.classList.remove('active'));
+  document.querySelectorAll('.section').forEach(s=>s.classList.remove('active'));
+  const tabEj=document.querySelector('.tab[data-tab="ejecutivo"]'); if(tabEj) tabEj.classList.add('active');
+  const secEj=document.querySelector('.section[data-section="ejecutivo"]'); if(secEj) secEj.classList.add('active');
+  /* Cerrar el desglose lateral (no debe salir en el PDF). */
+  try{ if(typeof closeEjecDrawer==='function') closeEjecDrawer(); }catch(e){}
+  const drw=document.getElementById('ejecCausaDetalle'); if(drw){ drw.style.display='none'; drw.dataset.open=''; }
+  /* Redibujar los charts del tab (Chart.js necesita el canvas visible) y luego imprimir. */
+  try{ if(typeof redrawSectionCharts==='function') redrawSectionCharts('ejecutivo'); }catch(e){}
+  setTimeout(()=>{ try{ window.print(); }catch(e){ alert('No se pudo abrir la impresión: '+e.message); } }, 350);
+};
 function redrawSectionCharts(target){
   /* Para cada chart cuyo canvas esté dentro de la sección target, llamamos a chart.resize() */
   const sec = document.querySelector(`.section[data-section="${target}"]`);
