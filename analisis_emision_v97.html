@@ -7027,7 +7027,7 @@ window.toggleEjecCausa = function(id){
           <div id="${detId}" style="display:none">${pols}</div>
         </div>`; }).join('');
       const tabBtn=(v,lbl)=>`<button onclick="window.ejecMenorVista('${v}')" data-mv="${v}" style="padding:8px 20px;font-size:13px;font-weight:800;border-radius:7px;border:1.5px solid var(--line-2);background:var(--bg-2);color:var(--ink-2);cursor:pointer">${lbl}</button>`;
-      const cab=(a,b)=>`<div style="display:grid;${GT};padding:7px 12px;font-size:9px;text-transform:uppercase;letter-spacing:.03em;color:var(--ink-3);font-weight:800;background:var(--bg-2);border-bottom:1px solid var(--line-2)"><span></span><span>${a}</span><span style="text-align:right">2025</span><span></span><span style="text-align:right">2026</span><span style="text-align:right">Desvío · var.</span></div>`;
+      const cab=(a,b)=>`<div style="display:grid;${GT};padding:9px 12px;font-size:11px;text-transform:uppercase;letter-spacing:.03em;color:var(--ink-2);font-weight:800;background:var(--bg-2);border-bottom:1px solid var(--line-2)"><span></span><span>${a}</span><span style="text-align:right">2025</span><span></span><span style="text-align:right">2026</span><span style="text-align:right">Desvío · var.</span></div>`;
       return `
         <div style="display:flex;gap:8px;margin-bottom:12px" id="ejecMenorVistaSel">${tabBtn('tipo','Detalle por tipo')}${tabBtn('rubro','Detalle por rubro')}</div>
         <div id="menorVistaTipo" style="border:1px solid var(--line-2);border-radius:9px;overflow:hidden">${cab('Concepto')}${tipoBloque||'<div style="padding:12px;color:var(--ink-3);font-style:italic">— sin datos —</div>'}</div>
@@ -7063,20 +7063,20 @@ window.toggleEjecCausa = function(id){
     /* Detalle por póliza como CUADRO: a la izquierda la póliza, y columnas alineadas
        Emisión 2025 · Proyectado 2026 (editable) · Variación. */
     const _detGrid = 'grid-template-columns:1.6fr 1fr 1.15fr 1.15fr;gap:10px';
-    const detHeader = `<div style="display:grid;${_detGrid};padding:6px 12px 6px 30px;background:var(--bg-2);border-bottom:1px solid var(--line-2);font-size:9px;text-transform:uppercase;letter-spacing:.04em;color:var(--ink-3);font-weight:800">
+    const detHeader = `<div style="display:grid;${_detGrid};padding:8px 12px 8px 30px;background:var(--bg-2);border-bottom:1px solid var(--line-2);font-size:11px;text-transform:uppercase;letter-spacing:.04em;color:var(--ink-2);font-weight:800">
         <span>Póliza</span><span style="text-align:right">Emisión 2025</span><span style="text-align:right">Proyectado 2026</span><span style="text-align:right">Variación</span>
       </div>`;
     const detFila = (r)=>{
       const d=r.val-r.v25; const dc=d>=0?'var(--pos)':'var(--neg)'; const pct=(r.v25&&r.v25!==0)?d/Math.abs(r.v25):null;
-      const inputVal = Math.round(r.val).toLocaleString('es-AR');   /* con puntito de miles */
-      const cur = btnUSD?'US':'$';
+      const inRaw = Math.round(r.val).toLocaleString('es-AR');   /* número completo con puntito de miles (al editar) */
+      const inComp = fmtCompact(r.val, btnUSD);                  /* compacto K/M/MM (mismo formato que Emisión 2025) */
       return `<div style="display:grid;${_detGrid};align-items:center;padding:8px 12px 8px 30px;border-bottom:1px solid var(--line);background:#fffdf9">
         <div style="min-width:0">
-          <div style="white-space:nowrap;overflow:hidden;text-overflow:ellipsis"><strong style="color:var(--accent-3);font-size:13.5px">${fmtPoliza(r.poliza)}</strong> <span style="color:var(--ink-2);font-size:12px">${(r.aseg||'').substring(0,18)}</span></div>
+          <div style="white-space:nowrap;overflow:hidden;text-overflow:ellipsis"><span style="color:var(--accent-3);font-size:13px;font-weight:500">${fmtPoliza(r.poliza)}</span> <strong style="color:var(--accent-3);font-size:13.5px;font-weight:800">${(r.aseg||'').substring(0,20)}</strong></div>
           <span style="display:inline-block;margin-top:2px;font-size:9.5px;color:${tc};font-weight:800;background:rgba(214,140,74,.16);padding:1px 6px;border-radius:4px">${r.lbl}</span>
         </div>
         <div style="font-family:var(--font-mono);font-weight:800;font-size:14px;color:var(--ink-2);text-align:right">${fmtCompact(r.v25,btnUSD)}</div>
-        <div style="text-align:right"><span style="display:inline-flex;align-items:center;gap:4px;justify-content:flex-end"><span style="font-size:10px;color:var(--ink-3);font-weight:700">${cur}</span><input type="text" inputmode="numeric" value="${inputVal}" onchange="window.ejecEditPresMes(this,'${r.key}',${btnUSD?1:0})" onclick="event.stopPropagation()" style="width:94px;font-family:var(--font-mono);font-weight:800;font-size:13.5px;color:${tc};text-align:right;border:1px solid ${r.edited?tc:'var(--line-2)'};border-radius:5px;padding:2px 6px;background:${r.edited?'rgba(214,140,74,.12)':'#fff'}"/></span></div>
+        <div style="text-align:right"><input type="text" inputmode="numeric" value="${inComp}" data-raw="${inRaw}" data-comp="${inComp}" onfocus="this.value=this.dataset.raw;this.select()" onblur="this.value=this.dataset.comp" onchange="window.ejecEditPresMes(this,'${r.key}',${btnUSD?1:0})" onclick="event.stopPropagation()" title="Click para editar el número completo" style="width:96px;font-family:var(--font-mono);font-weight:800;font-size:14px;color:${tc};text-align:right;border:1px solid ${r.edited?tc:'var(--line-2)'};border-radius:5px;padding:2px 7px;cursor:pointer;background:${r.edited?'rgba(214,140,74,.12)':'#fff'}"/></div>
         <div style="font-family:var(--font-mono);font-weight:800;font-size:14px;color:${dc};text-align:right;white-space:nowrap">${d>=0?'+':'−'}${fmtCompact(Math.abs(d),btnUSD)}${pct!=null?` <span style="font-size:11px">(${d>=0?'+':'−'}${FMT_PCT(Math.abs(pct))})</span>`:''}</div>
       </div>`;
     };
@@ -7093,13 +7093,22 @@ window.toggleEjecCausa = function(id){
         </div>
         ${det}
       </div>`; }).join('');
-    contenido = `<div style="border:1px solid var(--line-2);border-radius:9px;overflow:hidden;max-width:600px;${on?'':'opacity:.6'}">
-      <div style="display:flex;justify-content:space-between;align-items:center;gap:10px;padding:11px 14px;background:${tc}22;border-bottom:1px solid var(--line)">
-        <span style="font-weight:800;color:${tc};text-transform:uppercase;letter-spacing:.03em;font-size:12px">Proyectado <span style="color:var(--ink-3);font-weight:600;text-transform:none">· tildá los meses · ▸ para ver/editar pólizas</span></span>
-        <button onclick="ejecToggleContab('pend_presup','mes')" title="Contabilizar el presupuesto en el desvío" style="font-size:10px;font-weight:800;border-radius:5px;padding:4px 10px;cursor:pointer;white-space:nowrap;border:1.5px solid ${on?'var(--pos)':'var(--line-2)'};background:${on?'var(--pos)':'var(--panel)'};color:${on?'#fff':'var(--ink-2)'}">Contabilizar: ${on?'SÍ':'NO'}</button>
+    contenido = `<div style="display:flex;gap:22px;align-items:flex-start;flex-wrap:wrap">
+      <div style="border:1px solid var(--line-2);border-radius:9px;overflow:hidden;flex:1 1 560px;max-width:600px;${on?'':'opacity:.6'}">
+        <div style="display:flex;justify-content:space-between;align-items:center;gap:10px;padding:11px 14px;background:${tc}22;border-bottom:1px solid var(--line)">
+          <span style="font-weight:800;color:${tc};text-transform:uppercase;letter-spacing:.03em;font-size:12px">Proyectado <span style="color:var(--ink-3);font-weight:600;text-transform:none">· tildá los meses · ▸ para ver/editar pólizas</span></span>
+          <button onclick="ejecToggleContab('pend_presup','mes')" title="Contabilizar el presupuesto en el desvío" style="font-size:10px;font-weight:800;border-radius:5px;padding:4px 10px;cursor:pointer;white-space:nowrap;border:1.5px solid ${on?'var(--pos)':'var(--line-2)'};background:${on?'var(--pos)':'var(--panel)'};color:${on?'#fff':'var(--ink-2)'}">Contabilizar: ${on?'SÍ':'NO'}</button>
+        </div>
+        <div style="font-family:var(--font-mono);font-size:17px;font-weight:800;color:${tc};padding:9px 14px;border-bottom:1px solid var(--line)">Total: ${fmtCompact(total,btnUSD)}</div>
+        ${filas}
       </div>
-      <div style="font-family:var(--font-mono);font-size:17px;font-weight:800;color:${tc};padding:9px 14px;border-bottom:1px solid var(--line)">Total: ${fmtCompact(total,btnUSD)}</div>
-      ${filas}
+      <div style="flex:1;min-width:120px;position:sticky;top:16px;align-self:flex-start;padding-top:6px">
+        <div style="font-size:12px;color:var(--ink-3);line-height:1.5;border-left:2px solid ${tc}55;padding-left:12px">
+          <div style="display:flex;align-items:center;gap:6px;color:${tc};font-weight:700;margin-bottom:3px"><span style="font-size:14px">✎</span> Editable</div>
+          Click en <strong style="color:${tc}">Proyectado 2026</strong> para modificar ese valor.<br>
+          <span style="color:var(--ink-3);font-size:11px">No replica en la base de Excel.</span>
+        </div>
+      </div>
     </div>`;
   } else if(id==='pend_conf' || id==='pend_2025'){
     /* Sub-desglose por concepto (prima/ajuste/malus/bono) con total + % de ese total; cada
@@ -7165,29 +7174,26 @@ window.toggleEjecCausa = function(id){
         if(p){ const f=calcEmisionFiltrada(p,2025,0,{excluirAnualAnt:false}); const b=u?f.breakdownUSD:f.breakdownARS; bd={primaMin:Math.abs(b.primaMin||0),ajuste:Math.abs(b.ajuste||0),bono:Math.abs(b.bono||0),malus:Math.abs(b.malus||0)}; }
         return {r, bd, tot:Math.abs(valBtnR(r))}; });
       const arrow=(id)=>`<span id="${id}_a" style="color:var(--ink-3);font-weight:800;display:inline-block;transition:transform .15s">▸</span>`;
-      const negCell=(v)=>`<span style="font-family:var(--font-mono);font-weight:800;color:${v>0.5?'var(--neg)':'var(--ink-3)'};font-size:15px;text-align:right;white-space:nowrap">${v>0.5?'−'+FMc(v):'—'}</span>`;
-      /* Detalle de una póliza perdida: sus 4 conceptos 2025 en negativo + total. */
-      const polDet=(o)=>`<div style="padding:7px 12px;background:#fff;border:1px solid var(--line);border-radius:7px;margin:5px 0">
-        ${CKS.map(c=>`<div style="display:flex;justify-content:space-between;align-items:baseline;font-size:11.5px;padding:3px 0;border-bottom:1px solid var(--line)"><span style="color:var(--accent-3);font-weight:700"><span style="display:inline-block;width:9px;height:9px;border-radius:2px;background:${c.col};margin-right:6px"></span>${c.lbl} 2025</span>${negCell(o.bd[c.k])}</div>`).join('')}
-        <div style="display:flex;justify-content:space-between;align-items:baseline;padding:5px 0 0"><strong style="font-size:12px;color:var(--accent-3)">Total 2025 perdido</strong><strong style="font-family:var(--font-mono);color:var(--neg);font-size:13.5px">−${FMc(o.tot)}</strong></div>
-      </div>`;
-      const polCompact=(o,val,detId)=>`
-        <div onclick="window.ejecToggleBox('${detId}')" style="display:grid;grid-template-columns:14px 1fr auto;gap:8px;align-items:center;padding:7px 8px;border-bottom:1px solid var(--line);cursor:pointer;font-size:12px">
-          ${arrow(detId)}
-          <div style="min-width:0;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${(o.r._polizas&&o.r._polizas.length>1)?`<strong style="color:var(--accent-3)">${(o.r.asegurado||'').substring(0,22)}</strong> <span style="color:var(--ink-3);font-size:10.5px">(${o.r._polizas.length} pól.)</span>`:`<strong style="color:var(--accent-3)">${fmtPoliza(o.r.poliza)}</strong> <span style="color:var(--ink-2)">${(o.r.asegurado||'').substring(0,20)}</span>`} <span style="font-size:10px;color:var(--accent);font-weight:700;background:rgba(30,111,217,.10);padding:1px 5px;border-radius:3px">${o.r.rubro||'—'}</span></div>
-          ${negCell(val)}
-        </div>
-        <div id="${detId}" style="display:none;padding:0 4px 4px 22px;background:#fbfcff">${polDet(o)}</div>`;
-      const cab=(a)=>`<div style="display:grid;grid-template-columns:16px 1fr auto;gap:10px;padding:6px 12px;font-size:9px;text-transform:uppercase;letter-spacing:.04em;color:var(--ink-3);font-weight:800;background:var(--bg-2);border-bottom:1px solid var(--line-2)"><span></span><span>${a}</span><span style="text-align:right">Emisión 2025 perdida</span></div>`;
+      /* Total de CONCEPTO (grande, para diferenciarlo del número de cada póliza). */
+      const negBig=(v)=>`<span style="font-family:var(--font-mono);font-weight:800;color:${v>0.5?'var(--neg)':'var(--ink-3)'};font-size:16px;text-align:right;white-space:nowrap">${v>0.5?'−'+FMc(v):'—'}</span>`;
+      /* Valor de una PÓLIZA (más chico y liviano, se distingue del total del concepto). */
+      const negPol=(v)=>`<span style="font-family:var(--font-mono);font-weight:600;color:${v>0.5?'var(--neg)':'var(--ink-3)'};font-size:12.5px;text-align:right;white-space:nowrap">${v>0.5?'−'+FMc(v):'—'}</span>`;
+      /* Póliza = fila simple (SIN sub-desglose por concepto: ya se ve en "Detalle por tipo"). */
+      const polCompact=(o,val)=>`
+        <div style="display:grid;grid-template-columns:1fr auto;gap:8px;align-items:center;padding:7px 12px 7px 32px;border-bottom:1px solid var(--line);font-size:12.5px;background:#fcfdff">
+          <div style="min-width:0;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${(o.r._polizas&&o.r._polizas.length>1)?`<strong style="color:var(--accent-3)">${(o.r.asegurado||'').substring(0,24)}</strong> <span style="color:var(--ink-3);font-size:10.5px">(${o.r._polizas.length} pól.)</span>`:`<span style="color:var(--accent-3);font-weight:500">${fmtPoliza(o.r.poliza)}</span> <strong style="color:var(--accent-3)">${(o.r.asegurado||'').substring(0,22)}</strong>`} <span style="font-size:10px;color:var(--accent);font-weight:700;background:rgba(30,111,217,.10);padding:1px 5px;border-radius:3px">${o.r.rubro||'—'}</span></div>
+          ${negPol(val)}
+        </div>`;
+      const cab=(a)=>`<div style="display:grid;grid-template-columns:16px 1fr auto;gap:10px;padding:9px 12px;font-size:11px;text-transform:uppercase;letter-spacing:.03em;color:var(--ink-2);font-weight:800;background:var(--bg-2);border-bottom:1px solid var(--line-2)"><span></span><span>${a}</span><span style="text-align:right">Emisión 2025 perdida</span></div>`;
       /* ---- POR TIPO ---- */
       const tipos=CKS.map((c,ci)=>{ const list=enr.filter(o=>o.bd[c.k]>0.5).sort((a,b)=>b.bd[c.k]-a.bd[c.k]); const tot=list.reduce((s,o)=>s+o.bd[c.k],0); return {c,list,tot,ci}; }).filter(t=>t.list.length>0);
       const tipoBloque=tipos.map(t=>{ const detId='pt_'+t.ci;
-        const pols=t.list.map((o,j)=>polCompact(o, o.bd[t.c.k], 'ptp_'+t.ci+'_'+j)).join('');
+        const pols=t.list.map((o)=>polCompact(o, o.bd[t.c.k])).join('');
         return `<div>
-          <div onclick="window.ejecToggleBox('${detId}')" style="display:grid;grid-template-columns:16px 1fr auto;gap:10px;align-items:center;padding:10px 12px;border-bottom:1px solid var(--line);cursor:pointer">
+          <div onclick="window.ejecToggleBox('${detId}')" style="display:grid;grid-template-columns:16px 1fr auto;gap:10px;align-items:center;padding:11px 12px;border-bottom:1px solid var(--line);cursor:pointer">
             ${arrow(detId)}
-            <div style="display:flex;align-items:center;gap:7px"><span style="width:11px;height:11px;border-radius:3px;background:${t.c.col};display:inline-block"></span><strong style="color:var(--accent-3);font-size:13px">${t.c.lbl}</strong> <span style="color:var(--ink-3);font-size:11px">${t.list.length} pól.</span></div>
-            ${negCell(t.tot)}
+            <div style="display:flex;align-items:center;gap:7px"><span style="width:12px;height:12px;border-radius:3px;background:${t.c.col};display:inline-block"></span><strong style="color:var(--accent-3);font-size:14px">${t.c.lbl}</strong> <span style="color:var(--ink-3);font-size:11.5px">${t.list.length} pól.</span></div>
+            ${negBig(t.tot)}
           </div>
           <div id="${detId}" style="display:none">${pols}</div>
         </div>`; }).join('');
@@ -7196,12 +7202,12 @@ window.toggleEjecCausa = function(id){
       enr.forEach(o=>{ const rb=o.r.rubro||'(sin rubro)'; if(!rubMap[rb]) rubMap[rb]={rb,tot:0,list:[]}; rubMap[rb].tot+=o.tot; rubMap[rb].list.push(o); });
       const rubros=Object.values(rubMap).sort((a,b)=>b.tot-a.tot);
       const rubroBloque=rubros.map((rb,ri)=>{ const detId='pr_'+ri;
-        const pols=rb.list.sort((a,b)=>b.tot-a.tot).map((o,j)=>polCompact(o,o.tot,'prp_'+ri+'_'+j)).join('');
+        const pols=rb.list.sort((a,b)=>b.tot-a.tot).map((o)=>polCompact(o,o.tot)).join('');
         return `<div>
-          <div onclick="window.ejecToggleBox('${detId}')" style="display:grid;grid-template-columns:16px 1fr auto;gap:10px;align-items:center;padding:10px 12px;border-bottom:1px solid var(--line);cursor:pointer">
+          <div onclick="window.ejecToggleBox('${detId}')" style="display:grid;grid-template-columns:16px 1fr auto;gap:10px;align-items:center;padding:11px 12px;border-bottom:1px solid var(--line);cursor:pointer">
             ${arrow(detId)}
-            <div><strong style="color:var(--accent-3);font-size:13px">${rb.rb}</strong> <span style="color:var(--ink-3);font-size:11px">${rb.list.length} pól.</span></div>
-            ${negCell(rb.tot)}
+            <div><strong style="color:var(--accent-3);font-size:14px">${rb.rb}</strong> <span style="color:var(--ink-3);font-size:11.5px">${rb.list.length} pól.</span></div>
+            ${negBig(rb.tot)}
           </div>
           <div id="${detId}" style="display:none">${pols}</div>
         </div>`; }).join('');
