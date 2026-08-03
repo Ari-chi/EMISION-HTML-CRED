@@ -8392,10 +8392,16 @@ function renderRubroCard(it, idx, useUSD, mesCorte, opts){
       const dO=e26o-e25o, dpct=e25o?dO/Math.abs(e25o):null;
       const cc=dO>0?'var(--pos)':(dO<0?'var(--neg)':'var(--accent)');
       const pm25=isUS?f25.breakdownUSD.primaMin:f25.breakdownARS.primaMin, pm26=isUS?f26.breakdownUSD.primaMin:f26.breakdownARS.primaMin;
+      const aj25=isUS?f25.breakdownUSD.ajuste:f25.breakdownARS.ajuste, aj26=isUS?f26.breakdownUSD.ajuste:f26.breakdownARS.ajuste;
+      const bo25=isUS?f25.breakdownUSD.bono:f25.breakdownARS.bono, bo26=isUS?f26.breakdownUSD.bono:f26.breakdownARS.bono;
+      const ma25=isUS?f25.breakdownUSD.malus:f25.breakdownARS.malus, ma26=isUS?f26.breakdownUSD.malus:f26.breakdownARS.malus;
       const pv25=isUS?(p.proyUSD2025||0):(p.proyARS2025||0), pv26=isUS?(p.proyUSD2026||0):(p.proyARS2026||0);
       const fmtMon=(v)=>v==null?'—':fmtCompact(v,isUS), fmtTasa=(v)=>v==null?'—':FMT_PCT_TASA(v), fmtSin=(v)=>v==null?'—':FMT_PCT_SIN(v);
       const varBox=`<div style="background:rgba(0,0,0,.03);border:1px solid var(--line);border-radius:6px;padding:5px 12px;margin-top:6px;width:100%">
         ${varLine('Prima',pm25,pm26,fmtMon,false)}
+        ${varLine('Ajuste',aj25,aj26,fmtMon,false)}
+        ${varLine('Bono',bo25,bo26,fmtMon,false)}
+        ${varLine('Malus',ma25,ma26,fmtMon,false)}
         ${varLine('Proy. ventas',pv25,pv26,fmtMon,false)}
         ${varLine('Tasa',p.tasa2025,p.tasa2026,fmtTasa,false)}
         ${varLine('Sin. UV',p.sinUV2025,p.sinUV2026,fmtSin,true)}
