@@ -8053,51 +8053,42 @@ function drawEjecRubroMini(polArr, f, useUSD){
   for(const p of polArr){ const k=p.rubro||'(sin rubro)'; (grupos[k]=grupos[k]||[]).push(p); }
   const avg=(s,n)=>n?s/n:0;
   const filas = Object.entries(grupos).map(([rubro,pols])=>{
-    let p25=0,p26=0,np26=0, t25=0,t26=0,tn25=0,tn26=0, uv25=0,uv26=0,uvn25=0,uvn26=0, h25=0,h26=0,hn25=0,hn26=0;
+    let nc=0, p25=0,p26=0,np26=0, t25=0,t26=0,tn25=0,tn26=0, uv25=0,uv26=0,uvn25=0,uvn26=0, h25=0,h26=0,hn25=0,hn26=0;
     for(const p of pols){
-      const pm25=primaMinEmitidaCorte(p,2025,mesCorte), pm26=primaMinEmitidaCorte(p,2026,mesCorte);
+      /* MISMA regla que la tabla (prima mín. 2026 + categoría): si no cuenta, no compara. */
+      if(!_cuentaRubro(p)) continue;
+      nc++;
       const pr25=useUSD?(p.proyUSD2025||0):(p.proyARS2025||0), pr26=useUSD?(p.proyUSD2026||0):(p.proyARS2026||0);
-      if(pm25&&pr25>0){p25+=pr25;}
-      if(pm26&&pr26>0){p26+=pr26;np26++;}
-      if(pm25&&p.tasa2025!=null){t25+=p.tasa2025;tn25++;}
-      if(pm26&&p.tasa2026!=null){t26+=p.tasa2026;tn26++;}
-      if(pm25&&p.sinUV2025!=null){uv25+=p.sinUV2025;uvn25++;}
-      if(pm26&&p.sinUV2026!=null){uv26+=p.sinUV2026;uvn26++;}
-      if(pm25&&p.sinH2025!=null){h25+=p.sinH2025;hn25++;}
-      if(pm26&&p.sinH2026!=null){h26+=p.sinH2026;hn26++;}
+      if(pr25>0){p25+=pr25;}
+      if(pr26>0){p26+=pr26;np26++;}
+      if(p.tasa2025!=null){t25+=p.tasa2025;tn25++;}
+      if(p.tasa2026!=null){t26+=p.tasa2026;tn26++;}
+      if(p.sinUV2025!=null){uv25+=p.sinUV2025;uvn25++;}
+      if(p.sinUV2026!=null){uv26+=p.sinUV2026;uvn26++;}
+      if(p.sinH2025!=null){h25+=p.sinH2025;hn25++;}
+      if(p.sinH2026!=null){h26+=p.sinH2026;hn26++;}
     }
-    return {rubro, n:pols.length, p25,p26, t25:avg(t25,tn25),t26:avg(t26,tn26), uv25:avg(uv25,uvn25),uv26:avg(uv26,uvn26),
-      h25:avg(h25,hn25),h26:avg(h26,hn26)};
-  /* Mostramos TODOS los rubros (aunque varíen 0 o aún no tengan emisión 2026), ordenados
-     de mayor a menor por CANTIDAD de pólizas del rubro. */
-  }).sort((a,b)=> b.n - a.n || a.rubro.localeCompare(b.rubro));
+    return {rubro, n:nc, p25,p26, t25:avg(t25,tn25),t26:avg(t26,tn26),tn26, uv25:avg(uv25,uvn25),uv26:avg(uv26,uvn26),uvn26,
+      h25:avg(h25,hn25),h26:avg(h26,hn26),hn26};
+  }).filter(r=>r.n>0).sort((a,b)=> b.n - a.n || a.rubro.localeCompare(b.rubro));
   if(filas.length===0){ wrap.innerHTML=''; return; }
   const FMTc=(v)=>fmtCompact(v,useUSD);
-  const ind=(d, fmt, invert)=>{
-    if(Math.abs(d)<1e-9) return `<span style="color:var(--ink-3)">→ 0</span>`;
-    const good = invert ? d<0 : d>0;
-    const c = good?'var(--pos)':'var(--neg)';
-    return `<span style="color:${c};font-weight:700">${d>0?'▲':'▼'} ${d>0?'+':''}${fmt(d)}</span>`;
-  };
-  /* Siniestralidad: muestra el paso de un año a otro "2025 → 2026" con una flecha coloreada
-     (bajar siniestralidad es bueno = verde; subir = rojo). */
-  const sinTrans=(a,b)=>{
-    const d=b-a, z=Math.abs(d)<1e-9;
-    const c=z?'var(--ink-3)':(d<0?'var(--pos)':'var(--neg)');
-    return `<span style="color:var(--ink-2)">${FMT_PCT_SIN(a)}</span> <span style="color:${c};font-weight:800;font-size:12px">${z?'→':(d>0?'▲':'▼')}</span> <span style="color:var(--accent-3);font-weight:700">${FMT_PCT_SIN(b)}</span>`;
-  };
+  /* Proyección: cuánta plata más/menos hay + % de variación. */
+  const proyCell=(d, pct)=>{ if(Math.abs(d)<1e-9) return `<span style="color:var(--ink-3)">→ 0</span>`; const c=d>0?'var(--pos)':'var(--neg)';
+    return `<span style="color:${c};font-weight:800">${d>0?'▲':'▼'} ${d>0?'+':'−'}${FMTc(Math.abs(d))}</span>${pct!=null?` <span style="font-size:10px;color:var(--ink-3)">(${d>=0?'+':'−'}${FMT_PCT(Math.abs(pct))})</span>`:''}`; };
+  /* Tasa / Siniestralidad: se muestra el VALOR 2026, verde si SUBIÓ vs 2025, rojo si BAJÓ, + % var. */
+  const valDir=(v25,v26,n,fmt)=>{ if(!n) return `<span style="color:var(--ink-3)">— sin datos —</span>`; const d=v26-v25; const z=Math.abs(d)<1e-9; const c=z?'var(--ink-3)':(d>0?'var(--pos)':'var(--neg)'); const pct=(v25&&v25!==0)?d/Math.abs(v25):null;
+    return `<span style="font-weight:800;color:${c}">${fmt(v26)}</span> <span style="color:${c};font-weight:800">${z?'→':(d>0?'▲':'▼')}</span>${pct!=null?` <span style="font-size:10px;color:var(--ink-3)">(${d>=0?'+':'−'}${FMT_PCT(Math.abs(pct))})</span>`:''}`; };
   const grid = 'grid-template-columns:minmax(90px,1fr) 1.4fr 1.2fr 2.6fr';
   const rows = filas.map(r=>{
     const dProy=r.p26-r.p25, dPp=r.p25?dProy/Math.abs(r.p25):null;
-    const dTasa=r.t26-r.t25, dUV=r.uv26-r.uv25, dH=r.h26-r.h25;
-    const dTp=r.t25?dTasa/Math.abs(r.t25):null;
     return `<div style="display:grid;${grid};gap:14px;align-items:center;padding:8px 12px;border-bottom:1px solid var(--line);font-size:12px">
       <div style="font-weight:800;color:var(--accent-3);white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${r.rubro}</div>
-      <div style="font-family:var(--font-mono);white-space:nowrap">${ind(dProy, FMTc, false)}${dPp!=null?` <span style="font-size:10px;color:var(--ink-3)">(${dProy>=0?'+':''}${FMT_PCT(dPp)})</span>`:''}</div>
-      <div style="font-family:var(--font-mono);white-space:nowrap">${ind(dTasa, FMT_PCT_TASA, false)}${dTp!=null?` <span style="font-size:10px;color:var(--ink-3)">(${dTasa>=0?'+':''}${FMT_PCT(dTp)})</span>`:''}</div>
-      <div style="display:flex;gap:26px;align-items:baseline;font-family:var(--font-mono);font-size:11px;white-space:nowrap">
-        <span><span style="font-weight:800;color:var(--ink-3);margin-right:6px">UV</span>${sinTrans(r.uv25,r.uv26)}</span>
-        <span><span style="font-weight:800;color:var(--ink-3);margin-right:6px">H</span>${sinTrans(r.h25,r.h26)}</span>
+      <div style="font-family:var(--font-mono);white-space:nowrap">${proyCell(dProy,dPp)}</div>
+      <div style="font-family:var(--font-mono);white-space:nowrap">${valDir(r.t25,r.t26,r.tn26,FMT_PCT_TASA)}</div>
+      <div style="display:flex;gap:22px;align-items:baseline;font-family:var(--font-mono);font-size:11px;white-space:nowrap">
+        <span><span style="font-weight:800;color:var(--ink-3);margin-right:6px">UV</span>${valDir(r.uv25,r.uv26,r.uvn26,FMT_PCT_SIN)}</span>
+        <span><span style="font-weight:800;color:var(--ink-3);margin-right:6px">H</span>${valDir(r.h25,r.h26,r.hn26,FMT_PCT_SIN)}</span>
       </div>
     </div>`;
   }).join('');
@@ -8112,24 +8103,25 @@ function drawEjecRubroMini(polArr, f, useUSD){
 
 /* Mini-gráfico comparativo: emisión 2025 vs 2026 por rubro, en la moneda y mes
    de corte seleccionados en los filtros de la sección. */
+/* REGLA de conteo (confirmada por el usuario): una póliza cuenta en el rubro y se compara
+   2026 vs 2025 SOLO si tiene prima mínima 2026 (aunque sea vacío/0) CON categoría. Si no tiene
+   ni prima mínima 2026 ni categoría, se excluye. */
+function _cuentaRubro(p){ const rPM = p && p.conceptos && p.conceptos['Prima Minima']; return !!(rPM && rPM.categoria); }
 function drawEjecRubroChart(polArr, f, useUSD){
   const wrap = document.getElementById('ejecRubroChartWrap');
   if(!wrap) return;
   const mesCorte = f.mes;
-  const mon = efectivoMonedas(f);
-  const mLbl = (useUSD || (mon.showUSD && !mon.showARS)) ? 'USD' : 'ARS$';
   const grupos = {};
   for(const p of polArr){
+    if(!_cuentaRubro(p)) continue;   /* regla del usuario: sin prima mín. 2026 + categoría → no cuenta */
     const k = p.rubro || '(sin rubro)';
-    /* EMISIÓN: 2025 y 2026 acumulados hasta el MES DE CORTE (suma PM+ajuste+bono+malus).
-       Cada año cuenta lo que emitió ese año hasta el corte; la cantidad de pólizas y el
-       monto pueden DIFERIR entre años (pedido del usuario). */
     const f25=calcEmisionFiltrada(p,2025,mesCorte), f26=calcEmisionFiltrada(p,2026,mesCorte);
-    if(!grupos[k]) grupos[k]={u25:0,u26:0,a25:0,a26:0,n:0,n25:0,n26:0};
+    if(!grupos[k]) grupos[k]={u25:0,u26:0,a25:0,a26:0,n:0,n25:0,n26:0,
+      c25:{primaMin:0,ajuste:0,bono:0,malus:0}, c26:{primaMin:0,ajuste:0,bono:0,malus:0}};
     grupos[k].u25+=f25.totUSD; grupos[k].u26+=f26.totUSD;
     grupos[k].a25+=f25.totARS; grupos[k].a26+=f26.totARS;
-    /* CONTEO por año = pólizas que emitieron ese año cualquier concepto (incl. bono negativo),
-       en cualquier moneda, para que el número coincida con el real de pólizas emitidas. */
+    const b25=useUSD?f25.breakdownUSD:f25.breakdownARS, b26=useUSD?f26.breakdownUSD:f26.breakdownARS;
+    for(const ck of ['primaMin','ajuste','bono','malus']){ grupos[k].c25[ck]+=(b25[ck]||0); grupos[k].c26[ck]+=(b26[ck]||0); }
     if(tuvoEmision(f25)) grupos[k].n25++;
     if(tuvoEmision(f26)) grupos[k].n26++;
     grupos[k].n++;
@@ -8138,24 +8130,40 @@ function drawEjecRubroChart(polArr, f, useUSD){
   const v26 = (g)=>useUSD?g.u26:g.a26;
   const items = Object.entries(grupos).map(([k,g])=>({rubro:k, ...g, v25:v25(g), v26:v26(g)}))
     .sort((a,b)=>b.v26-a.v26);
+  state._ejecRubroChartItems = items;
   const max = Math.max(1, ...items.flatMap(it=>[it.v25, it.v26]));
   const FMTc = (v)=>fmtCompact(v, useUSD);
-  /* Tabla compacta estilo dashboard: Rubro | 2025 | 2026 | Var | Pól. + mini-barra bajo el rubro.
-     El click en la fila abre el desglose por rubro (se mantiene el drill de siempre). */
   const _cols = '15px 1.25fr 82px 82px 66px 40px';
+  /* Sub-desglose por rubro: prima mín. / ajuste / bono / malus, 2025 → 2026 + variación (compacto). */
+  const _CKS=[['primaMin','Prima mín.',APP_CONFIG.colores.prima],['ajuste','Ajuste',APP_CONFIG.colores.abm],['bono','Bono','#d94747'],['malus','Malus','#7c4dff']];
+  const conceptoBreak = (it)=>{
+    const fila=(ck,lbl,col)=>{ const a=it.c25[ck]||0,b=it.c26[ck]||0; if(Math.abs(a)<0.5&&Math.abs(b)<0.5) return ''; const dd=b-a; const dc=dd>=0?'var(--pos)':'var(--neg)'; const pct=(a&&a!==0)?dd/Math.abs(a):null;
+      return `<div style="display:grid;grid-template-columns:1fr 78px 12px 78px 96px;gap:8px;align-items:baseline;padding:5px 8px;border-top:1px solid var(--line);font-size:12px">
+        <span style="color:var(--accent-3);font-weight:700"><span style="display:inline-block;width:9px;height:9px;border-radius:2px;background:${col};margin-right:6px"></span>${lbl}</span>
+        <span style="font-family:var(--font-mono);text-align:right;color:var(--ink-2)">${FMTc(a)}</span>
+        <span style="color:var(--ink-3);text-align:center">→</span>
+        <span style="font-family:var(--font-mono);text-align:right;font-weight:800;color:var(--accent-3)">${FMTc(b)}</span>
+        <span style="font-family:var(--font-mono);text-align:right;font-weight:800;color:${dc}">${dd>=0?'+':'−'}${FMTc(Math.abs(dd))}${pct!=null?` (${dd>=0?'+':'−'}${FMT_PCT(Math.abs(pct))})`:''}</span>
+      </div>`; };
+    return `<div style="border:1px solid var(--line-2);border-radius:8px;overflow:hidden;margin:2px 0 4px">
+      <div style="display:grid;grid-template-columns:1fr 78px 12px 78px 96px;gap:8px;padding:6px 8px;font-size:9px;text-transform:uppercase;letter-spacing:.03em;color:var(--ink-3);font-weight:800;background:var(--bg-2)"><span>Concepto</span><span style="text-align:right">2025</span><span></span><span style="text-align:right">2026</span><span style="text-align:right">Variación</span></div>
+      ${_CKS.map(([ck,lbl,col])=>fila(ck,lbl,col)).join('')||'<div style="padding:8px;color:var(--ink-3);font-style:italic;font-size:11px">— sin conceptos —</div>'}
+      <div style="padding:6px 8px;border-top:1px solid var(--line-2);text-align:right"><button onclick="event.stopPropagation();toggleEjecRubroChartRow(${it._idx},'${it.rubro.replace(/'/g,"\\'")}')" style="font-size:10px;font-weight:800;color:var(--accent);background:var(--accent-soft);border:none;border-radius:20px;padding:3px 11px;cursor:pointer">▸ ver pólizas</button></div>
+    </div>`;
+  };
   const filas = items.map((it, idx)=>{
+    it._idx = idx;
     const w25 = Math.round(it.v25/max*100);
     const w26 = Math.round(it.v26/max*100);
     const d = it.v26 - it.v25;
     const dc = d>=0?'var(--pos)':'var(--neg)';
     const pp = it.v25 ? d/Math.abs(it.v25) : null;
-    /* Dos barras por rubro: 2025 (azul) y 2026 (verde si sube / rojo si baja), separadas. */
     const _bars = `<div style="margin-top:4px;display:flex;flex-direction:column;gap:3px">
         <div style="display:flex;align-items:center;gap:5px"><span style="font-size:8px;color:var(--ink-3);font-weight:700;width:22px">'25</span><div style="height:6px;border-radius:3px;background:#4a90e2;width:${Math.max(3,w25)}%"></div></div>
         <div style="display:flex;align-items:center;gap:5px"><span style="font-size:8px;color:var(--ink-3);font-weight:700;width:22px">'26</span><div style="height:6px;border-radius:3px;background:${dc};width:${Math.max(3,w26)}%"></div></div>
       </div>`;
     return `<div style="border-top:1px solid var(--line)">
-      <div onclick="toggleEjecRubroChartRow(${idx},'${it.rubro.replace(/'/g,"\\'")}')" style="display:grid;grid-template-columns:${_cols};gap:9px;align-items:center;padding:7px 4px;cursor:pointer;font-size:12px" onmouseover="this.style.background='var(--bg-2)'" onmouseout="this.style.background=''">
+      <div onclick="window.toggleEjrConceptoRow(${idx})" style="display:grid;grid-template-columns:${_cols};gap:9px;align-items:center;padding:7px 4px;cursor:pointer;font-size:12px" onmouseover="this.style.background='var(--bg-2)'" onmouseout="this.style.background=''">
         <span id="ejecRubroChartCar_${idx}" style="font-size:10px;color:var(--accent)">▸</span>
         <div style="min-width:0"><div style="font-weight:700;color:var(--accent-3);font-size:12.5px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${it.rubro}</div>${_bars}</div>
         <span style="font-family:var(--font-mono);text-align:right;color:var(--ink-2)">${FMTc(it.v25)}</span>
@@ -8163,19 +8171,21 @@ function drawEjecRubroChart(polArr, f, useUSD){
         <span style="font-family:var(--font-mono);text-align:right;font-weight:800;color:${dc}">${pp!=null?((d>=0?'+':'')+FMT_PCT(pp)):((d>=0?'+':'')+FMTc(d))}</span>
         <span style="font-family:var(--font-mono);text-align:right;color:var(--ink-3)">${it.n26}</span>
       </div>
-      <div id="ejecRubroChartDet_${idx}" style="display:none;padding:8px 4px 14px"></div>
+      <div id="ejecRubroChartDet_${idx}" style="display:none;padding:2px 4px 10px 26px">${conceptoBreak(it)}</div>
     </div>`;
   }).join('');
   wrap.innerHTML = `
-    <div style="display:flex;align-items:center;justify-content:space-between;gap:10px;margin-bottom:8px">
-      <span style="font-size:12px;text-transform:uppercase;letter-spacing:.04em;font-weight:800;color:var(--accent-3)">Emisión por rubro · 2025 vs 2026 · ${mLbl}</span>
-      <span style="font-size:10px;font-weight:800;color:var(--accent);background:var(--accent-soft);border-radius:20px;padding:2px 9px">▸ por rubro</span>
-    </div>
-    <div style="display:grid;grid-template-columns:${_cols};gap:9px;padding:0 4px 5px;font-size:9px;text-transform:uppercase;letter-spacing:.04em;font-weight:800;color:var(--ink-3)">
+    <div style="display:grid;grid-template-columns:${_cols};gap:9px;padding:0 4px 5px;font-size:10px;text-transform:uppercase;letter-spacing:.04em;font-weight:800;color:var(--ink-2)">
       <span></span><span>Rubro</span><span style="text-align:right">2025</span><span style="text-align:right">2026</span><span style="text-align:right">Var.</span><span style="text-align:right">Pól.</span>
     </div>
     ${filas || '<div style="font-size:12px;color:var(--ink-3);font-style:italic">— sin datos —</div>'}`;
 }
+/* Expandir/colapsar el sub-desglose por concepto (prima/ajuste/bono/malus) de un rubro (foto2). */
+window.toggleEjrConceptoRow = function(idx){
+  const d=document.getElementById('ejecRubroChartDet_'+idx); const car=document.getElementById('ejecRubroChartCar_'+idx);
+  if(!d) return; const open=(d.style.display==='none'||!d.style.display);
+  d.style.display=open?'block':'none'; if(car) car.textContent=open?'▾':'▸';
+};
 
 function drawEjecRubroTabla(polArr, f, useUSD){
   const wrap = document.getElementById('ejecRubroTabla');
