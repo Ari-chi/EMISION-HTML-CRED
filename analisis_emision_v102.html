@@ -3822,6 +3822,21 @@ function ejecFlujo(S, useUSD){
       <div style="height:7px;background:rgba(45,155,106,.16);border-radius:4px;margin-top:3px;overflow:hidden"><div style="height:100%;width:${p}%;background:var(--pos);border-radius:4px;transition:width .3s"></div></div>
     </div>`; };
   const cumplEmi = S.presup26_emi>0 ? S.emis26/S.presup26_emi : null;
+  /* Emisión Real: barra de "% del objetivo" SIN el mes (el mes ya está en el badge de la card). */
+  const barLineaSolo=(pct)=>{ const p=Math.max(0,Math.min(100,Math.round((pct||0)*100)));
+    return `<div style="margin-top:8px">
+      <div style="display:flex;justify-content:space-between;align-items:center;font-size:10px;color:var(--ink-3);font-weight:600">
+        <span>del objetivo</span><strong style="font-size:13px;color:var(--pos);font-family:var(--font-mono)">${pct!=null?p+'%':'—'}</strong>
+      </div>
+      <div style="height:6px;background:rgba(45,155,106,.16);border-radius:4px;margin-top:3px;overflow:hidden"><div style="height:100%;width:${p}%;background:var(--pos);border-radius:4px;transition:width .3s"></div></div>
+    </div>`; };
+  /* Card de Emisión Real por mes (Julio / Diciembre), para que las 3 columnas queden parejas.
+     El número va más chico (17px) que antes (pedido del usuario). */
+  const emisCard=(cumpl,mesN)=>`<div onclick="window.toggleEmisBubble('${sufijo}')" title="${_bubbleTitle.replace(/"/g,'&quot;')}" style="flex:1;background:rgba(45,155,106,.07);border-radius:10px;padding:9px 13px;border-left:3px solid var(--pos);cursor:pointer;display:flex;flex-direction:column;justify-content:center">
+    ${_pill('var(--pos)','rgba(45,155,106,.16)','Emisión Real',_mesBadge(mesN,'var(--pos)')+'<span style="font-size:8px;color:var(--pos)">▾</span>')}
+    <div style="font-size:17px;font-weight:800;color:var(--pos);line-height:1;font-family:var(--font-mono);margin-top:6px">${FMTc(S.emis26)}</div>
+    ${barLineaSolo(cumpl)}
+  </div>`;
   /* Desvío: card con pill + valor + mini-barra de magnitud sobre el presupuesto. */
   const subCard = (titulo, sub, val, pct)=>{ const neg=val>0; const c=neg?'var(--neg)':'var(--pos)'; const soft=neg?'rgba(217,71,71,.14)':'rgba(45,155,106,.16)';
     return `<div style="flex:1;background:${neg?'rgba(217,71,71,.07)':'rgba(45,155,106,.07)'};border-radius:10px;padding:10px 13px;border-left:3px solid ${c};display:flex;flex-direction:column;justify-content:center">
@@ -3845,11 +3860,9 @@ function ejecFlujo(S, useUSD){
         </div>
       </div>
       ${flecha('→')}
-      <div title="${_bubbleTitle.replace(/"/g,'&quot;')}" onclick="window.toggleEmisBubble('${sufijo}')" style="flex:1;position:relative;background:rgba(45,155,106,.07);border-radius:10px;padding:10px 13px;border-left:3px solid var(--pos);cursor:pointer">
-        ${_pill('var(--pos)','rgba(45,155,106,.16)','Emisión Real 2026','<span style="font-size:9px">▾</span>')}
-        ${_num('var(--pos)',FMTc(S.emis26),22)}
-        ${barLinea(cumplEmi,_mLastN)}
-        ${barLinea(S.cumpl,_mCorteN)}
+      <div style="flex:1;position:relative;display:flex;flex-direction:column;gap:6px;justify-content:center">
+        ${emisCard(cumplEmi,_mLastN)}
+        ${emisCard(S.cumpl,_mCorteN)}
         ${_bubbleHTML}
       </div>
       ${flecha('=')}
