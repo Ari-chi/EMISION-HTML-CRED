@@ -7222,15 +7222,21 @@ window.toggleEjecCausa = function(id){
       const u=btnUSD; const FMc=(v)=>fmtCompact(v,u);
       const CKS=[{k:'primaMin',lbl:'Prima mínima',col:APP_CONFIG.colores.prima},{k:'ajuste',lbl:'Ajuste',col:APP_CONFIG.colores.abm},{k:'bono',lbl:'Bono',col:'#d94747'},{k:'malus',lbl:'Malus',col:'#7c4dff'}];
       const lookup=new Map(); (state.polizas||[]).forEach(p=>{ lookup.set(p.clave,p); lookup.set(p.poliza,p); });
-      const rows=[...collect(false,'perdidas'),...collect(true,'perdidas')];
+      /* UNA sola moneda (la del botón), igual que el total del encabezado (detMonUSD/detMonARS
+         usan collect(btnUSD)). Antes se sumaban collect(false)+collect(true) → cada póliza se
+         contaba DOS veces y la suma NO coincidía con "Emisión 2025 perdida". */
+      const rows=collect(u,'perdidas');
       const enr=rows.map(r=>{ const p=lookup.get(r.clave)||lookup.get(r.poliza); let bd={primaMin:0,ajuste:0,bono:0,malus:0};
-        if(p){ const f=calcEmisionFiltrada(p,2025,0,{excluirAnualAnt:false}); const b=u?f.breakdownUSD:f.breakdownARS; bd={primaMin:Math.abs(b.primaMin||0),ajuste:Math.abs(b.ajuste||0),bono:Math.abs(b.bono||0),malus:Math.abs(b.malus||0)}; }
-        return {r, bd, tot:Math.abs(valBtnR(r))}; });
+        /* Desglose CON SIGNO (el bono es nota de crédito → resta emisión). Así la suma de los
+           conceptos da EXACTAMENTE el neto perdido del encabezado, sin abs que lo infle. */
+        if(p){ const f=calcEmisionFiltrada(p,2025,0,{excluirAnualAnt:false}); const b=u?f.breakdownUSD:f.breakdownARS; bd={primaMin:b.primaMin||0,ajuste:b.ajuste||0,bono:b.bono||0,malus:b.malus||0}; }
+        return {r, bd, tot:valBtnR(r)}; });
       const arrow=(id)=>`<span id="${id}_a" style="color:var(--ink-3);font-weight:800;display:inline-block;transition:transform .15s">▸</span>`;
-      /* Total de CONCEPTO (grande, para diferenciarlo del número de cada póliza). */
-      const negBig=(v)=>`<span style="font-family:var(--font-mono);font-weight:800;color:${v>0.5?'var(--neg)':'var(--ink-3)'};font-size:16px;text-align:right;white-space:nowrap">${v>0.5?'−'+FMc(v):'—'}</span>`;
+      /* Total de CONCEPTO (grande). Con signo: pérdida (>0) en rojo con −; crédito/bono (<0)
+         en verde con + porque REDUCE la pérdida. */
+      const negBig=(v)=>{const a=Math.abs(v);const c=a<0.5?'var(--ink-3)':(v>0?'var(--neg)':'var(--pos)');return `<span style="font-family:var(--font-mono);font-weight:800;color:${c};font-size:16px;text-align:right;white-space:nowrap">${a<0.5?'—':(v>0?'−':'+')+FMc(a)}</span>`;};
       /* Valor de una PÓLIZA (más chico y liviano, se distingue del total del concepto). */
-      const negPol=(v)=>`<span style="font-family:var(--font-mono);font-weight:600;color:${v>0.5?'var(--neg)':'var(--ink-3)'};font-size:12.5px;text-align:right;white-space:nowrap">${v>0.5?'−'+FMc(v):'—'}</span>`;
+      const negPol=(v)=>{const a=Math.abs(v);const c=a<0.5?'var(--ink-3)':(v>0?'var(--neg)':'var(--pos)');return `<span style="font-family:var(--font-mono);font-weight:600;color:${c};font-size:12.5px;text-align:right;white-space:nowrap">${a<0.5?'—':(v>0?'−':'+')+FMc(a)}</span>`;};
       /* Póliza = fila simple (SIN sub-desglose por concepto: ya se ve en "Detalle por tipo"). */
       const polCompact=(o,val)=>`
         <div style="display:grid;grid-template-columns:1fr auto;gap:8px;align-items:center;padding:7px 12px 7px 32px;border-bottom:1px solid var(--line);font-size:12.5px;background:#fcfdff">
@@ -7239,7 +7245,7 @@ window.toggleEjecCausa = function(id){
         </div>`;
       const cab=(a)=>`<div style="display:grid;grid-template-columns:16px 1fr auto;gap:10px;padding:9px 12px;font-size:11px;text-transform:uppercase;letter-spacing:.03em;color:var(--ink-2);font-weight:800;background:var(--bg-2);border-bottom:1px solid var(--line-2)"><span></span><span>${a}</span><span style="text-align:right">Emisión 2025 perdida</span></div>`;
       /* ---- POR TIPO ---- */
-      const tipos=CKS.map((c,ci)=>{ const list=enr.filter(o=>o.bd[c.k]>0.5).sort((a,b)=>b.bd[c.k]-a.bd[c.k]); const tot=list.reduce((s,o)=>s+o.bd[c.k],0); return {c,list,tot,ci}; }).filter(t=>t.list.length>0);
+      const tipos=CKS.map((c,ci)=>{ const list=enr.filter(o=>Math.abs(o.bd[c.k])>0.5).sort((a,b)=>Math.abs(b.bd[c.k])-Math.abs(a.bd[c.k])); const tot=list.reduce((s,o)=>s+o.bd[c.k],0); return {c,list,tot,ci}; }).filter(t=>t.list.length>0);
       const tipoBloque=tipos.map(t=>{ const detId='pt_'+t.ci;
         const pols=t.list.map((o)=>polCompact(o, o.bd[t.c.k])).join('');
         return `<div>
@@ -7253,9 +7259,9 @@ window.toggleEjecCausa = function(id){
       /* ---- POR RUBRO ---- */
       const rubMap={};
       enr.forEach(o=>{ const rb=o.r.rubro||'(sin rubro)'; if(!rubMap[rb]) rubMap[rb]={rb,tot:0,list:[]}; rubMap[rb].tot+=o.tot; rubMap[rb].list.push(o); });
-      const rubros=Object.values(rubMap).sort((a,b)=>b.tot-a.tot);
+      const rubros=Object.values(rubMap).sort((a,b)=>Math.abs(b.tot)-Math.abs(a.tot));
       const rubroBloque=rubros.map((rb,ri)=>{ const detId='pr_'+ri;
-        const pols=rb.list.sort((a,b)=>b.tot-a.tot).map((o)=>polCompact(o,o.tot)).join('');
+        const pols=rb.list.sort((a,b)=>Math.abs(b.tot)-Math.abs(a.tot)).map((o)=>polCompact(o,o.tot)).join('');
         return `<div>
           <div onclick="window.ejecToggleBox('${detId}')" style="display:grid;grid-template-columns:16px 1fr auto;gap:10px;align-items:center;padding:11px 12px;border-bottom:1px solid var(--line);cursor:pointer">
             ${arrow(detId)}
@@ -7265,10 +7271,15 @@ window.toggleEjecCausa = function(id){
           <div id="${detId}" style="display:none">${pols}</div>
         </div>`; }).join('');
       const tabBtn=(v,lbl)=>`<button onclick="window.ejecMenorVista('${v}')" data-mv="${v}" style="padding:8px 20px;font-size:13px;font-weight:800;border-radius:7px;border:1.5px solid var(--line-2);background:var(--bg-2);color:var(--ink-2);cursor:pointer">${lbl}</button>`;
+      /* Fila TOTAL: suma neta de los conceptos = "Emisión 2025 perdida" del encabezado.
+         Se calcula desde el MISMO enr, así siempre reconcilia con el total de arriba. */
+      const totNeto = enr.reduce((s,o)=>s+o.tot,0);
+      const totalRow = `<div style="display:grid;grid-template-columns:16px 1fr auto;gap:10px;align-items:center;padding:11px 12px;border-top:2px solid var(--line-2);background:#f6f8fc">
+        <span></span><strong style="color:var(--accent-3);font-size:13px;text-transform:uppercase;letter-spacing:.03em">Total perdido</strong>${negBig(totNeto)}</div>`;
       return `
         <div style="display:flex;gap:8px;margin-bottom:12px" id="ejecMenorVistaSel">${tabBtn('tipo','Detalle por tipo')}${tabBtn('rubro','Detalle por rubro')}</div>
-        <div id="menorVistaTipo" style="border:1px solid var(--line-2);border-radius:9px;overflow:hidden">${cab('Concepto')}${tipoBloque||'<div style="padding:12px;color:var(--ink-3);font-style:italic">— sin datos —</div>'}</div>
-        <div id="menorVistaRubro" style="display:none;border:1px solid var(--line-2);border-radius:9px;overflow:hidden">${cab('Rubro')}${rubroBloque||'<div style="padding:12px;color:var(--ink-3);font-style:italic">— sin datos —</div>'}</div>`;
+        <div id="menorVistaTipo" style="border:1px solid var(--line-2);border-radius:9px;overflow:hidden">${cab('Concepto')}${tipoBloque||'<div style="padding:12px;color:var(--ink-3);font-style:italic">— sin datos —</div>'}${tipoBloque?totalRow:''}</div>
+        <div id="menorVistaRubro" style="display:none;border:1px solid var(--line-2);border-radius:9px;overflow:hidden">${cab('Rubro')}${rubroBloque||'<div style="padding:12px;color:var(--ink-3);font-style:italic">— sin datos —</div>'}${rubroBloque?totalRow:''}</div>`;
     };
     contenido = perdidasDetalleView();
   } else {
