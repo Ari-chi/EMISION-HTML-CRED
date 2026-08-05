@@ -3871,35 +3871,36 @@ function ejecFlujo(S, useUSD){
   const proyVal = _ejecProyectadoVal(sufijo);
   const desvFinal = (S.presup26||0) - ((S.emis26||0) + proyVal);   /* >0 = déficit vs presupuesto */
   const pctFinal  = S.presup26>0 ? (desvFinal/S.presup26*100) : null;
-  /* Fila "Presupuesto acumulado" (azul). */
-  const _rowPres = (val)=>`<div style="background:rgba(30,111,217,.07);border-radius:9px;padding:9px 12px;border-left:3px solid var(--accent)">
-      ${_pill('var(--accent)','rgba(30,111,217,.14)','Presupuesto Acum.')}
-      ${_num('var(--accent-3)',FMTc(val),19)}
+  /* Fila reutilizable: crece (flex:1) para llenar el alto del cuadro y no dejar espacio vacío;
+     contenido centrado verticalmente. */
+  const _rowBase = 'flex:1;display:flex;flex-direction:column;justify-content:center;border-radius:9px;padding:9px 13px';
+  const _rowPres = (val)=>`<div style="${_rowBase};background:rgba(30,111,217,.07);border-left:3px solid var(--accent)">
+      ${_pill('var(--accent)','rgba(30,111,217,.14)','Presupuesto Acumulado')}
+      ${_num('var(--accent-3)',FMTc(val),20)}
     </div>`;
-  /* Fila "Emisión Real" (verde) con barra + % de consumo. Clickeable = burbuja por tipo. */
-  const _rowEmis = (cumpl)=>`<div onclick="window.toggleEmisBubble('${sufijo}')" title="${_bubbleTitle.replace(/"/g,'&quot;')}" style="cursor:pointer;background:rgba(45,155,106,.07);border-radius:9px;padding:9px 12px;border-left:3px solid var(--pos)">
+  const _rowEmis = (cumpl)=>`<div onclick="window.toggleEmisBubble('${sufijo}')" title="${_bubbleTitle.replace(/"/g,'&quot;')}" style="${_rowBase};cursor:pointer;background:rgba(45,155,106,.07);border-left:3px solid var(--pos)">
       ${_pill('var(--pos)','rgba(45,155,106,.16)','Emisión Real','<span style="font-size:8px;color:var(--pos)">▾</span>')}
-      <div style="font-size:19px;font-weight:800;color:var(--pos);line-height:1;font-family:var(--font-mono);margin-top:6px">${FMTc(S.emis26)}</div>
+      <div style="font-size:20px;font-weight:800;color:var(--pos);line-height:1;font-family:var(--font-mono);margin-top:6px">${FMTc(S.emis26)}</div>
       ${barLineaSolo(cumpl)}
     </div>`;
-  /* Fila "Proyectado" (naranja). */
-  const _rowProy = (val)=>`<div style="background:rgba(232,130,14,.09);border-radius:9px;padding:9px 12px;border-left:3px solid #e0a15c">
-      ${_pill('#c25e00','rgba(232,130,14,.18)','Proyectado')}
-      <div style="font-size:19px;font-weight:800;color:#c25e00;line-height:1;font-family:var(--font-mono);margin-top:6px">+${FMTc(val)}</div>
+  /* Proyectado: naranja CLARO y armonioso. */
+  const _rowProy = (val)=>`<div style="${_rowBase};background:rgba(234,178,106,.12);border-left:3px solid #eab26a">
+      ${_pill('#c9922f','rgba(234,178,106,.22)','Proyectado')}
+      <div style="font-size:20px;font-weight:800;color:#c9922f;line-height:1;font-family:var(--font-mono);margin-top:6px">+${FMTc(val)}</div>
     </div>`;
-  /* Fila "Desvío" (rojo si déficit, verde si a favor). */
   const _rowDesv = (titulo,val,pct)=>{ const neg=val>0; const c=neg?'var(--neg)':'var(--pos)'; const soft=neg?'rgba(217,71,71,.14)':'rgba(45,155,106,.16)';
-    return `<div style="background:${neg?'rgba(217,71,71,.07)':'rgba(45,155,106,.07)'};border-radius:9px;padding:9px 12px;border-left:3px solid ${c}">
+    return `<div style="${_rowBase};background:${neg?'rgba(217,71,71,.07)':'rgba(45,155,106,.07)'};border-left:3px solid ${c}">
       ${_pill(c,soft,titulo)}
       <div style="display:flex;align-items:baseline;gap:8px;margin-top:6px">
-        <span style="font-size:19px;font-weight:800;color:${c};font-family:var(--font-mono)">${neg?'−':'+'}${FMTc(Math.abs(val))}</span>
+        <span style="font-size:20px;font-weight:800;color:${c};font-family:var(--font-mono)">${neg?'−':'+'}${FMTc(Math.abs(val))}</span>
         <span style="font-size:12px;font-weight:800;color:${c};font-family:var(--font-mono)">${pct!=null?'('+(pct>0?'−':'+')+Math.abs(pct).toFixed(0)+'%)':''}</span>
       </div>
     </div>`; };
-  /* Cuadro con encabezado de mes. */
-  const box=(mesN,headCol,rows)=>`<div style="flex:1;min-width:230px;border:1.5px solid ${headCol};border-radius:12px;overflow:hidden;background:#fff;box-shadow:0 1px 4px rgba(10,31,58,.06)">
+  /* Cuadro con encabezado de mes; el cuerpo (flex:1) reparte las filas para NO dejar huecos.
+     Ancho acotado (max-width) para que el contenido no quede perdido con espacio vacío a la derecha. */
+  const box=(mesN,headCol,rows)=>`<div style="flex:1 1 300px;max-width:440px;min-width:250px;display:flex;flex-direction:column;border:1.5px solid ${headCol};border-radius:12px;overflow:hidden;background:#fff;box-shadow:0 1px 4px rgba(10,31,58,.06)">
       <div style="background:${headCol};padding:8px 14px;text-align:center"><span style="color:#fff;font-weight:900;font-size:14.5px;text-transform:uppercase;letter-spacing:.05em">${mesN}</span></div>
-      <div style="padding:11px;display:flex;flex-direction:column;gap:8px">${rows}</div>
+      <div style="flex:1;padding:11px;display:flex;flex-direction:column;gap:8px">${rows}</div>
     </div>`;
   const box1 = box(_mLastN, 'var(--accent)',
     _rowPres(S.presup26_emi) + _rowEmis(cumplEmi) + _rowDesv('Desvío', desvioEmi, desvPctEmi));
@@ -3907,7 +3908,7 @@ function ejecFlujo(S, useUSD){
     _rowPres(S.presup26) + _rowEmis(S.cumpl) + _rowProy(proyVal) + _rowDesv('Desvío (con Proyectado)', desvFinal, pctFinal));
   return `<div style="margin-top:8px">
     <div style="font-size:11px;color:var(--ink-3);text-transform:uppercase;letter-spacing:.05em;font-weight:700;margin-bottom:6px">${mLbl}</div>
-    <div style="position:relative;display:flex;align-items:flex-start;gap:12px;flex-wrap:wrap">
+    <div style="position:relative;display:flex;align-items:stretch;justify-content:flex-start;gap:12px;flex-wrap:wrap">
       ${box1}
       ${box2}
       ${_bubbleHTML}
@@ -4642,7 +4643,7 @@ function ejecJustificacion(S, useUSD, dual, useUSDprimary){
       const cardBlue  = (lbl,sub,val)=> card('rgba(30,111,217,.10)','var(--accent)',lbl,sub, valDiv('var(--accent-3)',FMTc(val)),'rgba(30,111,217,.18)');
       const cardEmis  = (lbl,sub,val)=> card('rgba(45,155,106,.12)','var(--pos)',lbl,sub, valDiv('var(--pos)',FMTc(val)),'rgba(45,155,106,.20)');
       const cardYellow= (lbl,sub,val)=> card('rgba(255,193,7,.16)','#b8860b',lbl,sub, valDiv('#b8860b','+'+fv(val)),'rgba(255,193,7,.28)');
-      const cardOrange= (lbl,sub,val)=> card('rgba(232,130,14,.12)','#c25e00',lbl,sub, valDiv('#c25e00','+'+fv(val)),'rgba(232,130,14,.22)');
+      const cardOrange= (lbl,sub,val)=> card('rgba(234,178,106,.14)','#c9922f',lbl,sub, valDiv('#c9922f','+'+fv(val)),'rgba(234,178,106,.24)');
       const _MFULL={Ene:'enero',Feb:'febrero',Mar:'marzo',Abr:'abril',May:'mayo',Jun:'junio',Jul:'julio',Ago:'agosto',Sep:'septiembre',Oct:'octubre',Nov:'noviembre',Dic:'diciembre'};
       const cardDesv  = (lbl,sub,val,base)=>{ const neg=val<0; const c=neg?'var(--neg)':'var(--pos)';
         const pct = base ? `(${neg?'−':'+'}${Math.round(Math.abs(val/base*100))}%)` : '';
@@ -7644,8 +7645,8 @@ let _stripeOrangeCache=null;
 function _stripeOrange(){
   if(_stripeOrangeCache) return _stripeOrangeCache;
   const c=document.createElement('canvas'); c.width=c.height=7; const x=c.getContext('2d');
-  x.fillStyle='rgba(233,167,102,0.14)'; x.fillRect(0,0,7,7);
-  x.strokeStyle='rgba(214,140,74,0.52)'; x.lineWidth=1.5;
+  x.fillStyle='rgba(247,205,150,0.22)'; x.fillRect(0,0,7,7);
+  x.strokeStyle='rgba(238,178,106,0.50)'; x.lineWidth=1.5;
   x.beginPath(); x.moveTo(-1,7); x.lineTo(7,-1); x.moveTo(3,9); x.lineTo(9,3); x.stroke();
   _stripeOrangeCache=x.createPattern(c,'repeat'); return _stripeOrangeCache;
 }
@@ -7658,38 +7659,41 @@ function drawEjecResumenBar(hostId, presupTot, realTot, proyTot, useUSD){
   const host=document.getElementById(hostId); if(!host) return;
   presupTot=presupTot||0; realTot=realTot||0; proyTot=proyTot||0;
   const FMc=(v)=>fmtCompact(v,useUSD);
-  /* La escala del marco es el MAYOR entre presupuesto y (real+proyectado): si la emisión
-     estimada supera el presupuesto, la barra igual entra completa. */
-  const base = Math.max(presupTot, realTot+proyTot, 1);
+  /* La barra COMPLETA = el mayor entre Presupuesto y (Real+Proyectado): así, si la emisión
+     estimada no llega al presupuesto, lo que falta queda como tramo GRIS = Desvío. */
+  const estim = realTot+proyTot;
+  const base = Math.max(presupTot, estim, 1);
   const pReal = Math.max(0, realTot/base*100);
   const pProy = Math.max(0, proyTot/base*100);
-  const pPres = Math.max(0, Math.min(100, presupTot/base*100));
-  const cob = presupTot>0 ? (realTot+proyTot)/presupTot*100 : null;
-  const cobCol = (cob==null)?'var(--ink-3)':(cob>=100?'var(--pos)':(cob>=70?'#c25e00':'var(--neg)'));
-  const seg=(h,bg,extra='')=>`<div style="height:${h}%;background:${bg};${extra}"></div>`;
-  const chip=(col,lbl,val,pref='')=>`<div style="display:flex;align-items:center;gap:6px;font-size:10.5px;margin-top:5px">
-      <span style="width:10px;height:10px;border-radius:2px;background:${col};flex:0 0 auto"></span>
+  const desv  = presupTot - estim;                 /* >0 = falta para llegar al presupuesto */
+  const pGap  = Math.max(0, desv/base*100);         /* tramo gris (Desvío) */
+  const cob = presupTot>0 ? estim/presupTot*100 : null;
+  const cobCol = (cob==null)?'var(--ink-3)':(cob>=100?'var(--pos)':(cob>=70?'#c9922f':'var(--neg)'));
+  const REAL='rgba(108,189,237,.95)', PROY_BORDER='#eab26a', PRES='#0a3d7a', GRIS='#c9ced6';
+  const seg=(h,bg,extra='')=> h>0.15 ? `<div style="height:${h}%;background:${bg};${extra}"></div>` : '';
+  const chip=(col,lbl,val,pref='',patt)=>`<div style="display:flex;align-items:center;gap:7px;font-size:11px;margin-top:6px">
+      <span style="width:11px;height:11px;border-radius:2px;background:${patt||col};flex:0 0 auto;border:1px solid ${col}"></span>
       <span style="color:var(--ink-2);font-weight:600">${lbl}</span>
       <strong style="margin-left:auto;font-family:var(--font-mono);color:var(--accent-3)">${pref}${FMc(val)}</strong>
     </div>`;
   host.innerHTML=`<div style="height:100%;display:flex;flex-direction:column">
     <div style="font-size:10px;text-transform:uppercase;letter-spacing:.04em;font-weight:800;color:var(--ink-2);text-align:center;margin-bottom:6px">Total año</div>
-    <div style="flex:1;display:flex;gap:9px;min-height:220px">
-      <!-- Marco = Presupuesto; adentro Real (abajo) + Proyectado (encima). -->
-      <div style="position:relative;width:56px;border:1.5px solid var(--accent);border-radius:7px;background:rgba(30,111,217,.06);overflow:hidden;display:flex;flex-direction:column-reverse">
-        ${seg(pReal,'rgba(108,189,237,.95)','border-top:1px solid #4aa3e0')}
-        ${seg(pProy,'repeating-linear-gradient(45deg,#e8a25c,#e8a25c 4px,#f0b878 4px,#f0b878 8px)','border-top:1px solid #e0a15c')}
-        <!-- Línea del tope de Presupuesto -->
-        <div style="position:absolute;left:-2px;right:-2px;bottom:${pPres}%;border-top:2px dashed var(--accent);opacity:.85"></div>
+    <div style="flex:1;display:flex;gap:11px;align-items:stretch;padding-bottom:34px">
+      <!-- Barra acumulada: Real (abajo) + Proyectado + Desvío (gris) hasta el Presupuesto. -->
+      <div style="position:relative;width:58px;border:1.5px solid ${PRES};border-radius:7px 7px 0 0;background:#fff;overflow:hidden;display:flex;flex-direction:column-reverse">
+        ${seg(pReal,REAL,'border-top:1px solid #4aa3e0')}
+        ${seg(pProy,'repeating-linear-gradient(45deg,#f3c48a,#f3c48a 4px,#fadcb4 4px,#fadcb4 8px)','border-top:1px solid '+PROY_BORDER)}
+        ${seg(pGap,'repeating-linear-gradient(45deg,#e9edf3,#e9edf3 5px,#f2f5f9 5px,#f2f5f9 10px)')}
       </div>
       <div style="flex:1;display:flex;flex-direction:column;justify-content:center;min-width:0">
-        ${chip('var(--accent)','Presupuesto',presupTot)}
-        ${chip('rgba(108,189,237,.95)','Emisión Real',realTot)}
-        ${chip('#e0a15c','Proyectado',proyTot,'+')}
-        <div style="border-top:1px solid var(--line);margin:7px 0 0"></div>
-        <div style="display:flex;align-items:baseline;gap:5px;margin-top:6px">
+        ${chip(PRES,'Presupuesto',presupTot)}
+        ${chip('#4aa3e0','Emisión Real',realTot,'',REAL)}
+        ${chip(PROY_BORDER,'Proyectado',proyTot,'+','repeating-linear-gradient(45deg,#f3c48a,#f3c48a 4px,#fadcb4 4px,#fadcb4 8px)')}
+        ${desv>0.5?chip(GRIS,'Desvío',desv,'−','repeating-linear-gradient(45deg,#e9edf3,#e9edf3 5px,#f2f5f9 5px,#f2f5f9 10px)'):''}
+        <div style="border-top:1px solid var(--line);margin:8px 0 0"></div>
+        <div style="display:flex;align-items:baseline;gap:5px;margin-top:7px">
           <span style="font-size:9.5px;text-transform:uppercase;letter-spacing:.03em;color:var(--ink-3);font-weight:800">Cobertura</span>
-          <strong style="font-family:var(--font-mono);font-size:15px;color:${cobCol}">${cob!=null?Math.round(cob)+'%':'—'}</strong>
+          <strong style="font-family:var(--font-mono);font-size:16px;color:${cobCol}">${cob!=null?Math.round(cob)+'%':'—'}</strong>
         </div>
       </div>
     </div>
@@ -7727,7 +7731,7 @@ function drawEjecChartMensual(canvasId, polArr, presArr, mesCorte, useUSD){
   /* Emisión Real 2026 + Proyección Actualizada apiladas en el mismo stack 'y26'. */
   datasets.push({label:'Emisión Real 2026', data:r26, stack:'y26', backgroundColor:'rgba(108,189,237,.88)', borderColor:'#4aa3e0', borderWidth:1.5, borderRadius:3, barPercentage:.85, categoryPercentage:.62});
   if(hayPres){
-    datasets.push({label:'Proyectado', data:projPres, stack:'y26', backgroundColor:_stripeOrange(), borderColor:'#e0a15c', borderWidth:1, borderRadius:3, barPercentage:.85, categoryPercentage:.62});
+    datasets.push({label:'Proyectado', data:projPres, stack:'y26', backgroundColor:_stripeOrange(), borderColor:'#eab26a', borderWidth:1, borderRadius:3, barPercentage:.85, categoryPercentage:.62});
   }
   if(hayAmar){
     datasets.push({label:'Proyección Actualizada', data:projConf, stack:'y26', backgroundColor:'#ffe14d', borderColor:'#e0a800', borderWidth:1, borderRadius:3, barPercentage:.85, categoryPercentage:.62});
@@ -7803,7 +7807,7 @@ function drawEjecChartMensual(canvasId, polArr, presArr, mesCorte, useUSD){
     id:'projTotals',
     afterDraw(chart){
       const xs=chart.scales.x, ctx=chart.ctx, ca=chart.chartArea, yBase=ca.bottom;
-      const ORANGE='#e0a15c', ORANGE_DK='#c47a37';
+      const ORANGE='#eab26a', ORANGE_DK='#c9922f';
       /* Distribución vertical DEBAJO del gráfico (sin solapes):
            yVal   = número del mes (azul=emisión real / naranja=proyectado)
            yNames = nombre del mes dentro de un recuadro
