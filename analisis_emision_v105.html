@@ -4601,9 +4601,19 @@ function ejecJustificacion(S, useUSD, dual, useUSDprimary){
     ${_presCardBig}
     ${_dvCardBig('Desvío Acumulado', _dvCorte, _pctCorte)}
   </div>`;
+  /* Resumen compacto para "Justificación Desvío" (arriba del donut, pedido del usuario):
+     presupuesto y emisión con valores + desvío en valor y %. Reemplaza a la tarjeta grande
+     "Desvío Acumulado" (borrada). */
+  const _dvSigno = _dvCorte>0?'−':'+';
+  const _justResumen = `<div style="display:flex;gap:16px;flex-wrap:wrap;align-items:baseline;background:var(--bg-2);border:1px solid var(--line);border-radius:8px;padding:7px 12px;margin-bottom:8px">
+    <span style="font-size:11px"><span style="color:var(--ink-3);font-weight:700">Presupuesto </span><strong style="color:var(--accent-3);font-size:13px;font-family:var(--font-mono)">${FMTc(S.presup26||0)}</strong></span>
+    <span style="font-size:11px"><span style="color:var(--ink-3);font-weight:700">Emisión </span><strong style="color:var(--pos);font-size:13px;font-family:var(--font-mono)">${FMTc(S.emis26||0)}</strong></span>
+    <span style="font-size:11px"><span style="color:var(--ink-3);font-weight:700">Desvío </span><strong style="color:var(--neg);font-size:13px;font-family:var(--font-mono)">${_dvSigno}${FMTc(Math.abs(_dvCorte))}</strong> <span style="color:var(--neg);font-weight:800;font-size:11px">${_pctCorte!=null?'('+_dvSigno+Math.abs(Math.round(_pctCorte))+'%)':''}</span></span>
+  </div>`;
   return `<div style="margin-top:${dual?8:2}px">
     ${dual?`<div style="font-size:11px;color:var(--ink-3);text-transform:uppercase;letter-spacing:.05em;font-weight:700;margin-bottom:4px">${mLbl}</div>`:''}
-    ${_selectorCards}
+    <div style="display:flex;gap:16px;align-items:flex-start;flex-wrap:wrap">
+    <div style="flex:1 1 300px;min-width:280px">
     ${(()=>{
       /* COMPARACIÓN DE DESVÍOS: IZQUIERDA = presupuesto (hasta corte y hasta mes con emisión) +
          emisión real; MEDIO (amarillo) = "se emite este mes" (Emisión Confirmada) y "Estimaciones"
@@ -4650,26 +4660,32 @@ function ejecJustificacion(S, useUSD, dual, useUSDprimary){
         return `<div style="display:flex;align-items:baseline;gap:5px;margin-top:3px"><span style="font-size:8.5px;text-transform:uppercase;letter-spacing:.03em;color:${c};font-weight:800">Desvío</span><span style="font-family:var(--font-mono);font-weight:800;color:${c};font-size:13px">${neg?'−':'+'}${FMTc(Math.abs(dv))}</span><span style="font-family:var(--font-mono);font-weight:800;color:${c};font-size:10.5px">${pct!=null?'('+(neg?'−':'+')+pct+'%)':''}</span></div>`;
       })();
       const _sep=`<div style="width:1px;align-self:stretch;background:var(--line-2);margin:4px 0"></div>`;
-      return `<div style="margin-top:4px;border-top:1px solid var(--line);padding-top:6px">
-        <div style="display:flex;align-items:baseline;gap:9px;margin-bottom:7px;flex-wrap:wrap">
+      const flechaV=(s)=>`<div style="text-align:center;color:var(--ink-3);font-size:20px;font-weight:300;line-height:.7">${s}</div>`;
+      return `<div>
+        <div style="margin-bottom:8px">
           <span style="font-size:11.5px;font-weight:800;color:var(--accent-3);text-transform:uppercase;letter-spacing:.04em">Comparación de desvíos</span>
-          <span style="font-size:10px;color:var(--ink-3)">Emisión real + Proyectado = Emisión estimada · vs Presupuesto</span>
+          <div style="font-size:10px;color:var(--ink-3);margin-top:2px">Emisión real + Proyectado = Emisión estimada · vs Presupuesto</div>
         </div>
-        <div style="display:flex;align-items:stretch;gap:8px;flex-wrap:wrap">
+        <div style="display:flex;flex-direction:column;gap:5px;align-items:stretch">
           ${cardEmis('Emisión Real',_mLast,emisReal)}
-          ${flecha('+')}
+          ${flechaV('+')}
           ${cardOrange('Proyectado','',proyVal)}
-          ${flecha('=')}
+          ${flechaV('=')}
           ${card('rgba(30,111,217,.10)','var(--accent)','Emisión estimada', _mesSel, estimInner)}
         </div>
       </div>`;
     })()}
-    <div style="margin-top:10px;border-top:1px solid var(--line);padding-top:8px"></div>
-    ${causas.length>0 ? `
-    <div style="display:flex;justify-content:center;align-items:center;gap:40px;flex-wrap:wrap;margin-bottom:4px">
-      <div style="flex:0 0 auto;width:290px"><canvas id="${pieIdDes}" style="max-height:290px"></canvas></div>
-      <div style="flex:0 1 600px">${leyendaDes}</div>
-    </div>` : ''}
+    </div>
+    <div style="flex:1.4 1 420px;min-width:320px">
+      <div style="font-size:13px;font-weight:800;color:var(--accent-3);text-transform:uppercase;letter-spacing:.04em;margin-bottom:6px">Justificación Desvío</div>
+      ${_justResumen}
+      ${causas.length>0 ? `
+      <div style="display:flex;justify-content:center;align-items:center;gap:20px;flex-wrap:wrap">
+        <div style="flex:0 0 auto;width:250px"><canvas id="${pieIdDes}" style="max-height:250px"></canvas></div>
+        <div style="flex:1 1 280px">${leyendaDes}</div>
+      </div>` : ''}
+    </div>
+    </div>
     ${ejecProyectadoResumen(useUSD)}
   </div>`;
 }
