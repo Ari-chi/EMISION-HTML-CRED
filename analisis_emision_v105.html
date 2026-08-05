@@ -3638,11 +3638,11 @@ function drawEjecutivo(){
       <div style="margin-top:10px">
         ${dual ? `
           <div style="font-size:11px;color:var(--ink-3);text-transform:uppercase;letter-spacing:.05em;font-weight:700;margin-bottom:4px">USD</div>
-          <div class="chart-box" style="height:400px"><canvas id="ejecChartMensual_u"></canvas></div>
+          <div style="display:flex;gap:14px;align-items:stretch"><div class="chart-box" style="flex:1;min-width:0;height:400px"><canvas id="ejecChartMensual_u"></canvas></div><div id="ejecResumenBar_u" style="flex:0 0 158px"></div></div>
           <div style="font-size:11px;color:var(--ink-3);text-transform:uppercase;letter-spacing:.05em;font-weight:700;margin:10px 0 4px">ARS$</div>
-          <div class="chart-box" style="height:400px"><canvas id="ejecChartMensual_a"></canvas></div>
+          <div style="display:flex;gap:14px;align-items:stretch"><div class="chart-box" style="flex:1;min-width:0;height:400px"><canvas id="ejecChartMensual_a"></canvas></div><div id="ejecResumenBar_a" style="flex:0 0 158px"></div></div>
         ` : `
-          <div class="chart-box" style="height:400px"><canvas id="ejecChartMensual"></canvas></div>
+          <div style="display:flex;gap:14px;align-items:stretch"><div class="chart-box" style="flex:1;min-width:0;height:400px"><canvas id="ejecChartMensual"></canvas></div><div id="ejecResumenBar" style="flex:0 0 158px"></div></div>
         `}
 
       </div>
@@ -3707,8 +3707,11 @@ function drawEjecutivo(){
     if(dual){
       drawEjecChartMensual('ejecChartMensual_u', polFiltradas, presArrU, mesCorte, true);
       drawEjecChartMensual('ejecChartMensual_a', polFiltradas, presArrA, mesCorte, false);
+      if(setU) drawEjecResumenBar('ejecResumenBar_u', setU.presup26, setU.emis26, _ejecProyectadoVal('u'), true);
+      if(setA) drawEjecResumenBar('ejecResumenBar_a', setA.presup26, setA.emis26, _ejecProyectadoVal('a'), false);
     } else {
       drawEjecChartMensual('ejecChartMensual', polFiltradas, primary.presArr, mesCorte, primary.useUSD);
+      drawEjecResumenBar('ejecResumenBar', primary.presup26, primary.emis26, _ejecProyectadoVal(primary.useUSD?'u':'a'), primary.useUSD);
     }
   };
   drawMensualEjec();
@@ -3859,30 +3862,55 @@ function ejecFlujo(S, useUSD){
         <span style="font-size:12.5px;font-weight:800;color:${c};font-family:var(--font-mono)">${pct!=null?'('+(pct>0?'−':'+')+Math.abs(pct).toFixed(0)+'%)':''}</span>
       </div>
     </div>`; };
+  /* ===== NUEVA DISPOSICIÓN VERTICAL (pedido del usuario, foto1) =====
+     Dos cuadros lado a lado:
+       · Cuadro 1 — mes al que llegó la emisión real (DINÁMICO, _mLastN): presupuesto acum. a ese
+         mes, emisión real hasta ese mes (barra + % de consumo) y desvío.
+       · Cuadro 2 — Diciembre: presupuesto acum. a diciembre, emisión real (barra + %), Proyectado
+         y el desvío final = presupuesto − (emisión real + Proyectado). */
+  const proyVal = _ejecProyectadoVal(sufijo);
+  const desvFinal = (S.presup26||0) - ((S.emis26||0) + proyVal);   /* >0 = déficit vs presupuesto */
+  const pctFinal  = S.presup26>0 ? (desvFinal/S.presup26*100) : null;
+  /* Fila "Presupuesto acumulado" (azul). */
+  const _rowPres = (val)=>`<div style="background:rgba(30,111,217,.07);border-radius:9px;padding:9px 12px;border-left:3px solid var(--accent)">
+      ${_pill('var(--accent)','rgba(30,111,217,.14)','Presupuesto Acum.')}
+      ${_num('var(--accent-3)',FMTc(val),19)}
+    </div>`;
+  /* Fila "Emisión Real" (verde) con barra + % de consumo. Clickeable = burbuja por tipo. */
+  const _rowEmis = (cumpl)=>`<div onclick="window.toggleEmisBubble('${sufijo}')" title="${_bubbleTitle.replace(/"/g,'&quot;')}" style="cursor:pointer;background:rgba(45,155,106,.07);border-radius:9px;padding:9px 12px;border-left:3px solid var(--pos)">
+      ${_pill('var(--pos)','rgba(45,155,106,.16)','Emisión Real','<span style="font-size:8px;color:var(--pos)">▾</span>')}
+      <div style="font-size:19px;font-weight:800;color:var(--pos);line-height:1;font-family:var(--font-mono);margin-top:6px">${FMTc(S.emis26)}</div>
+      ${barLineaSolo(cumpl)}
+    </div>`;
+  /* Fila "Proyectado" (naranja). */
+  const _rowProy = (val)=>`<div style="background:rgba(232,130,14,.09);border-radius:9px;padding:9px 12px;border-left:3px solid #e0a15c">
+      ${_pill('#c25e00','rgba(232,130,14,.18)','Proyectado')}
+      <div style="font-size:19px;font-weight:800;color:#c25e00;line-height:1;font-family:var(--font-mono);margin-top:6px">+${FMTc(val)}</div>
+    </div>`;
+  /* Fila "Desvío" (rojo si déficit, verde si a favor). */
+  const _rowDesv = (titulo,val,pct)=>{ const neg=val>0; const c=neg?'var(--neg)':'var(--pos)'; const soft=neg?'rgba(217,71,71,.14)':'rgba(45,155,106,.16)';
+    return `<div style="background:${neg?'rgba(217,71,71,.07)':'rgba(45,155,106,.07)'};border-radius:9px;padding:9px 12px;border-left:3px solid ${c}">
+      ${_pill(c,soft,titulo)}
+      <div style="display:flex;align-items:baseline;gap:8px;margin-top:6px">
+        <span style="font-size:19px;font-weight:800;color:${c};font-family:var(--font-mono)">${neg?'−':'+'}${FMTc(Math.abs(val))}</span>
+        <span style="font-size:12px;font-weight:800;color:${c};font-family:var(--font-mono)">${pct!=null?'('+(pct>0?'−':'+')+Math.abs(pct).toFixed(0)+'%)':''}</span>
+      </div>
+    </div>`; };
+  /* Cuadro con encabezado de mes. */
+  const box=(mesN,headCol,rows)=>`<div style="flex:1;min-width:230px;border:1.5px solid ${headCol};border-radius:12px;overflow:hidden;background:#fff;box-shadow:0 1px 4px rgba(10,31,58,.06)">
+      <div style="background:${headCol};padding:8px 14px;text-align:center"><span style="color:#fff;font-weight:900;font-size:14.5px;text-transform:uppercase;letter-spacing:.05em">${mesN}</span></div>
+      <div style="padding:11px;display:flex;flex-direction:column;gap:8px">${rows}</div>
+    </div>`;
+  const box1 = box(_mLastN, 'var(--accent)',
+    _rowPres(S.presup26_emi) + _rowEmis(cumplEmi) + _rowDesv('Desvío', desvioEmi, desvPctEmi));
+  const box2 = box(_mCorteN, '#0a3d7a',
+    _rowPres(S.presup26) + _rowEmis(S.cumpl) + _rowProy(proyVal) + _rowDesv('Desvío (con Proyectado)', desvFinal, pctFinal));
   return `<div style="margin-top:8px">
     <div style="font-size:11px;color:var(--ink-3);text-transform:uppercase;letter-spacing:.05em;font-weight:700;margin-bottom:6px">${mLbl}</div>
-    <div style="display:flex;align-items:stretch;gap:8px">
-      <div style="flex:1;display:flex;flex-direction:column;gap:6px;justify-content:center">
-        <div style="flex:1;background:rgba(30,111,217,.07);border-radius:10px;padding:10px 13px;border-left:3px solid var(--accent);display:flex;flex-direction:column;justify-content:center">
-          ${_pill('var(--accent)','rgba(30,111,217,.14)','Presupuesto Acum.',_mesBadge(_mLastN,'var(--accent)'))}
-          ${_num('var(--accent-3)',FMTc(S.presup26_emi))}
-        </div>
-        <div style="flex:1;background:rgba(30,111,217,.07);border-radius:10px;padding:10px 13px;border-left:3px solid var(--accent);display:flex;flex-direction:column;justify-content:center">
-          ${_pill('var(--accent)','rgba(30,111,217,.14)','Presupuesto Acum.',_mesBadge(_mCorteN,'var(--accent)'))}
-          ${_num('var(--accent-3)',FMTc(S.presup26))}
-        </div>
-      </div>
-      ${flecha('→')}
-      <div style="flex:1;position:relative;display:flex;flex-direction:column;gap:6px;justify-content:center">
-        ${emisCard(cumplEmi,_mLastN)}
-        ${emisCard(S.cumpl,_mCorteN)}
-        ${_bubbleHTML}
-      </div>
-      ${flecha('=')}
-      <div style="flex:1.15;display:flex;flex-direction:column;gap:6px">
-        ${subCard('Desvío Acum.', _mLastN, desvioEmi, desvPctEmi)}
-        ${subCard('Desvío Acum.', _mCorteN, desvio, desvPct)}
-      </div>
+    <div style="position:relative;display:flex;align-items:flex-start;gap:12px;flex-wrap:wrap">
+      ${box1}
+      ${box2}
+      ${_bubbleHTML}
     </div>
   </div>`;
 }
@@ -7458,6 +7486,20 @@ function presupArgMensual(suf){
     } }
   return out;
 }
+/* Valor del PROYECTADO (presupuestado sin confirmar) contabilizado, EXACTAMENTE como lo usa
+   la "Comparación de desvíos" (presFull). Fuente única para que el bloque "Presupuesto vs
+   Emisión Real" (foto1) y el Desvío muestren el MISMO número, sin depender del orden de render.
+   = Σ (total − confirmado) de los meses tildados, si el Proyectado está contabilizado. */
+function _ejecProyectadoVal(suf){
+  const paM = presupArgMensual(suf);
+  const presArr = paM.total.map((t,i)=> (t||0) - (paM.conf[i]||0));
+  let presFull = 0;
+  if(_ejecContabOn('pend_presup','mes')){
+    const pm = state._ejecPresMes || {};
+    for(let m=1;m<=12;m++){ const v=pm[m]; const on=(v!==undefined)?!!v:true; if(on) presFull += (presArr[m-1]||0); }
+  }
+  return presFull;
+}
 /* Detalle POR PÓLIZA del Proyectado de un mes (foto4): cada póliza que aporta al proyectado de
    ese mes con su concepto, su valor (editable) y la comparación contra el 2025 de esa póliza. */
 const _CK_LBL = {primaMin:'Prima mín.', ajuste:'Ajuste', bono:'Bono', malus:'Malus'};
@@ -7590,6 +7632,52 @@ function _stripeOrange(){
   x.strokeStyle='rgba(214,140,74,0.52)'; x.lineWidth=1.5;
   x.beginPath(); x.moveTo(-1,7); x.lineTo(7,-1); x.moveTo(3,9); x.lineTo(9,3); x.stroke();
   _stripeOrangeCache=x.createPattern(c,'repeat'); return _stripeOrangeCache;
+}
+/* Barra RESUMEN del año ("Conceptos" / Total, foto2): al lado del gráfico mensual.
+   Es una barra acumulada donde el marco = Presupuesto total del año y adentro se llenan, de
+   abajo hacia arriba, la Emisión Real (celeste) y el Proyectado (naranja), para ver "hasta dónde
+   llega" la emisión estimada respecto del presupuesto. Dinámica: usa los mismos números que el
+   bloque "Presupuesto vs Emisión Real" (presup26 / emis26 / Proyectado). */
+function drawEjecResumenBar(hostId, presupTot, realTot, proyTot, useUSD){
+  const host=document.getElementById(hostId); if(!host) return;
+  presupTot=presupTot||0; realTot=realTot||0; proyTot=proyTot||0;
+  const FMc=(v)=>fmtCompact(v,useUSD);
+  /* La escala del marco es el MAYOR entre presupuesto y (real+proyectado): si la emisión
+     estimada supera el presupuesto, la barra igual entra completa. */
+  const base = Math.max(presupTot, realTot+proyTot, 1);
+  const pReal = Math.max(0, realTot/base*100);
+  const pProy = Math.max(0, proyTot/base*100);
+  const pPres = Math.max(0, Math.min(100, presupTot/base*100));
+  const cob = presupTot>0 ? (realTot+proyTot)/presupTot*100 : null;
+  const cobCol = (cob==null)?'var(--ink-3)':(cob>=100?'var(--pos)':(cob>=70?'#c25e00':'var(--neg)'));
+  const seg=(h,bg,extra='')=>`<div style="height:${h}%;background:${bg};${extra}"></div>`;
+  const chip=(col,lbl,val,pref='')=>`<div style="display:flex;align-items:center;gap:6px;font-size:10.5px;margin-top:5px">
+      <span style="width:10px;height:10px;border-radius:2px;background:${col};flex:0 0 auto"></span>
+      <span style="color:var(--ink-2);font-weight:600">${lbl}</span>
+      <strong style="margin-left:auto;font-family:var(--font-mono);color:var(--accent-3)">${pref}${FMc(val)}</strong>
+    </div>`;
+  host.innerHTML=`<div style="height:100%;display:flex;flex-direction:column">
+    <div style="font-size:10px;text-transform:uppercase;letter-spacing:.04em;font-weight:800;color:var(--ink-2);text-align:center;margin-bottom:6px">Total año</div>
+    <div style="flex:1;display:flex;gap:9px;min-height:220px">
+      <!-- Marco = Presupuesto; adentro Real (abajo) + Proyectado (encima). -->
+      <div style="position:relative;width:56px;border:1.5px solid var(--accent);border-radius:7px;background:rgba(30,111,217,.06);overflow:hidden;display:flex;flex-direction:column-reverse">
+        ${seg(pReal,'rgba(108,189,237,.95)','border-top:1px solid #4aa3e0')}
+        ${seg(pProy,'repeating-linear-gradient(45deg,#e8a25c,#e8a25c 4px,#f0b878 4px,#f0b878 8px)','border-top:1px solid #e0a15c')}
+        <!-- Línea del tope de Presupuesto -->
+        <div style="position:absolute;left:-2px;right:-2px;bottom:${pPres}%;border-top:2px dashed var(--accent);opacity:.85"></div>
+      </div>
+      <div style="flex:1;display:flex;flex-direction:column;justify-content:center;min-width:0">
+        ${chip('var(--accent)','Presupuesto',presupTot)}
+        ${chip('rgba(108,189,237,.95)','Emisión Real',realTot)}
+        ${chip('#e0a15c','Proyectado',proyTot,'+')}
+        <div style="border-top:1px solid var(--line);margin:7px 0 0"></div>
+        <div style="display:flex;align-items:baseline;gap:5px;margin-top:6px">
+          <span style="font-size:9.5px;text-transform:uppercase;letter-spacing:.03em;color:var(--ink-3);font-weight:800">Cobertura</span>
+          <strong style="font-family:var(--font-mono);font-size:15px;color:${cobCol}">${cob!=null?Math.round(cob)+'%':'—'}</strong>
+        </div>
+      </div>
+    </div>
+  </div>`;
 }
 function drawEjecChartMensual(canvasId, polArr, presArr, mesCorte, useUSD){
   if(!document.getElementById(canvasId)) return;
