@@ -593,6 +593,9 @@ const state = {
     arg26_ars: Array(12).fill(0), arg26_usd: Array(12).fill(0),
     arg25_solo_ars: Array(12).fill(0), arg25_solo_usd: Array(12).fill(0),
     arg26_solo_ars: Array(12).fill(0), arg26_solo_usd: Array(12).fill(0),
+    /* "Presupuesto Com 2026" (rótulo "Presupuesto Emisión 2026 Argentina Total $/US", hoja
+       "Emision 2026 HTML", filas 13/15). Serie propia con toggle (destildada por defecto). */
+    com26_ars: Array(12).fill(0), com26_usd: Array(12).fill(0),
   },
   monthFilters: {resumen:0, desvios:0, rubro:0, producto:0, polizas:0, agregada:0, conclrubro:0, conclprod:0},
   /* Contexto de filtros activo de la sección en render (para que las funciones
@@ -1376,6 +1379,13 @@ function parsePresupuestos(rows){
       else if(lblLow.includes('2026')) key = lblLow.includes('us') ? 'cont26_usd' : 'cont26_ars';
     } else if(lblLow.includes('argentina')){
       const isUS = / us\b|\bus$/.test(lblLow);
+      /* Serie separada "Presupuesto Com 2026": rótulo "Presupuesto Emisión 2026 Argentina Total".
+         Se lee aparte (com26_*) para dibujarla como línea propia con su toggle; NO pisa arg26. */
+      if(lblLow.includes('emisi') && lblLow.includes('2026') && lblLow.includes('total')){
+        const ckey = isUS ? 'com26_usd' : 'com26_ars';
+        for(let m=0;m<12;m++){ const v = r[colIni+m]; if(typeof v === 'number') state.presup[ckey][m] = v; }
+        continue;
+      }
       const isSolo = lblLow.includes('solo moneda');
       if(lblLow.includes('2025')) key = (isSolo?'arg25_solo_':'arg25_') + (isUS?'usd':'ars');
       else if(lblLow.includes('2026')) key = (isSolo?'arg26_solo_':'arg26_') + (isUS?'usd':'ars');
@@ -3636,13 +3646,19 @@ function drawEjecutivo(){
       ${setA?ejecFlujo(setA,false):''}
       <!-- Gráfico mensual: solo botón 2025, sin título -->
       <div style="margin-top:10px">
+        <!-- Toggle "Presupuesto Com 2026" (destildado por defecto; lo tilda el usuario). -->
+        <label style="display:inline-flex;align-items:center;gap:8px;font-size:12px;font-weight:700;color:var(--ink-2);cursor:pointer;margin-bottom:9px;user-select:none">
+          <input type="checkbox" onchange="window.togglePresupCom(this.checked)" ${state._showPresupCom?'checked':''} style="width:15px;height:15px;accent-color:#7c4dff;cursor:pointer">
+          <span style="display:inline-block;width:22px;border-top:2.5px dotted #7c4dff"></span>
+          Presupuesto Com 2026
+        </label>
         ${dual ? `
           <div style="font-size:11px;color:var(--ink-3);text-transform:uppercase;letter-spacing:.05em;font-weight:700;margin-bottom:4px">USD</div>
-          <div style="display:flex;gap:14px;align-items:stretch"><div class="chart-box" style="flex:1;min-width:0;height:400px"><canvas id="ejecChartMensual_u"></canvas></div><div id="ejecResumenBar_u" style="flex:0 0 158px"></div></div>
+          <div style="display:flex;gap:14px;align-items:stretch"><div class="chart-box" style="flex:1;min-width:0;height:400px"><canvas id="ejecChartMensual_u"></canvas></div><div style="flex:0 0 ${state._showPresupCom?300:158}px;display:flex;gap:8px"><div id="ejecResumenBar_u" style="flex:1"></div>${state._showPresupCom?'<div id="ejecResumenBarCom_u" style="flex:1"></div>':''}</div></div>
           <div style="font-size:11px;color:var(--ink-3);text-transform:uppercase;letter-spacing:.05em;font-weight:700;margin:10px 0 4px">ARS$</div>
-          <div style="display:flex;gap:14px;align-items:stretch"><div class="chart-box" style="flex:1;min-width:0;height:400px"><canvas id="ejecChartMensual_a"></canvas></div><div id="ejecResumenBar_a" style="flex:0 0 158px"></div></div>
+          <div style="display:flex;gap:14px;align-items:stretch"><div class="chart-box" style="flex:1;min-width:0;height:400px"><canvas id="ejecChartMensual_a"></canvas></div><div style="flex:0 0 ${state._showPresupCom?300:158}px;display:flex;gap:8px"><div id="ejecResumenBar_a" style="flex:1"></div>${state._showPresupCom?'<div id="ejecResumenBarCom_a" style="flex:1"></div>':''}</div></div>
         ` : `
-          <div style="display:flex;gap:14px;align-items:stretch"><div class="chart-box" style="flex:1;min-width:0;height:400px"><canvas id="ejecChartMensual"></canvas></div><div id="ejecResumenBar" style="flex:0 0 158px"></div></div>
+          <div style="display:flex;gap:14px;align-items:stretch"><div class="chart-box" style="flex:1;min-width:0;height:400px"><canvas id="ejecChartMensual"></canvas></div><div style="flex:0 0 ${state._showPresupCom?300:158}px;display:flex;gap:8px"><div id="ejecResumenBar" style="flex:1"></div>${state._showPresupCom?'<div id="ejecResumenBarCom" style="flex:1"></div>':''}</div></div>
         `}
 
       </div>
@@ -3707,13 +3723,19 @@ function drawEjecutivo(){
     if(dual){
       drawEjecChartMensual('ejecChartMensual_u', polFiltradas, presArrU, mesCorte, true);
       drawEjecChartMensual('ejecChartMensual_a', polFiltradas, presArrA, mesCorte, false);
-      if(setU) drawEjecResumenBar('ejecResumenBar_u', setU.presup26, setU.emis26, _ejecProyectadoVal('u'), true);
-      if(setA) drawEjecResumenBar('ejecResumenBar_a', setA.presup26, setA.emis26, _ejecProyectadoVal('a'), false);
+      if(setU){ drawEjecResumenBar('ejecResumenBar_u', 'ejecChartMensual_u', setU.presup26, setU.emis26, _ejecProyectadoVal('u'), true, 'Total año');
+        if(state._showPresupCom) drawEjecResumenBar('ejecResumenBarCom_u', 'ejecChartMensual_u', presupAcumulado(state.presup.com26_usd,12), setU.emis26, _ejecProyectadoVal('u'), true, 'Com 2026'); }
+      if(setA){ drawEjecResumenBar('ejecResumenBar_a', 'ejecChartMensual_a', setA.presup26, setA.emis26, _ejecProyectadoVal('a'), false, 'Total año');
+        if(state._showPresupCom) drawEjecResumenBar('ejecResumenBarCom_a', 'ejecChartMensual_a', presupAcumulado(state.presup.com26_ars,12), setA.emis26, _ejecProyectadoVal('a'), false, 'Com 2026'); }
     } else {
       drawEjecChartMensual('ejecChartMensual', polFiltradas, primary.presArr, mesCorte, primary.useUSD);
-      drawEjecResumenBar('ejecResumenBar', primary.presup26, primary.emis26, _ejecProyectadoVal(primary.useUSD?'u':'a'), primary.useUSD);
+      const _sufP = primary.useUSD?'u':'a';
+      drawEjecResumenBar('ejecResumenBar', 'ejecChartMensual', primary.presup26, primary.emis26, _ejecProyectadoVal(_sufP), primary.useUSD, 'Total año');
+      if(state._showPresupCom) drawEjecResumenBar('ejecResumenBarCom', 'ejecChartMensual', presupAcumulado(primary.useUSD?state.presup.com26_usd:state.presup.com26_ars,12), primary.emis26, _ejecProyectadoVal(_sufP), primary.useUSD, 'Com 2026');
     }
   };
+  /* Toggle "Presupuesto Com 2026" (línea + barra Total año de esa serie). Destildado por defecto. */
+  window.togglePresupCom = function(on){ state._showPresupCom = !!on; renderAll(); };
   drawMensualEjec();
 
   /* Input secreto del presupuesto: "tina" → Argentina. */
@@ -3873,34 +3895,36 @@ function ejecFlujo(S, useUSD){
   const pctFinal  = S.presup26>0 ? (desvFinal/S.presup26*100) : null;
   /* Fila reutilizable: crece (flex:1) para llenar el alto del cuadro y no dejar espacio vacío;
      contenido centrado verticalmente. */
-  const _rowBase = 'flex:1;display:flex;flex-direction:column;justify-content:center;border-radius:9px;padding:9px 13px';
-  const _rowPres = (val)=>`<div style="${_rowBase};background:rgba(30,111,217,.07);border-left:3px solid var(--accent)">
+  /* Filas compactas, con franja de color FINA (2px) y contenido chico. Altura natural: las filas
+     de un mismo concepto quedan a la misma altura entre los dos cuadros; el de diciembre es más
+     alto sólo por su fila extra (Proyectado). */
+  const _rowBase = 'display:flex;flex-direction:column;justify-content:center;border-radius:8px;padding:6px 11px';
+  const _rowPres = (val)=>`<div style="${_rowBase};background:rgba(30,111,217,.07);border-left:2px solid var(--accent)">
       ${_pill('var(--accent)','rgba(30,111,217,.14)','Presupuesto Acumulado')}
-      ${_num('var(--accent-3)',FMTc(val),20)}
+      ${_num('var(--accent-3)',FMTc(val),17)}
     </div>`;
-  const _rowEmis = (cumpl)=>`<div onclick="window.toggleEmisBubble('${sufijo}')" title="${_bubbleTitle.replace(/"/g,'&quot;')}" style="${_rowBase};cursor:pointer;background:rgba(45,155,106,.07);border-left:3px solid var(--pos)">
+  const _rowEmis = (cumpl)=>`<div onclick="window.toggleEmisBubble('${sufijo}')" title="${_bubbleTitle.replace(/"/g,'&quot;')}" style="${_rowBase};cursor:pointer;background:rgba(45,155,106,.07);border-left:2px solid var(--pos)">
       ${_pill('var(--pos)','rgba(45,155,106,.16)','Emisión Real','<span style="font-size:8px;color:var(--pos)">▾</span>')}
-      <div style="font-size:20px;font-weight:800;color:var(--pos);line-height:1;font-family:var(--font-mono);margin-top:6px">${FMTc(S.emis26)}</div>
+      <div style="font-size:17px;font-weight:800;color:var(--pos);line-height:1;font-family:var(--font-mono);margin-top:5px">${FMTc(S.emis26)}</div>
       ${barLineaSolo(cumpl)}
     </div>`;
   /* Proyectado: naranja CLARO y armonioso. */
-  const _rowProy = (val)=>`<div style="${_rowBase};background:rgba(234,178,106,.12);border-left:3px solid #eab26a">
+  const _rowProy = (val)=>`<div style="${_rowBase};background:rgba(234,178,106,.12);border-left:2px solid #eab26a">
       ${_pill('#c9922f','rgba(234,178,106,.22)','Proyectado')}
-      <div style="font-size:20px;font-weight:800;color:#c9922f;line-height:1;font-family:var(--font-mono);margin-top:6px">+${FMTc(val)}</div>
+      <div style="font-size:17px;font-weight:800;color:#c9922f;line-height:1;font-family:var(--font-mono);margin-top:5px">+${FMTc(val)}</div>
     </div>`;
   const _rowDesv = (titulo,val,pct)=>{ const neg=val>0; const c=neg?'var(--neg)':'var(--pos)'; const soft=neg?'rgba(217,71,71,.14)':'rgba(45,155,106,.16)';
-    return `<div style="${_rowBase};background:${neg?'rgba(217,71,71,.07)':'rgba(45,155,106,.07)'};border-left:3px solid ${c}">
+    return `<div style="${_rowBase};background:${neg?'rgba(217,71,71,.07)':'rgba(45,155,106,.07)'};border-left:2px solid ${c}">
       ${_pill(c,soft,titulo)}
-      <div style="display:flex;align-items:baseline;gap:8px;margin-top:6px">
-        <span style="font-size:20px;font-weight:800;color:${c};font-family:var(--font-mono)">${neg?'−':'+'}${FMTc(Math.abs(val))}</span>
-        <span style="font-size:12px;font-weight:800;color:${c};font-family:var(--font-mono)">${pct!=null?'('+(pct>0?'−':'+')+Math.abs(pct).toFixed(0)+'%)':''}</span>
+      <div style="display:flex;align-items:baseline;gap:8px;margin-top:5px">
+        <span style="font-size:17px;font-weight:800;color:${c};font-family:var(--font-mono)">${neg?'−':'+'}${FMTc(Math.abs(val))}</span>
+        <span style="font-size:11.5px;font-weight:800;color:${c};font-family:var(--font-mono)">${pct!=null?'('+(pct>0?'−':'+')+Math.abs(pct).toFixed(0)+'%)':''}</span>
       </div>
     </div>`; };
-  /* Cuadro con encabezado de mes; el cuerpo (flex:1) reparte las filas para NO dejar huecos.
-     Ancho acotado (max-width) para que el contenido no quede perdido con espacio vacío a la derecha. */
-  const box=(mesN,headCol,rows)=>`<div style="flex:1 1 300px;max-width:440px;min-width:250px;display:flex;flex-direction:column;border:1.5px solid ${headCol};border-radius:12px;overflow:hidden;background:#fff;box-shadow:0 1px 4px rgba(10,31,58,.06)">
-      <div style="background:${headCol};padding:8px 14px;text-align:center"><span style="color:#fff;font-weight:900;font-size:14.5px;text-transform:uppercase;letter-spacing:.05em">${mesN}</span></div>
-      <div style="flex:1;padding:11px;display:flex;flex-direction:column;gap:8px">${rows}</div>
+  /* Cuadro con encabezado de mes; filas a altura natural con espacio entre cada concepto. */
+  const box=(mesN,headCol,rows)=>`<div style="flex:0 1 340px;min-width:250px;display:flex;flex-direction:column;border:1.5px solid ${headCol};border-radius:12px;overflow:hidden;background:#fff;box-shadow:0 1px 4px rgba(10,31,58,.06)">
+      <div style="background:${headCol};padding:7px 14px;text-align:center"><span style="color:#fff;font-weight:900;font-size:14px;text-transform:uppercase;letter-spacing:.05em">${mesN}</span></div>
+      <div style="padding:10px;display:flex;flex-direction:column;gap:10px">${rows}</div>
     </div>`;
   const box1 = box(_mLastN, 'var(--accent)',
     _rowPres(S.presup26_emi) + _rowEmis(cumplEmi) + _rowDesv('Desvío', desvioEmi, desvPctEmi));
@@ -3908,7 +3932,7 @@ function ejecFlujo(S, useUSD){
     _rowPres(S.presup26) + _rowEmis(S.cumpl) + _rowProy(proyVal) + _rowDesv('Desvío (con Proyectado)', desvFinal, pctFinal));
   return `<div style="margin-top:8px">
     <div style="font-size:11px;color:var(--ink-3);text-transform:uppercase;letter-spacing:.05em;font-weight:700;margin-bottom:6px">${mLbl}</div>
-    <div style="position:relative;display:flex;align-items:stretch;justify-content:flex-start;gap:12px;flex-wrap:wrap">
+    <div style="position:relative;display:flex;align-items:flex-start;justify-content:center;gap:16px;flex-wrap:wrap">
       ${box1}
       ${box2}
       ${_bubbleHTML}
@@ -7655,7 +7679,7 @@ function _stripeOrange(){
    abajo hacia arriba, la Emisión Real (celeste) y el Proyectado (naranja), para ver "hasta dónde
    llega" la emisión estimada respecto del presupuesto. Dinámica: usa los mismos números que el
    bloque "Presupuesto vs Emisión Real" (presup26 / emis26 / Proyectado). */
-function drawEjecResumenBar(hostId, presupTot, realTot, proyTot, useUSD){
+function drawEjecResumenBar(hostId, canvasId, presupTot, realTot, proyTot, useUSD, titulo){
   const host=document.getElementById(hostId); if(!host) return;
   presupTot=presupTot||0; realTot=realTot||0; proyTot=proyTot||0;
   const FMc=(v)=>fmtCompact(v,useUSD);
@@ -7667,35 +7691,35 @@ function drawEjecResumenBar(hostId, presupTot, realTot, proyTot, useUSD){
   const pProy = Math.max(0, proyTot/base*100);
   const desv  = presupTot - estim;                 /* >0 = falta para llegar al presupuesto */
   const pGap  = Math.max(0, desv/base*100);         /* tramo gris (Desvío) */
-  const cob = presupTot>0 ? estim/presupTot*100 : null;
-  const cobCol = (cob==null)?'var(--ink-3)':(cob>=100?'var(--pos)':(cob>=70?'#c9922f':'var(--neg)'));
-  const REAL='rgba(108,189,237,.95)', PROY_BORDER='#eab26a', PRES='#0a3d7a', GRIS='#c9ced6';
+  /* Alinear la barra con el ÁREA DE PLOTEO del gráfico mensual: base en $0 (mismo nivel que las
+     columnas) y tope en el máximo del eje. Se lee del chartArea del gráfico ya renderizado. */
+  const ch = charts[canvasId];
+  const hostH = (ch && ch.canvas && ch.canvas.clientHeight) ? ch.canvas.clientHeight : (host.clientHeight||400);
+  let top=28, bot=hostH-60;
+  if(ch && ch.chartArea && (ch.chartArea.bottom > ch.chartArea.top+20)){ top=ch.chartArea.top; bot=ch.chartArea.bottom; }
+  const barH = Math.max(40, bot-top);
+  const REAL='rgba(108,189,237,.95)', PROY_B='#eab26a', PRES='#0a3d7a', GRIS='#c9ced6';
+  const PROY_PATT='repeating-linear-gradient(45deg,#f3c48a,#f3c48a 4px,#fadcb4 4px,#fadcb4 8px)';
+  const GRIS_PATT='repeating-linear-gradient(45deg,#e9edf3,#e9edf3 5px,#f2f5f9 5px,#f2f5f9 10px)';
   const seg=(h,bg,extra='')=> h>0.15 ? `<div style="height:${h}%;background:${bg};${extra}"></div>` : '';
-  const chip=(col,lbl,val,pref='',patt)=>`<div style="display:flex;align-items:center;gap:7px;font-size:11px;margin-top:6px">
-      <span style="width:11px;height:11px;border-radius:2px;background:${patt||col};flex:0 0 auto;border:1px solid ${col}"></span>
-      <span style="color:var(--ink-2);font-weight:600">${lbl}</span>
-      <strong style="margin-left:auto;font-family:var(--font-mono);color:var(--accent-3)">${pref}${FMc(val)}</strong>
+  const chip=(col,lbl,val,pref='',patt)=>`<div style="margin:5px 0">
+      <div style="display:flex;align-items:center;gap:6px;font-size:9.5px"><span style="width:10px;height:10px;border-radius:2px;background:${patt||col};flex:0 0 auto;border:1px solid ${col}"></span><span style="color:var(--ink-2);font-weight:700;text-transform:uppercase;letter-spacing:.02em">${lbl}</span></div>
+      <div style="font-family:var(--font-mono);font-size:12.5px;font-weight:800;color:var(--accent-3);margin-left:16px">${pref}${FMc(val)}</div>
     </div>`;
-  host.innerHTML=`<div style="height:100%;display:flex;flex-direction:column">
-    <div style="font-size:10px;text-transform:uppercase;letter-spacing:.04em;font-weight:800;color:var(--ink-2);text-align:center;margin-bottom:6px">Total año</div>
-    <div style="flex:1;display:flex;gap:11px;align-items:stretch;padding-bottom:34px">
-      <!-- Barra acumulada: Real (abajo) + Proyectado + Desvío (gris) hasta el Presupuesto. -->
-      <div style="position:relative;width:58px;border:1.5px solid ${PRES};border-radius:7px 7px 0 0;background:#fff;overflow:hidden;display:flex;flex-direction:column-reverse">
-        ${seg(pReal,REAL,'border-top:1px solid #4aa3e0')}
-        ${seg(pProy,'repeating-linear-gradient(45deg,#f3c48a,#f3c48a 4px,#fadcb4 4px,#fadcb4 8px)','border-top:1px solid '+PROY_BORDER)}
-        ${seg(pGap,'repeating-linear-gradient(45deg,#e9edf3,#e9edf3 5px,#f2f5f9 5px,#f2f5f9 10px)')}
-      </div>
-      <div style="flex:1;display:flex;flex-direction:column;justify-content:center;min-width:0">
-        ${chip(PRES,'Presupuesto',presupTot)}
-        ${chip('#4aa3e0','Emisión Real',realTot,'',REAL)}
-        ${chip(PROY_BORDER,'Proyectado',proyTot,'+','repeating-linear-gradient(45deg,#f3c48a,#f3c48a 4px,#fadcb4 4px,#fadcb4 8px)')}
-        ${desv>0.5?chip(GRIS,'Desvío',desv,'−','repeating-linear-gradient(45deg,#e9edf3,#e9edf3 5px,#f2f5f9 5px,#f2f5f9 10px)'):''}
-        <div style="border-top:1px solid var(--line);margin:8px 0 0"></div>
-        <div style="display:flex;align-items:baseline;gap:5px;margin-top:7px">
-          <span style="font-size:9.5px;text-transform:uppercase;letter-spacing:.03em;color:var(--ink-3);font-weight:800">Cobertura</span>
-          <strong style="font-family:var(--font-mono);font-size:16px;color:${cobCol}">${cob!=null?Math.round(cob)+'%':'—'}</strong>
-        </div>
-      </div>
+  host.innerHTML=`<div style="position:relative;height:100%">
+    <div style="position:absolute;top:0;left:0;right:0;font-size:10px;text-transform:uppercase;letter-spacing:.04em;font-weight:800;color:var(--ink-2);text-align:center">${titulo||'Total año'}</div>
+    <!-- Barra alineada al plot: base en $0, tope en el máximo del eje. Angosta, borde azul grueso. -->
+    <div style="position:absolute;top:${top}px;left:4px;width:28px;height:${barH}px;border:2.5px solid ${PRES};border-radius:5px 5px 0 0;background:#fff;overflow:hidden;display:flex;flex-direction:column-reverse">
+      ${seg(pReal,REAL,'border-top:1px solid #4aa3e0')}
+      ${seg(pProy,PROY_PATT,'border-top:1px solid '+PROY_B)}
+      ${seg(pGap,GRIS_PATT)}
+    </div>
+    <!-- Referencias a la derecha de la barra, centradas verticalmente en el plot. -->
+    <div style="position:absolute;top:${top}px;left:40px;right:0;height:${barH}px;display:flex;flex-direction:column;justify-content:center">
+      ${chip(PRES,'Presupuesto',presupTot)}
+      ${chip('#4aa3e0','Emisión Real',realTot,'',REAL)}
+      ${chip(PROY_B,'Proyectado',proyTot,'+',PROY_PATT)}
+      ${desv>0.5?chip(GRIS,'Desvío',desv,'−',GRIS_PATT):''}
     </div>
   </div>`;
 }
@@ -7728,6 +7752,11 @@ function drawEjecChartMensual(canvasId, polArr, presArr, mesCorte, useUSD){
   const hayProj = hayAmar || hayPres;
   const datasets = [];
   datasets.push({label:'Presupuesto 2026', data:presup, type:'line', stack:'pl26', borderColor:'#0a3d7a', backgroundColor:'rgba(10,61,122,.08)', pointBackgroundColor:'#0a3d7a', pointBorderColor:'#fff', pointBorderWidth:1, borderWidth:1.8, borderDash:[2,3], pointRadius:2.4, pointHoverRadius:4, fill:false, tension:.25, spanGaps:true});
+  /* Línea "Presupuesto Com 2026" (violeta, punteado más largo) — sólo si el toggle está tildado. */
+  const comArr = state._showPresupCom ? (useUSD? state.presup.com26_usd : state.presup.com26_ars).slice(0,lim) : [];
+  if(state._showPresupCom){
+    datasets.push({label:'Presupuesto Com 2026', data:comArr, type:'line', stack:'plcom', borderColor:'#7c4dff', backgroundColor:'rgba(124,77,255,.06)', pointBackgroundColor:'#7c4dff', pointBorderColor:'#fff', pointBorderWidth:1, borderWidth:1.9, borderDash:[6,3], pointRadius:2.4, pointHoverRadius:4, fill:false, tension:.25, spanGaps:true});
+  }
   /* Emisión Real 2026 + Proyección Actualizada apiladas en el mismo stack 'y26'. */
   datasets.push({label:'Emisión Real 2026', data:r26, stack:'y26', backgroundColor:'rgba(108,189,237,.88)', borderColor:'#4aa3e0', borderWidth:1.5, borderRadius:3, barPercentage:.85, categoryPercentage:.62});
   if(hayPres){
@@ -7796,7 +7825,7 @@ function drawEjecChartMensual(canvasId, polArr, presArr, mesCorte, useUSD){
      presupuesto) para que las etiquetas de valor NO se peguen al borde ni se superpongan con
      el gráfico/leyenda. */
   const _stackTot = r26.map((v,i)=>(v||0)+(projConf[i]||0)+(grayEstim[i]||0));
-  const _allVals = [...presup, ..._stackTot].filter(v=>v!=null && isFinite(v));
+  const _allVals = [...presup, ...comArr, ..._stackTot].filter(v=>v!=null && isFinite(v));
   const _dataMax = _allVals.length ? Math.max(..._allVals.map(Math.abs)) : 0;
   if(_dataMax>0){ opts.scales.y = opts.scales.y || {}; opts.scales.y.suggestedMax = _dataMax*1.4; }
   opts.layout = {padding:{top:26, bottom: hayAmar?108:82, left:10}};
