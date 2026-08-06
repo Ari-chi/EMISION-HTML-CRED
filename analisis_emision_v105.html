@@ -3847,7 +3847,7 @@ function ejecFlujo(S, useUSD){
   const _bubbleTitle = 'Emisión 2026 por tipo:\n' + _brows.map(r=>`• ${r.lbl}: ${r.neg?'−':''}${FMTc(Math.abs(r.val))} (${r.n})`).join('\n');
   const _bubbleHTML = `<div id="emisBubble_${sufijo}" style="display:none;position:absolute;top:100%;left:0;margin-top:6px;z-index:40;background:#fff;border:1px solid var(--line-2);border-radius:9px;box-shadow:0 6px 20px rgba(10,31,58,.20);padding:11px 13px;min-width:250px;text-align:left;cursor:default" onclick="event.stopPropagation()"><div style="font-size:10.5px;text-transform:uppercase;letter-spacing:.04em;font-weight:800;color:var(--pos);margin-bottom:6px">Emisión 2026 por tipo</div>${_bubbleRows||'<div style="font-size:12px;color:var(--ink-3)">— sin desglose —</div>'}</div>`;
   /* Título tipo "pill" (chip con fondo suave) para diferenciarlo bien del dato grande. */
-  const _pill=(col,soft,txt,extra='')=>`<span style="display:inline-flex;align-items:center;gap:5px;font-size:11.5px;color:${col};text-transform:uppercase;letter-spacing:.04em;font-weight:800;background:${soft};padding:4px 11px;border-radius:20px">${txt}${extra}</span>`;
+  const _pill=(col,soft,txt,extra='')=>`<span style="display:inline-flex;align-items:center;gap:5px;font-size:11.5px;color:${col};text-transform:uppercase;letter-spacing:.04em;font-weight:800;background:${soft};padding:2px 11px;border-radius:20px">${txt}${extra}</span>`;
   const _num=(col,txt,sz)=>`<div style="font-size:${sz||20}px;font-weight:800;color:${col};line-height:1;font-family:var(--font-mono);margin-top:7px">${txt}</div>`;
   const flecha=(s)=>`<div style="display:flex;align-items:center;color:var(--line-2);font-size:22px;font-weight:400">${s}</div>`;
   /* Barra de progreso "% del objetivo" (las "cositas" pedidas). */
@@ -3899,8 +3899,8 @@ function ejecFlujo(S, useUSD){
      de un mismo concepto quedan a la misma altura entre los dos cuadros; el de diciembre es más
      alto sólo por su fila extra (Proyectado). */
   const _rowBase = 'display:flex;flex-direction:column;justify-content:center;border-radius:8px;padding:6px 11px';
-  const _rowPres = (val)=>`<div style="${_rowBase};background:rgba(30,111,217,.07);border-left:2px solid var(--accent)">
-      ${_pill('var(--accent)','rgba(30,111,217,.14)','Presupuesto Acumulado')}
+  const _rowPres = (val, mesN)=>`<div style="${_rowBase};background:rgba(30,111,217,.07);border-left:2px solid var(--accent)">
+      ${_pill('var(--accent)','rgba(30,111,217,.14)','Presupuesto Acumulado · '+mesN)}
       ${_num('var(--accent-3)',FMTc(val),17)}
     </div>`;
   const _rowEmis = (cumpl)=>`<div onclick="window.toggleEmisBubble('${sufijo}')" title="${_bubbleTitle.replace(/"/g,'&quot;')}" style="${_rowBase};cursor:pointer;background:rgba(45,155,106,.07);border-left:2px solid var(--pos)">
@@ -3927,9 +3927,9 @@ function ejecFlujo(S, useUSD){
       <div style="padding:10px;display:flex;flex-direction:column;gap:10px">${rows}</div>
     </div>`;
   const box1 = box(_mLastN, 'var(--accent)',
-    _rowPres(S.presup26_emi) + _rowEmis(cumplEmi) + _rowDesv('Desvío', desvioEmi, desvPctEmi));
+    _rowPres(S.presup26_emi, _mLastN) + _rowEmis(cumplEmi) + _rowDesv('Desvío', desvioEmi, desvPctEmi));
   const box2 = box(_mCorteN, '#0a3d7a',
-    _rowPres(S.presup26) + _rowEmis(S.cumpl) + _rowProy(proyVal) + _rowDesv('Desvío (con Proyectado)', desvFinal, pctFinal));
+    _rowPres(S.presup26, _mCorteN) + _rowEmis(S.cumpl) + _rowProy(proyVal) + _rowDesv('Desvío (con Proyectado)', desvFinal, pctFinal));
   return `<div style="margin-top:8px">
     <div style="font-size:11px;color:var(--ink-3);text-transform:uppercase;letter-spacing:.05em;font-weight:700;margin-bottom:6px">${mLbl}</div>
     <div style="position:relative;display:flex;align-items:flex-start;justify-content:center;gap:16px;flex-wrap:wrap">
