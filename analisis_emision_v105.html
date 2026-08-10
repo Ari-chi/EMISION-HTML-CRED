@@ -178,6 +178,12 @@ main{padding:28px 32px 60px;max-width:2000px;margin:0 auto}
   .section[data-section="ejecutivo"]{ display:block!important; animation:none!important; }
   /* Evitar cortes feos de bloques chicos y gráficos. */
   .ejec-block, .dual-kpi-item, .chart-box{ page-break-inside:avoid; break-inside:avoid; }
+  /* HOJA 1: "Presupuesto vs Emisión Real" (cuadros + barras + gráfico mensual) TODO junto.
+     Se comprime el bloque para que entre completo en una sola hoja. */
+  #ejecPresupCard{ page-break-inside:avoid; break-inside:avoid; }
+  #ejecPresupCard .chart-box{ height:230px!important; }
+  #ejecPresupCard .efb-body{ gap:6px!important; padding:7px!important; }
+  #ejecPresupCard .efb-body > div{ flex:0 0 auto!important; padding:4px 9px!important; }
   /* Cada bloque en su propia hoja del PDF:
      Hoja 1 = Presupuesto vs Emisión Real · Hoja 2 = Desvío · Hoja 3 = Comparación 2025 vs 2026
      Hoja 4 = Emisión por rubro · Hoja 5 = Resumen por rubro. */
@@ -3640,7 +3646,7 @@ function drawEjecutivo(){
     ${sinPresup?`<div style="background:rgba(232,155,30,.10);border-left:3px solid var(--warn);padding:10px 14px;border-radius:4px;margin-bottom:12px;font-size:12px;color:var(--accent-3)">⚠ No se detectó presupuesto 2026 cargado. Los bloques de presupuesto mostrarán 0; el resto funciona igual.</div>`:''}
 
     <!-- BLOQUE 1 -->
-    <div class="card">
+    <div class="card" id="ejecPresupCard">
       <div class="ejec-block-title ejec-block-title--lg"><span>Presupuesto</span><span class="ejb-sep">vs</span><span>Emisión&nbsp;Real</span><span class="ejb-year">2026</span></div>
       ${setU?ejecFlujo(setU,true):''}
       ${setA?ejecFlujo(setA,false):''}
@@ -3914,7 +3920,7 @@ function ejecFlujo(S, useUSD){
   /* Cuadro con encabezado de mes; filas a altura natural con espacio entre cada concepto. */
   const box=(mesN,headCol,rows)=>`<div style="flex:0 0 300px;display:flex;flex-direction:column;border:1.5px solid ${headCol};border-radius:12px;overflow:hidden;background:#fff;box-shadow:0 1px 4px rgba(10,31,58,.06)">
       <div style="background:${headCol};padding:7px 14px;text-align:center"><span style="color:#fff;font-weight:900;font-size:14px;text-transform:uppercase;letter-spacing:.05em">${mesN}</span></div>
-      <div style="flex:1;padding:10px;display:flex;flex-direction:column;gap:10px">${rows}</div>
+      <div class="efb-body" style="flex:1;padding:10px;display:flex;flex-direction:column;gap:10px">${rows}</div>
     </div>`;
   const box1 = box(_mLastN, 'var(--accent)',
     _rowPres(S.presup26_emi, _mLastN) + _rowEmis(cumplEmi) + _rowDesv('Desvío', desvioEmi, desvPctEmi));
@@ -4651,10 +4657,14 @@ function ejecJustificacion(S, useUSD, dual, useUSDprimary){
      presupuesto y emisión con valores + desvío en valor y %. Reemplaza a la tarjeta grande
      "Desvío Acumulado" (borrada). */
   const _dvSigno = _dvCorte>0?'−':'+';
-  const _justResumen = `<div style="display:flex;gap:16px;flex-wrap:wrap;align-items:baseline;background:var(--bg-2);border:1px solid var(--line);border-radius:8px;padding:7px 12px;margin-bottom:8px">
-    <span style="font-size:11px"><span style="color:var(--ink-3);font-weight:700">Presupuesto </span><strong style="color:var(--accent-3);font-size:13px;font-family:var(--font-mono)">${FMTc(S.presup26||0)}</strong></span>
-    <span style="font-size:11px"><span style="color:var(--ink-3);font-weight:700">Emisión </span><strong style="color:var(--pos);font-size:13px;font-family:var(--font-mono)">${FMTc(S.emis26||0)}</strong></span>
-    <span style="font-size:11px"><span style="color:var(--ink-3);font-weight:700">Desvío </span><strong style="color:var(--neg);font-size:13px;font-family:var(--font-mono)">${_dvSigno}${FMTc(Math.abs(_dvCorte))}</strong> <span style="color:var(--neg);font-weight:800;font-size:11px">${_pctCorte!=null?'('+_dvSigno+Math.abs(Math.round(_pctCorte))+'%)':''}</span></span>
+  const _justCap = (_mCorteFull||'diciembre').charAt(0).toUpperCase()+(_mCorteFull||'diciembre').slice(1);
+  const _justResumen = `<div style="background:var(--bg-2);border:1px solid var(--line);border-radius:8px;padding:8px 12px;margin-bottom:8px">
+    <div style="display:flex;gap:16px;flex-wrap:wrap;align-items:baseline">
+      <span style="font-size:11px"><span style="color:var(--ink-3);font-weight:700">Presup. Acum. ${_justCap} </span><strong style="color:var(--accent-3);font-size:13px;font-family:var(--font-mono)">${FMTc(S.presup26||0)}</strong></span>
+      <span style="font-size:11px"><span style="color:var(--ink-3);font-weight:700">Emisión </span><strong style="color:var(--pos);font-size:13px;font-family:var(--font-mono)">${FMTc(S.emis26||0)}</strong></span>
+      <span style="font-size:11px"><span style="color:var(--ink-3);font-weight:700">Desvío </span><strong style="color:var(--neg);font-size:13px;font-family:var(--font-mono)">${_dvSigno}${FMTc(Math.abs(_dvCorte))}</strong> <span style="color:var(--neg);font-weight:800;font-size:11px">${_pctCorte!=null?'('+_dvSigno+Math.abs(Math.round(_pctCorte))+'%)':''}</span></span>
+    </div>
+    <div style="text-align:center;margin-top:3px;font-size:10px;color:var(--ink-3);font-weight:700">el gráfico justifica este ${_pctCorte!=null?Math.abs(Math.round(_pctCorte))+'%':'desvío'} <span style="font-size:14px;color:var(--accent);vertical-align:middle">▼</span></div>
   </div>`;
   return `<div style="margin-top:${dual?8:2}px">
     ${dual?`<div style="font-size:11px;color:var(--ink-3);text-transform:uppercase;letter-spacing:.05em;font-weight:700;margin-bottom:4px">${mLbl}</div>`:''}
@@ -4721,6 +4731,8 @@ function ejecJustificacion(S, useUSD, dual, useUSDprimary){
     })()}
     </div>
     <div style="flex:1.4 1 420px;min-width:320px">
+      <div style="font-size:13px;font-weight:800;color:var(--accent-3);text-transform:uppercase;letter-spacing:.04em;margin-bottom:6px">Justificación Desvío</div>
+      ${_justResumen}
       ${causas.length>0 ? `
       <div style="display:flex;justify-content:center;align-items:center;gap:20px;flex-wrap:wrap">
         <div style="flex:0 0 auto;width:250px"><canvas id="${pieIdDes}" style="max-height:250px"></canvas></div>
@@ -6796,8 +6808,15 @@ window.toggleEjecCausa = function(id){
       const _cF = collect(false), _cT = collect(true);
       nColARS = agruparPorAsegurado(_cF).reduce((s,r)=>s+(r._nGrupo||1),0);
       nColUSD = agruparPorAsegurado(_cT).reduce((s,r)=>s+(r._nGrupo||1),0);
-      detMonARS = _cF.reduce((a,r)=>a+(r.montoARS||0),0);
-      detMonUSD = _cT.reduce((a,r)=>a+(r.montoUSD||0),0);
+      if(id==='perdidas'){
+        /* Pólizas que se fueron: el total suma TODAS las pólizas (ambas monedas) en cada moneda,
+           igual que el gráfico (collect(false)=$ y collect(true)=US son disjuntos por moneda). */
+        detMonARS = _cF.reduce((a,r)=>a+(r.montoARS||0),0) + _cT.reduce((a,r)=>a+(r.montoARS||0),0);
+        detMonUSD = _cF.reduce((a,r)=>a+(r.montoUSD||0),0) + _cT.reduce((a,r)=>a+(r.montoUSD||0),0);
+      } else {
+        detMonARS = _cF.reduce((a,r)=>a+(r.montoARS||0),0);
+        detMonUSD = _cT.reduce((a,r)=>a+(r.montoUSD||0),0);
+      }
     } catch(e){}
     const fmtT = (v)=>v==null?'—':FMT_PCT_TASA(v);
     const fmtS = (v)=>v==null?'—':FMT_PCT_SIN(v);
@@ -7308,13 +7327,13 @@ window.toggleEjecCausa = function(id){
       const u=btnUSD; const FMc=(v)=>fmtCompact(v,u);
       const CKS=[{k:'primaMin',lbl:'Prima mínima',col:APP_CONFIG.colores.prima},{k:'ajuste',lbl:'Ajuste',col:APP_CONFIG.colores.abm},{k:'bono',lbl:'Bono',col:'#d94747'},{k:'malus',lbl:'Malus',col:'#7c4dff'}];
       const lookup=new Map(); (state.polizas||[]).forEach(p=>{ lookup.set(p.clave,p); lookup.set(p.poliza,p); });
-      /* UNA sola moneda (la del botón), igual que el total del encabezado (detMonUSD/detMonARS
-         usan collect(btnUSD)). Antes se sumaban collect(false)+collect(true) → cada póliza se
-         contaba DOS veces y la suma NO coincidía con "Emisión 2025 perdida". */
-      const rows=collect(u,'perdidas');
+      /* TODAS las pólizas que se fueron (ambas monedas). collect(false)=pólizas $ y collect(true)=
+         pólizas US son conjuntos DISJUNTOS (collect filtra por moneda original), así que unirlos NO
+         duplica: da el MISMO universo que el donut (Σ de todas las terminadas). Cada fila se valúa
+         en la moneda de la vista (valBtnR) y el desglose por concepto lleva SIGNO (el bono resta).
+         Así el conteo y el "Total perdido" coinciden con el total del gráfico. */
+      const rows=[...collect(false,'perdidas'),...collect(true,'perdidas')];
       const enr=rows.map(r=>{ const p=lookup.get(r.clave)||lookup.get(r.poliza); let bd={primaMin:0,ajuste:0,bono:0,malus:0};
-        /* Desglose CON SIGNO (el bono es nota de crédito → resta emisión). Así la suma de los
-           conceptos da EXACTAMENTE el neto perdido del encabezado, sin abs que lo infle. */
         if(p){ const f=calcEmisionFiltrada(p,2025,0,{excluirAnualAnt:false}); const b=u?f.breakdownUSD:f.breakdownARS; bd={primaMin:b.primaMin||0,ajuste:b.ajuste||0,bono:b.bono||0,malus:b.malus||0}; }
         return {r, bd, tot:valBtnR(r)}; });
       const arrow=(id)=>`<span id="${id}_a" style="color:var(--ink-3);font-weight:800;display:inline-block;transition:transform .15s">▸</span>`;
