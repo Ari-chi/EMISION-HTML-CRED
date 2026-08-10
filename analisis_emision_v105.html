@@ -3897,7 +3897,6 @@ function ejecFlujo(S, useUSD){
   const _rowEmis = (cumpl)=>`<div onclick="window.toggleEmisBubble('${sufijo}')" title="${_bubbleTitle.replace(/"/g,'&quot;')}" style="${_rowBase};cursor:pointer;background:rgba(45,155,106,.07);border-left:2px solid var(--pos)">
       ${_pill('var(--pos)','rgba(45,155,106,.16)','Emisión Real','<span style="font-size:8px;color:var(--pos)">▾</span>')}
       <div style="font-size:17px;font-weight:800;color:var(--pos);line-height:1;font-family:var(--font-mono);margin-top:5px">${FMTc(S.emis26)}</div>
-      ${barLineaSolo(cumpl)}
     </div>`;
   /* Proyectado: naranja CLARO y armonioso. */
   const _rowProy = (val)=>`<div style="${_rowBase};background:rgba(234,178,106,.12);border-left:2px solid #eab26a">
@@ -3913,7 +3912,7 @@ function ejecFlujo(S, useUSD){
       </div>
     </div>`; };
   /* Cuadro con encabezado de mes; filas a altura natural con espacio entre cada concepto. */
-  const box=(mesN,headCol,rows)=>`<div style="flex:0 0 330px;display:flex;flex-direction:column;border:1.5px solid ${headCol};border-radius:12px;overflow:hidden;background:#fff;box-shadow:0 1px 4px rgba(10,31,58,.06)">
+  const box=(mesN,headCol,rows)=>`<div style="flex:0 0 300px;display:flex;flex-direction:column;border:1.5px solid ${headCol};border-radius:12px;overflow:hidden;background:#fff;box-shadow:0 1px 4px rgba(10,31,58,.06)">
       <div style="background:${headCol};padding:7px 14px;text-align:center"><span style="color:#fff;font-weight:900;font-size:14px;text-transform:uppercase;letter-spacing:.05em">${mesN}</span></div>
       <div style="flex:1;padding:10px;display:flex;flex-direction:column;gap:10px">${rows}</div>
     </div>`;
@@ -3933,7 +3932,7 @@ function ejecFlujo(S, useUSD){
     return `<div style="display:flex;flex-direction:column;height:100%;min-height:200px">
       <div style="flex:1;display:flex;align-items:flex-end;justify-content:center;gap:18px">
         ${col(`<span style="font-family:var(--font-mono);font-size:10.5px;font-weight:800;color:#0a3d7a;margin-bottom:3px">${FMTc(presup)}</span><div style="width:34px;height:${hP}%;background:#0a3d7a;border-radius:4px 4px 0 0"></div>`)}
-        ${col(`<span style="font-size:12px;font-weight:900;color:var(--pos);line-height:1">${pct!=null?pct+'%':''}</span><span style="font-family:var(--font-mono);font-size:10.5px;font-weight:800;color:var(--accent-3);margin-bottom:3px">${FMTc(emit)}</span><div style="width:34px;height:${hE}%;border-radius:4px 4px 0 0;overflow:hidden;display:flex;flex-direction:column-reverse"><div style="height:${rSh}%;background:rgba(108,189,237,.95)"></div>${proy>0?`<div style="height:${pSh}%;background:repeating-linear-gradient(45deg,#f3c48a,#f3c48a 4px,#fadcb4 4px,#fadcb4 8px)"></div>`:''}</div>`)}
+        ${col(`${pct!=null?`<span style="font-size:13.5px;font-weight:900;color:#fff;background:var(--pos);padding:2px 10px;border-radius:11px;margin-bottom:9px;box-shadow:0 1px 3px rgba(45,155,106,.4)">${pct}%</span>`:''}<span style="font-family:var(--font-mono);font-size:10.5px;font-weight:800;color:var(--accent-3);margin-bottom:3px">${FMTc(emit)}</span><div style="width:34px;height:${hE}%;border-radius:4px 4px 0 0;overflow:hidden;display:flex;flex-direction:column-reverse"><div style="height:${rSh}%;background:rgba(108,189,237,.95)"></div>${proy>0?`<div style="height:${pSh}%;background:repeating-linear-gradient(45deg,#f3c48a,#f3c48a 4px,#fadcb4 4px,#fadcb4 8px)"></div>`:''}</div>`)}
       </div>
       <div style="display:flex;justify-content:center;gap:18px;margin-top:5px;font-size:8.5px;text-transform:uppercase;letter-spacing:.02em;font-weight:800;color:var(--ink-3)">
         <span style="width:34px;text-align:center">Presup.</span>
@@ -3941,21 +3940,23 @@ function ejecFlujo(S, useUSD){
       </div>
     </div>`;
   };
-  const barPanel = (borderCol, titulo, inner)=>`<div style="flex:0 0 140px;display:flex;flex-direction:column;border:1.5px solid ${borderCol};border-radius:12px;overflow:hidden;background:#fff;box-shadow:0 1px 4px rgba(10,31,58,.06)">
+  const barPanel = (borderCol, titulo, inner)=>`<div style="flex:0 0 126px;display:flex;flex-direction:column;border:1.5px solid ${borderCol};border-radius:12px;overflow:hidden;background:#fff;box-shadow:0 1px 4px rgba(10,31,58,.06)">
       <div style="background:${borderCol};padding:7px 6px;text-align:center"><span style="color:#fff;font-weight:800;font-size:9.5px;text-transform:uppercase;letter-spacing:.03em">${titulo}</span></div>
       <div style="flex:1;padding:8px 4px 5px">${inner}</div>
     </div>`;
   const comPresup = presupAcumulado(useUSD? state.presup.com26_usd : state.presup.com26_ars, 12);
-  const unit = (boxHtml, barHtml)=>`<div style="display:flex;align-items:stretch;gap:9px">${boxHtml}${barHtml}</div>`;
-  const u1 = unit(box1, barPanel('var(--accent)','Presup. vs Emitido', _miniBar2(S.presup26_emi, S.emis26, 0, 'Emitido')));
-  const u2 = unit(box2, barPanel('#0a3d7a','Presup. vs Emit+Proy', _miniBar2(S.presup26, S.emis26, proyVal, 'Emit+Proy')));
-  const uCom = state._showPresupCom ? barPanel('#7c4dff','Comercial 2026', _miniBar2(comPresup, S.emis26, proyVal, 'Emit+Proy')) : '';
+  const barJul = barPanel('var(--accent)','Presup. vs Emitido', _miniBar2(S.presup26_emi, S.emis26, 0, 'Emitido'));
+  const barDic = barPanel('#0a3d7a','Presup. vs Emit+Proy', _miniBar2(S.presup26, S.emis26, proyVal, 'Emit+Proy'));
+  const barCom = state._showPresupCom ? barPanel('#7c4dff','Comercial 2026', _miniBar2(comPresup, S.emis26, proyVal, 'Emit+Proy')) : '';
+  /* Grupos que NO se separan: Julio (cuadro+barra) y Diciembre (cuadro+barra+Comercial). Así el
+     Comercial 2026 SIEMPRE queda pegado a Diciembre aunque se haga zoom / la fila se parta. */
+  const gJul = `<div style="display:flex;align-items:stretch;gap:9px">${box1}${barJul}</div>`;
+  const gDic = `<div style="display:flex;align-items:stretch;gap:9px">${box2}${barDic}${barCom}</div>`;
   return `<div style="margin-top:8px">
     <div style="font-size:11px;color:var(--ink-3);text-transform:uppercase;letter-spacing:.05em;font-weight:700;margin-bottom:6px">${mLbl}</div>
-    <div style="position:relative;display:flex;align-items:stretch;justify-content:center;gap:44px;flex-wrap:wrap">
-      ${u1}
-      ${u2}
-      ${uCom}
+    <div style="position:relative;display:flex;align-items:stretch;justify-content:center;gap:30px;flex-wrap:wrap">
+      ${gJul}
+      ${gDic}
       ${_bubbleHTML}
     </div>
   </div>`;
