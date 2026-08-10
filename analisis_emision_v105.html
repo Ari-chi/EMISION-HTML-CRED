@@ -170,7 +170,7 @@ main{padding:28px 32px 60px;max-width:2000px;margin:0 auto}
   /* Colores/fondos fieles al dashboard (los navegadores los quitan por defecto en impresión). */
   *{ -webkit-print-color-adjust:exact!important; print-color-adjust:exact!important; }
   /* Ocultar todo lo que NO es el Resumen Ejecutivo (chrome + filtros + desgloses laterales + tooltips). */
-  .uploader-wrap, .tabs-wrap, #tabsWrap, #emptyState, #ejecCausaDetalle, .ejec-drawer-backdrop, .no-print, #btnPDF, .sf-bar{ display:none!important; }
+  .uploader-wrap, .tabs-wrap, #tabsWrap, #emptyState, #ejecCausaDetalle, .ejec-drawer-backdrop, .no-print, #btnPDF, .sf-bar, .header{ display:none!important; }
   [id^="mtt_"], [id^="emisBubble_"]{ display:none!important; }
   /* Mostrar SOLO la sección "ejecutivo". */
   #content{ display:block!important; }
@@ -184,13 +184,17 @@ main{padding:28px 32px 60px;max-width:2000px;margin:0 auto}
   #ejecPresupCard .chart-box{ height:230px!important; }
   #ejecPresupCard .efb-body{ gap:6px!important; padding:7px!important; }
   #ejecPresupCard .efb-body > div{ flex:0 0 auto!important; padding:4px 9px!important; }
-  /* Cada bloque en su propia hoja del PDF:
+  /* Cada bloque en su propia hoja del PDF (sin la portada/encabezado, que se oculta):
      Hoja 1 = Presupuesto vs Emisión Real · Hoja 2 = Desvío · Hoja 3 = Comparación 2025 vs 2026
      Hoja 4 = Emisión por rubro · Hoja 5 = Resumen por rubro. */
   #ejecDesvioCard, #ejecComparCard, #ejecRubroCard{ page-break-before:always; break-before:page; }
   #ejecRubroMiniWrap{ page-break-before:always; break-before:page; }
   /* En la hoja 3 los dos gráficos (total | concepto) van lado a lado, no apilados. */
   #ejecComparCard .grid-2{ grid-template-columns:1fr 1fr!important; }
+  /* La Comparación 2025 vs 2026 (gráficos + donuts + detalle) se comprime para entrar TODA en
+     UNA sola hoja, sin partirse ni salirse de los márgenes. */
+  #ejecComparCard{ page-break-inside:avoid; break-inside:avoid; zoom:0.72; }
+  #ejecComparCard .chart-box{ height:200px!important; }
 }
 .timeline-filter .tf-label{font-family:var(--font-mono);font-size:11px;color:var(--ink-3);text-transform:uppercase;letter-spacing:.08em;font-weight:600}
 .timeline-months{display:flex;gap:4px;flex-wrap:wrap}
