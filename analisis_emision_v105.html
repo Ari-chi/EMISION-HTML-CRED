@@ -3646,21 +3646,20 @@ function drawEjecutivo(){
       ${setA?ejecFlujo(setA,false):''}
       <!-- Gráfico mensual: solo botón 2025, sin título -->
       <div style="margin-top:10px">
-        <!-- Toggle "Presupuesto Com 2026" (destildado por defecto; lo tilda el usuario). -->
+        <!-- Toggle "Presupuesto Comercial 2026" (destildado por defecto; lo tilda el usuario). -->
         <label style="display:inline-flex;align-items:center;gap:8px;font-size:12px;font-weight:700;color:var(--ink-2);cursor:pointer;margin-bottom:9px;user-select:none">
           <input type="checkbox" onchange="window.togglePresupCom(this.checked)" ${state._showPresupCom?'checked':''} style="width:15px;height:15px;accent-color:#7c4dff;cursor:pointer">
           <span style="display:inline-block;width:22px;border-top:2.5px dotted #7c4dff"></span>
-          Presupuesto Com 2026
+          Presupuesto Comercial 2026
         </label>
         ${dual ? `
           <div style="font-size:11px;color:var(--ink-3);text-transform:uppercase;letter-spacing:.05em;font-weight:700;margin-bottom:4px">USD</div>
-          <div style="display:flex;gap:14px;align-items:stretch"><div class="chart-box" style="flex:1;min-width:0;height:400px"><canvas id="ejecChartMensual_u"></canvas></div><div style="flex:0 0 ${state._showPresupCom?300:158}px;display:flex;gap:8px"><div id="ejecResumenBar_u" style="flex:1"></div>${state._showPresupCom?'<div id="ejecResumenBarCom_u" style="flex:1"></div>':''}</div></div>
+          <div class="chart-box" style="height:400px"><canvas id="ejecChartMensual_u"></canvas></div>
           <div style="font-size:11px;color:var(--ink-3);text-transform:uppercase;letter-spacing:.05em;font-weight:700;margin:10px 0 4px">ARS$</div>
-          <div style="display:flex;gap:14px;align-items:stretch"><div class="chart-box" style="flex:1;min-width:0;height:400px"><canvas id="ejecChartMensual_a"></canvas></div><div style="flex:0 0 ${state._showPresupCom?300:158}px;display:flex;gap:8px"><div id="ejecResumenBar_a" style="flex:1"></div>${state._showPresupCom?'<div id="ejecResumenBarCom_a" style="flex:1"></div>':''}</div></div>
+          <div class="chart-box" style="height:400px"><canvas id="ejecChartMensual_a"></canvas></div>
         ` : `
-          <div style="display:flex;gap:14px;align-items:stretch"><div class="chart-box" style="flex:1;min-width:0;height:400px"><canvas id="ejecChartMensual"></canvas></div><div style="flex:0 0 ${state._showPresupCom?300:158}px;display:flex;gap:8px"><div id="ejecResumenBar" style="flex:1"></div>${state._showPresupCom?'<div id="ejecResumenBarCom" style="flex:1"></div>':''}</div></div>
+          <div class="chart-box" style="height:400px"><canvas id="ejecChartMensual"></canvas></div>
         `}
-
       </div>
       <!-- Selector oculto del presupuesto: escribir "tina" muestra Argentina -->
       <div style="margin-top:14px;padding-top:10px;border-top:1px dashed var(--line)">
@@ -3723,15 +3722,8 @@ function drawEjecutivo(){
     if(dual){
       drawEjecChartMensual('ejecChartMensual_u', polFiltradas, presArrU, mesCorte, true);
       drawEjecChartMensual('ejecChartMensual_a', polFiltradas, presArrA, mesCorte, false);
-      if(setU){ drawEjecResumenBar('ejecResumenBar_u', 'ejecChartMensual_u', setU.presup26, setU.emis26, _ejecProyectadoVal('u'), true, 'Total año');
-        if(state._showPresupCom) drawEjecResumenBar('ejecResumenBarCom_u', 'ejecChartMensual_u', presupAcumulado(state.presup.com26_usd,12), setU.emis26, _ejecProyectadoVal('u'), true, 'Com 2026'); }
-      if(setA){ drawEjecResumenBar('ejecResumenBar_a', 'ejecChartMensual_a', setA.presup26, setA.emis26, _ejecProyectadoVal('a'), false, 'Total año');
-        if(state._showPresupCom) drawEjecResumenBar('ejecResumenBarCom_a', 'ejecChartMensual_a', presupAcumulado(state.presup.com26_ars,12), setA.emis26, _ejecProyectadoVal('a'), false, 'Com 2026'); }
     } else {
       drawEjecChartMensual('ejecChartMensual', polFiltradas, primary.presArr, mesCorte, primary.useUSD);
-      const _sufP = primary.useUSD?'u':'a';
-      drawEjecResumenBar('ejecResumenBar', 'ejecChartMensual', primary.presup26, primary.emis26, _ejecProyectadoVal(_sufP), primary.useUSD, 'Total año');
-      if(state._showPresupCom) drawEjecResumenBar('ejecResumenBarCom', 'ejecChartMensual', presupAcumulado(primary.useUSD?state.presup.com26_usd:state.presup.com26_ars,12), primary.emis26, _ejecProyectadoVal(_sufP), primary.useUSD, 'Com 2026');
     }
   };
   /* Toggle "Presupuesto Com 2026" (línea + barra Total año de esa serie). Destildado por defecto. */
@@ -3930,11 +3922,40 @@ function ejecFlujo(S, useUSD){
     _rowPres(S.presup26_emi, _mLastN) + _rowEmis(cumplEmi) + _rowDesv('Desvío', desvioEmi, desvPctEmi));
   const box2 = box(_mCorteN, '#0a3d7a',
     _rowPres(S.presup26, _mCorteN) + _rowEmis(S.cumpl) + _rowProy(proyVal) + _rowDesv('Desvío (con Proyectado)', desvFinal, pctFinal));
+  /* Mini gráfico de 2 barras (Presupuesto vs Emitido) a la derecha de cada cuadro. Para el mes de
+     emisión: Presupuesto vs Emisión Real. Para diciembre: Presupuesto vs Emisión Real + Proyectado
+     (barra apilada). Comparten escala = mayor de los dos. */
+  const _miniBar2 = (presup, real, proy, subLbl)=>{
+    const emit=real+proy, mx=Math.max(presup,emit,1);
+    const hP=Math.max(3,presup/mx*84), hE=Math.max(3,emit/mx*84);
+    const rSh=emit>0?real/emit*100:100, pSh=emit>0?proy/emit*100:0;
+    const col=(inner)=>`<div style="display:flex;flex-direction:column;align-items:center;height:100%;justify-content:flex-end">${inner}</div>`;
+    return `<div style="display:flex;flex-direction:column;height:100%;min-height:200px">
+      <div style="flex:1;display:flex;align-items:flex-end;justify-content:center;gap:16px">
+        ${col(`<span style="font-family:var(--font-mono);font-size:10px;font-weight:800;color:#0a3d7a;margin-bottom:3px">${FMTc(presup)}</span><div style="width:32px;height:${hP}%;background:#0a3d7a;border-radius:4px 4px 0 0"></div>`)}
+        ${col(`<span style="font-family:var(--font-mono);font-size:10px;font-weight:800;color:var(--accent-3);margin-bottom:3px">${FMTc(emit)}</span><div style="width:32px;height:${hE}%;border-radius:4px 4px 0 0;overflow:hidden;display:flex;flex-direction:column-reverse"><div style="height:${rSh}%;background:rgba(108,189,237,.95)"></div>${proy>0?`<div style="height:${pSh}%;background:repeating-linear-gradient(45deg,#f3c48a,#f3c48a 4px,#fadcb4 4px,#fadcb4 8px)"></div>`:''}</div>`)}
+      </div>
+      <div style="display:flex;justify-content:center;gap:16px;margin-top:5px;font-size:8px;text-transform:uppercase;letter-spacing:.02em;font-weight:800;color:var(--ink-3)">
+        <span style="width:32px;text-align:center">Presup.</span>
+        <span style="width:32px;text-align:center">${subLbl}</span>
+      </div>
+    </div>`;
+  };
+  const barPanel = (borderCol, titulo, inner)=>`<div style="flex:0 0 132px;display:flex;flex-direction:column;border:1.5px solid ${borderCol};border-radius:12px;overflow:hidden;background:#fff;box-shadow:0 1px 4px rgba(10,31,58,.06)">
+      <div style="background:${borderCol};padding:7px 6px;text-align:center"><span style="color:#fff;font-weight:800;font-size:9.5px;text-transform:uppercase;letter-spacing:.03em">${titulo}</span></div>
+      <div style="flex:1;padding:8px 4px 5px">${inner}</div>
+    </div>`;
+  const comPresup = presupAcumulado(useUSD? state.presup.com26_usd : state.presup.com26_ars, 12);
+  const unit = (boxHtml, barHtml)=>`<div style="display:flex;align-items:stretch;gap:9px">${boxHtml}${barHtml}</div>`;
+  const u1 = unit(box1, barPanel('var(--accent)','Presup. vs Emitido', _miniBar2(S.presup26_emi, S.emis26, 0, 'Emitido')));
+  const u2 = unit(box2, barPanel('#0a3d7a','Presup. vs Emit+Proy', _miniBar2(S.presup26, S.emis26, proyVal, 'Emit+Proy')));
+  const uCom = state._showPresupCom ? barPanel('#7c4dff','Comercial 2026', _miniBar2(comPresup, S.emis26, proyVal, 'Emit+Proy')) : '';
   return `<div style="margin-top:8px">
     <div style="font-size:11px;color:var(--ink-3);text-transform:uppercase;letter-spacing:.05em;font-weight:700;margin-bottom:6px">${mLbl}</div>
-    <div style="position:relative;display:flex;align-items:flex-start;justify-content:center;gap:16px;flex-wrap:wrap">
-      ${box1}
-      ${box2}
+    <div style="position:relative;display:flex;align-items:flex-start;justify-content:center;gap:28px;flex-wrap:wrap">
+      ${u1}
+      ${u2}
+      ${uCom}
       ${_bubbleHTML}
     </div>
   </div>`;
@@ -7755,7 +7776,7 @@ function drawEjecChartMensual(canvasId, polArr, presArr, mesCorte, useUSD){
   /* Línea "Presupuesto Com 2026" (violeta, punteado más largo) — sólo si el toggle está tildado. */
   const comArr = state._showPresupCom ? (useUSD? state.presup.com26_usd : state.presup.com26_ars).slice(0,lim) : [];
   if(state._showPresupCom){
-    datasets.push({label:'Presupuesto Com 2026', data:comArr, type:'line', stack:'plcom', borderColor:'#7c4dff', backgroundColor:'rgba(124,77,255,.06)', pointBackgroundColor:'#7c4dff', pointBorderColor:'#fff', pointBorderWidth:1, borderWidth:1.9, borderDash:[6,3], pointRadius:2.4, pointHoverRadius:4, fill:false, tension:.25, spanGaps:true});
+    datasets.push({label:'Presupuesto Comercial 2026', data:comArr, type:'line', stack:'plcom', borderColor:'#7c4dff', backgroundColor:'rgba(124,77,255,.06)', pointBackgroundColor:'#7c4dff', pointBorderColor:'#fff', pointBorderWidth:1, borderWidth:1.9, borderDash:[6,3], pointRadius:2.4, pointHoverRadius:4, fill:false, tension:.25, spanGaps:true});
   }
   /* Emisión Real 2026 + Proyección Actualizada apiladas en el mismo stack 'y26'. */
   datasets.push({label:'Emisión Real 2026', data:r26, stack:'y26', backgroundColor:'rgba(108,189,237,.88)', borderColor:'#4aa3e0', borderWidth:1.5, borderRadius:3, barPercentage:.85, categoryPercentage:.62});
