@@ -7197,21 +7197,30 @@ window.toggleEjecCausa = function(id){
       const _MN=['Enero','Febrero','Marzo','Abril','Mayo','Junio','Julio','Agosto','Septiembre','Octubre','Noviembre','Diciembre'];
       const _cutM = (mesCorte&&mesCorte>0)?mesCorte:12;
       const _CONC=[['prima','Prima Minima'],['ajuste','Ajuste'],['bono','Bono'],['malus','Malus']];
-      const _meses = _MN.map(()=>({s25:0,s26:0,t:{prima:{s25:0,s26:0},ajuste:{s25:0,s26:0},bono:{s25:0,s26:0},malus:{s25:0,s26:0}}}));
+      const _mkT=()=>({s25:0,s26:0,pol:new Map()});
+      const _meses = _MN.map(()=>({s25:0,s26:0,t:{prima:_mkT(),ajuste:_mkT(),bono:_mkT(),malus:_mkT()}}));
       const _bkt=(entries,add)=>{ (entries||[]).forEach(e=>{ if(!e) return; const v=u?(e.usd||0):(e.ars||0); if(!v) return; let mi=e.fecha?e.fecha.getMonth():(_cutM-1); if(mi<0)mi=0; if(mi>_cutM-1) return; add(mi,v); }); };
+      /* Acumula por (mes, tipo) el total y también POR PÓLIZA, para el 3er nivel de desglose. */
+      const _accPol=(t,r,field,v)=>{ const key=r.clave||r.poliza; let o=t.pol.get(key); if(!o){ o={r,s25:0,s26:0}; t.pol.set(key,o); } o[field]+=v; };
       _CONC.forEach(([ckKey,concKey])=>{ rowsOf(ckKey).forEach(r=>{ const p=lookup.get(r.clave)||lookup.get(r.poliza); if(!p) return; const rc=p.conceptos[concKey]; if(!rc) return;
         const e25=(rc._entries25&&rc._entries25.length)?rc._entries25:[{fecha:rc.fechaEm2025,ars:rc.ars2025,usd:rc.usd2025}];
         const e26=(rc._entries26&&rc._entries26.length)?rc._entries26:[{fecha:rc.fechaEm2026,ars:rc.ars2026,usd:rc.usd2026}];
-        _bkt(e25,(mi,v)=>{ _meses[mi].t[ckKey].s25+=v; _meses[mi].s25+=v; });
-        _bkt(e26,(mi,v)=>{ _meses[mi].t[ckKey].s26+=v; _meses[mi].s26+=v; });
+        _bkt(e25,(mi,v)=>{ const t=_meses[mi].t[ckKey]; t.s25+=v; _meses[mi].s25+=v; _accPol(t,r,'s25',v); });
+        _bkt(e26,(mi,v)=>{ const t=_meses[mi].t[ckKey]; t.s26+=v; _meses[mi].s26+=v; _accPol(t,r,'s26',v); });
       }); });
       const mesBloque = _meses.map((mm,mi)=>{ if(Math.abs(mm.s25)<0.5 && Math.abs(mm.s26)<0.5) return null; const detId='mm_'+mi;
         const dv=mm.s26-mm.s25;
-        const sub=CKS.map(c=>{ const tt=mm.t[c.k]; if(Math.abs(tt.s25)<0.5&&Math.abs(tt.s26)<0.5) return ''; const d=tt.s26-tt.s25;
-          return `<div style="display:grid;${GT};align-items:center;padding:7px 12px 7px 20px;border-bottom:1px solid var(--line);background:#fbfcff">
-            <span></span>
-            <div style="display:flex;align-items:center;gap:7px;min-width:0"><span style="width:10px;height:10px;border-radius:3px;background:${c.col};flex:0 0 auto"></span><span style="color:var(--accent-3);font-weight:700;font-size:12.5px">${c.lbl}</span></div>
-            ${c25(tt.s25)}${cArrow}${c26(tt.s26)}${cDv(d,tt.s25,tt.s26)}
+        const sub=CKS.map((c,ci)=>{ const tt=mm.t[c.k]; if(Math.abs(tt.s25)<0.5&&Math.abs(tt.s26)<0.5) return ''; const d=tt.s26-tt.s25;
+          const tDet='mmt_'+mi+'_'+ci;
+          const polsArr=[...tt.pol.values()].filter(o=>Math.abs(o.s25)>0.5||Math.abs(o.s26)>0.5).sort((a,b)=>(a.s26-a.s25)-(b.s26-b.s25));
+          const pols=polsArr.map((o,j)=>polCompact(o.r, o.s25, o.s26, 'mmp_'+mi+'_'+ci+'_'+j, o.s26-o.s25)).join('');
+          return `<div>
+            <div onclick="window.ejecToggleBox('${tDet}')" style="display:grid;${GT};align-items:center;padding:8px 12px 8px 20px;border-bottom:1px solid var(--line);cursor:pointer;background:#fbfcff">
+              ${arrow(tDet)}
+              <div style="display:flex;align-items:center;gap:7px;min-width:0"><span style="width:10px;height:10px;border-radius:3px;background:${c.col};flex:0 0 auto"></span><span style="color:var(--accent-3);font-weight:700;font-size:12.5px">${c.lbl}</span> <span style="color:var(--ink-3);font-size:11px">${polsArr.length} pól.</span></div>
+              ${c25(tt.s25)}${cArrow}${c26(tt.s26)}${cDv(d,tt.s25,tt.s26)}
+            </div>
+            <div id="${tDet}" style="display:none">${pols||'<div style="padding:6px 12px 6px 28px;color:var(--ink-3);font-style:italic;font-size:12px">— sin pólizas —</div>'}</div>
           </div>`; }).join('');
         return `<div>
           <div onclick="window.ejecToggleBox('${detId}')" style="display:grid;${GT};align-items:center;padding:11px 12px;border-bottom:1px solid var(--line);cursor:pointer">
