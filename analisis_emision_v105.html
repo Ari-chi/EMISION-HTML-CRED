@@ -7191,12 +7191,43 @@ window.toggleEjecCausa = function(id){
           </div>
           <div id="${detId}" style="display:none">${pols}</div>
         </div>`; }).join('');
+      /* ---- POR MES (pedido del usuario): meses con 2025 → 2026 → desvío; adentro, por tipo.
+         Reparte la emisión de los conceptos "menor" por mes según la fecha de emisión, acotado al
+         mes de corte. La suma por concepto coincide con "Detalle por tipo". */
+      const _MN=['Enero','Febrero','Marzo','Abril','Mayo','Junio','Julio','Agosto','Septiembre','Octubre','Noviembre','Diciembre'];
+      const _cutM = (mesCorte&&mesCorte>0)?mesCorte:12;
+      const _CONC=[['prima','Prima Minima'],['ajuste','Ajuste'],['bono','Bono'],['malus','Malus']];
+      const _meses = _MN.map(()=>({s25:0,s26:0,t:{prima:{s25:0,s26:0},ajuste:{s25:0,s26:0},bono:{s25:0,s26:0},malus:{s25:0,s26:0}}}));
+      const _bkt=(entries,add)=>{ (entries||[]).forEach(e=>{ if(!e) return; const v=u?(e.usd||0):(e.ars||0); if(!v) return; let mi=e.fecha?e.fecha.getMonth():(_cutM-1); if(mi<0)mi=0; if(mi>_cutM-1) return; add(mi,v); }); };
+      _CONC.forEach(([ckKey,concKey])=>{ rowsOf(ckKey).forEach(r=>{ const p=lookup.get(r.clave)||lookup.get(r.poliza); if(!p) return; const rc=p.conceptos[concKey]; if(!rc) return;
+        const e25=(rc._entries25&&rc._entries25.length)?rc._entries25:[{fecha:rc.fechaEm2025,ars:rc.ars2025,usd:rc.usd2025}];
+        const e26=(rc._entries26&&rc._entries26.length)?rc._entries26:[{fecha:rc.fechaEm2026,ars:rc.ars2026,usd:rc.usd2026}];
+        _bkt(e25,(mi,v)=>{ _meses[mi].t[ckKey].s25+=v; _meses[mi].s25+=v; });
+        _bkt(e26,(mi,v)=>{ _meses[mi].t[ckKey].s26+=v; _meses[mi].s26+=v; });
+      }); });
+      const mesBloque = _meses.map((mm,mi)=>{ if(Math.abs(mm.s25)<0.5 && Math.abs(mm.s26)<0.5) return null; const detId='mm_'+mi;
+        const dv=mm.s26-mm.s25;
+        const sub=CKS.map(c=>{ const tt=mm.t[c.k]; if(Math.abs(tt.s25)<0.5&&Math.abs(tt.s26)<0.5) return ''; const d=tt.s26-tt.s25;
+          return `<div style="display:grid;${GT};align-items:center;padding:7px 12px 7px 20px;border-bottom:1px solid var(--line);background:#fbfcff">
+            <span></span>
+            <div style="display:flex;align-items:center;gap:7px;min-width:0"><span style="width:10px;height:10px;border-radius:3px;background:${c.col};flex:0 0 auto"></span><span style="color:var(--accent-3);font-weight:700;font-size:12.5px">${c.lbl}</span></div>
+            ${c25(tt.s25)}${cArrow}${c26(tt.s26)}${cDv(d,tt.s25,tt.s26)}
+          </div>`; }).join('');
+        return `<div>
+          <div onclick="window.ejecToggleBox('${detId}')" style="display:grid;${GT};align-items:center;padding:11px 12px;border-bottom:1px solid var(--line);cursor:pointer">
+            ${arrow(detId)}
+            <div style="min-width:0"><strong style="color:var(--accent-3);font-size:14px">${_MN[mi]}</strong></div>
+            ${c25(mm.s25)}${cArrow}${c26(mm.s26)}${cDv(dv,mm.s25,mm.s26)}
+          </div>
+          <div id="${detId}" style="display:none">${sub||'<div style="padding:8px 12px;color:var(--ink-3);font-style:italic;font-size:12px">— sin conceptos —</div>'}</div>
+        </div>`; }).filter(Boolean).join('');
       const tabBtn=(v,lbl)=>`<button onclick="window.ejecMenorVista('${v}')" data-mv="${v}" style="padding:8px 20px;font-size:13px;font-weight:800;border-radius:7px;border:1.5px solid var(--line-2);background:var(--bg-2);color:var(--ink-2);cursor:pointer">${lbl}</button>`;
       const cab=(a,b)=>`<div style="display:grid;${GT};padding:9px 12px;font-size:11px;text-transform:uppercase;letter-spacing:.03em;color:var(--ink-2);font-weight:800;background:var(--bg-2);border-bottom:1px solid var(--line-2)"><span></span><span>${a}</span><span style="text-align:right">2025</span><span></span><span style="text-align:right">2026</span><span style="text-align:right">Desvío · var.</span></div>`;
       return `
-        <div style="display:flex;gap:8px;margin-bottom:12px" id="ejecMenorVistaSel">${tabBtn('tipo','Detalle por tipo')}${tabBtn('rubro','Detalle por rubro')}</div>
+        <div style="display:flex;gap:8px;margin-bottom:12px" id="ejecMenorVistaSel">${tabBtn('tipo','Detalle por tipo')}${tabBtn('rubro','Detalle por rubro')}${tabBtn('mes','Detalle por mes')}</div>
         <div id="menorVistaTipo" style="border:1px solid var(--line-2);border-radius:9px;overflow:hidden">${cab('Concepto')}${tipoBloque||'<div style="padding:12px;color:var(--ink-3);font-style:italic">— sin datos —</div>'}</div>
-        <div id="menorVistaRubro" style="display:none;border:1px solid var(--line-2);border-radius:9px;overflow:hidden">${cab('Rubro')}${rubroBloque||'<div style="padding:12px;color:var(--ink-3);font-style:italic">— sin datos —</div>'}</div>`;
+        <div id="menorVistaRubro" style="display:none;border:1px solid var(--line-2);border-radius:9px;overflow:hidden">${cab('Rubro')}${rubroBloque||'<div style="padding:12px;color:var(--ink-3);font-style:italic">— sin datos —</div>'}</div>
+        <div id="menorVistaMes" style="display:none;border:1px solid var(--line-2);border-radius:9px;overflow:hidden">${cab('Mes')}${mesBloque||'<div style="padding:12px;color:var(--ink-3);font-style:italic">— sin datos —</div>'}</div>`;
     };
     contenido = `<div id="ejecMenorTopBody">${menorDetalleView()}</div>`;
   } else if(id==='prima'){
@@ -13623,9 +13654,10 @@ window.ejecToggleBox = function(id){
 };
 /* Menor Emisión (foto5): alterna entre "Detalle por tipo" y "Detalle por rubro". */
 window.ejecMenorVista = function(v){
-  const t=document.getElementById('menorVistaTipo'), r=document.getElementById('menorVistaRubro');
+  const t=document.getElementById('menorVistaTipo'), r=document.getElementById('menorVistaRubro'), m=document.getElementById('menorVistaMes');
   if(t) t.style.display = (v==='tipo')?'block':'none';
   if(r) r.style.display = (v==='rubro')?'block':'none';
+  if(m) m.style.display = (v==='mes')?'block':'none';
   const sel=document.getElementById('ejecMenorVistaSel');
   if(sel) sel.querySelectorAll('button').forEach(b=>{ const on=b.dataset.mv===v;
     b.style.background = on?'var(--accent)':'var(--bg-2)'; b.style.color = on?'#fff':'var(--ink-2)'; b.style.borderColor = on?'var(--accent)':'var(--line-2)'; });
