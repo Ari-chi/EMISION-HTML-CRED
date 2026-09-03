@@ -7194,39 +7194,38 @@ window.toggleEjecCausa = function(id){
       /* ---- POR MES (pedido del usuario): meses con 2025 → 2026 → desvío; adentro, por tipo.
          Reparte la emisión de los conceptos "menor" por mes según la fecha de emisión, acotado al
          mes de corte. La suma por concepto coincide con "Detalle por tipo". */
-      const _MN=['Enero','Febrero','Marzo','Abril','Mayo','Junio','Julio','Agosto','Septiembre','Octubre','Noviembre','Diciembre'];
+      const _MN=['Enero','Febrero','Marzo','Abril','Mayo','Junio','Julio','Agosto','Septiembre','Octubre','Noviembre','Diciembre','Sin emisión 2026'];
       const _cutM = (mesCorte&&mesCorte>0)?mesCorte:12;
       const _CONC=[['prima','Prima Minima'],['ajuste','Ajuste'],['bono','Bono'],['malus','Malus']];
-      const _mkT=()=>({s25:0,s26:0,pol:new Map()});
-      const _meses = _MN.map(()=>({s25:0,s26:0,t:{prima:_mkT(),ajuste:_mkT(),bono:_mkT(),malus:_mkT()}}));
-      const _bkt=(entries,add)=>{ (entries||[]).forEach(e=>{ if(!e) return; const v=u?(e.usd||0):(e.ars||0); if(!v) return; let mi=e.fecha?e.fecha.getMonth():(_cutM-1); if(mi<0)mi=0; if(mi>_cutM-1) return; add(mi,v); }); };
-      /* Acumula por (mes, tipo) el total y también POR PÓLIZA, para el 3er nivel de desglose. */
-      const _accPol=(t,r,field,v)=>{ const key=r.clave||r.poliza; let o=t.pol.get(key); if(!o){ o={r,s25:0,s26:0}; t.pol.set(key,o); } o[field]+=v; };
+      const _mkT=()=>({s25:0,s26:0,dv:0,pol:new Map()});
+      const _meses = _MN.map(()=>({s25:0,s26:0,dv:0,t:{prima:_mkT(),ajuste:_mkT(),bono:_mkT(),malus:_mkT()}}));
+      /* Mes = el de la EMISIÓN 2026 (fecha de emisión 2026 dentro del corte). Si NO hubo emisión
+         2026, la baja va al bucket "Sin emisión 2026" (no a un mes calendario). Se usan los MISMOS
+         valores y pólizas que "Detalle por tipo" (nat + valBtnR) → totales UNIFICADOS. Las pólizas
+         sin categoría o con "anualidad anterior" ya vienen excluidas en las filas base (rowsOf). */
+      const _mes26=(rc)=>{ let mi=null; (rc._entries26||[]).forEach(e=>{ if(e && (e.ars||e.usd) && e.fecha){ const m=e.fecha.getMonth(); if(m<=_cutM-1 && (mi==null||m<mi)) mi=m; } }); if(mi==null && rc.fechaEm2026 && (rc.ars2026||rc.usd2026) && rc.fechaEm2026.getMonth()<=_cutM-1) mi=rc.fechaEm2026.getMonth(); return (mi==null)?12:mi; };
+      const _accPol=(t,r,v25,v26,dvv)=>{ const key=r.clave||r.poliza; let o=t.pol.get(key); if(!o){ o={r,s25:0,s26:0,dv:0}; t.pol.set(key,o); } o.s25+=v25; o.s26+=v26; o.dv+=dvv; };
       _CONC.forEach(([ckKey,concKey])=>{ rowsOf(ckKey).forEach(r=>{ const p=lookup.get(r.clave)||lookup.get(r.poliza); if(!p) return; const rc=p.conceptos[concKey]; if(!rc) return;
-        const e25=(rc._entries25&&rc._entries25.length)?rc._entries25:[{fecha:rc.fechaEm2025,ars:rc.ars2025,usd:rc.usd2025}];
-        const e26=(rc._entries26&&rc._entries26.length)?rc._entries26:[{fecha:rc.fechaEm2026,ars:rc.ars2026,usd:rc.usd2026}];
-        _bkt(e25,(mi,v)=>{ const t=_meses[mi].t[ckKey]; t.s25+=v; _meses[mi].s25+=v; _accPol(t,r,'s25',v); });
-        _bkt(e26,(mi,v)=>{ const t=_meses[mi].t[ckKey]; t.s26+=v; _meses[mi].s26+=v; _accPol(t,r,'s26',v); });
+        const nn=nat(r,ckKey), dvv=valBtnR(r), mi=_mes26(rc), t=_meses[mi].t[ckKey];
+        t.s25+=nn.v25; t.s26+=nn.v26; t.dv+=dvv; _meses[mi].s25+=nn.v25; _meses[mi].s26+=nn.v26; _meses[mi].dv+=dvv; _accPol(t,r,nn.v25,nn.v26,dvv);
       }); });
-      const mesBloque = _meses.map((mm,mi)=>{ if(Math.abs(mm.s25)<0.5 && Math.abs(mm.s26)<0.5) return null; const detId='mm_'+mi;
-        const dv=mm.s26-mm.s25;
-        const sub=CKS.map((c,ci)=>{ const tt=mm.t[c.k]; if(Math.abs(tt.s25)<0.5&&Math.abs(tt.s26)<0.5) return ''; const d=tt.s26-tt.s25;
-          const tDet='mmt_'+mi+'_'+ci;
-          const polsArr=[...tt.pol.values()].filter(o=>Math.abs(o.s25)>0.5||Math.abs(o.s26)>0.5).sort((a,b)=>(a.s26-a.s25)-(b.s26-b.s25));
-          const pols=polsArr.map((o,j)=>polCompact(o.r, o.s25, o.s26, 'mmp_'+mi+'_'+ci+'_'+j, o.s26-o.s25)).join('');
+      const mesBloque = _meses.map((mm,mi)=>{ if(Math.abs(mm.s25)<0.5 && Math.abs(mm.s26)<0.5 && Math.abs(mm.dv)<0.5) return null; const detId='mm_'+mi;
+        const sub=CKS.map((c,ci)=>{ const tt=mm.t[c.k]; if(Math.abs(tt.s25)<0.5&&Math.abs(tt.s26)<0.5&&Math.abs(tt.dv)<0.5) return ''; const tDet='mmt_'+mi+'_'+ci;
+          const polsArr=[...tt.pol.values()].filter(o=>Math.abs(o.s25)>0.5||Math.abs(o.s26)>0.5||Math.abs(o.dv)>0.5).sort((a,b)=>a.dv-b.dv);
+          const pols=polsArr.map((o,j)=>polCompact(o.r, o.s25, o.s26, 'mmp_'+mi+'_'+ci+'_'+j, o.dv)).join('');
           return `<div>
             <div onclick="window.ejecToggleBox('${tDet}')" style="display:grid;${GT};align-items:center;padding:8px 12px 8px 20px;border-bottom:1px solid var(--line);cursor:pointer;background:#fbfcff">
               ${arrow(tDet)}
               <div style="display:flex;align-items:center;gap:7px;min-width:0"><span style="width:10px;height:10px;border-radius:3px;background:${c.col};flex:0 0 auto"></span><span style="color:var(--accent-3);font-weight:700;font-size:12.5px">${c.lbl}</span> <span style="color:var(--ink-3);font-size:11px">${polsArr.length} pól.</span></div>
-              ${c25(tt.s25)}${cArrow}${c26(tt.s26)}${cDv(d,tt.s25,tt.s26)}
+              ${c25(tt.s25)}${cArrow}${c26(tt.s26)}${cDv(tt.dv,tt.s25,tt.s26)}
             </div>
             <div id="${tDet}" style="display:none">${pols||'<div style="padding:6px 12px 6px 28px;color:var(--ink-3);font-style:italic;font-size:12px">— sin pólizas —</div>'}</div>
           </div>`; }).join('');
         return `<div>
           <div onclick="window.ejecToggleBox('${detId}')" style="display:grid;${GT};align-items:center;padding:11px 12px;border-bottom:1px solid var(--line);cursor:pointer">
             ${arrow(detId)}
-            <div style="min-width:0"><strong style="color:var(--accent-3);font-size:14px">${_MN[mi]}</strong></div>
-            ${c25(mm.s25)}${cArrow}${c26(mm.s26)}${cDv(dv,mm.s25,mm.s26)}
+            <div style="min-width:0"><strong style="color:${mi===12?'var(--ink-3)':'var(--accent-3)'};font-size:14px">${_MN[mi]}</strong></div>
+            ${c25(mm.s25)}${cArrow}${c26(mm.s26)}${cDv(mm.dv,mm.s25,mm.s26)}
           </div>
           <div id="${detId}" style="display:none">${sub||'<div style="padding:8px 12px;color:var(--ink-3);font-style:italic;font-size:12px">— sin conceptos —</div>'}</div>
         </div>`; }).filter(Boolean).join('');
