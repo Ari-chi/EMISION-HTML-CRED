@@ -3954,7 +3954,7 @@ function ejecFlujo(S, useUSD){
       <div style="background:${borderCol};padding:7px 6px;text-align:center"><span style="color:#fff;font-weight:800;font-size:9.5px;text-transform:uppercase;letter-spacing:.03em">${titulo}</span></div>
       <div style="flex:1;padding:8px 4px 5px">${inner}</div>
     </div>`;
-  const comPresup = presupAcumulado(useUSD? state.presup.com26_usd : state.presup.com26_ars, 12);
+  const comPresup = presupAcumulado(useUSD? state.presup.com26_usd : state.presup.com26_ars, S.mesCorteSet);
   const barJul = barPanel('var(--accent)','Presup. vs Emitido', _miniBar2(S.presup26_emi, S.emis26, 0, 'Emitido'));
   const barDic = barPanel('#0a3d7a','Presup. vs Emit+Proy', _miniBar2(S.presup26, S.emis26, proyVal, 'Emit+Proy'));
   const barCom = state._showPresupCom ? barPanel('#7c4dff','Comercial 2026', _miniBar2(comPresup, S.emis26, proyVal, 'Emit+Proy')) : '';
