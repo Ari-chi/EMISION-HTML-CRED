@@ -1086,6 +1086,9 @@ function parsePresupArgBudget(ws){
   const hdr=[]; for(let c=range.s.c;c<=range.e.c;c++) hdr[c]=getv(0,c);
   const colBy=lbl=>{ for(let c=range.s.c;c<=range.e.c;c++){ if(_accent(hdr[c])===lbl) return c; } return -1; };
   const cPol=colBy('poliza'), cAseg=colBy('nombre asegurado'), cMon=colBy('moneda'), cMesGen=colBy('mes');
+  const cRen=colBy('renueva');
+  /* Si la columna "Renueva" dice NO, la fila NO se suma al proyectado (pedido del usuario). */
+  const _renuevaNo=(r)=> cRen>=0 && String(getv(r,cRen)||'').trim().toUpperCase()==='NO';
   if(cPol<0) return;
   /* ===== Layout LARGO (una fila por póliza · concepto · mes): Póliza · Moneda · Tipo · Mes ·
      Monto ARS · Monto US. Es el formato del detalle proyectado nuevo. Si están esas columnas,
@@ -1100,6 +1103,7 @@ function parsePresupArgBudget(ws){
     state._presupArgTC = {};
     for(let r=1;r<=range.e.r;r++){
       const pol=getv(r,cPol), aseg=(cAsegL>=0?getv(r,cAsegL):null); if(pol==null && aseg==null) continue;
+      if(_renuevaNo(r)) continue;   /* Renueva = NO → no suma */
       const tipo=String(getv(r,cTipoL)||'').trim(); const ck=_tipoToConcepto(tipo); if(!ck) continue;
       const monedaRaw=String((cMon>=0?getv(r,cMon):'')||'').toUpperCase();
       const esUS=/US|U\$|USD|DOLAR|DÓLAR/.test(monedaRaw);
@@ -1143,6 +1147,7 @@ function parsePresupArgBudget(ws){
   ].filter(x=>x.colOrig>=0 || x.colArs>=0 || x.colUs>=0);
   for(let r=1;r<=range.e.r;r++){
     const pol=getv(r,cPol), aseg=(cAseg>=0?getv(r,cAseg):null); if(pol==null&&aseg==null) continue;
+    if(_renuevaNo(r)) continue;   /* Renueva = NO → no suma */
     const monedaRaw=String((cMon>=0?getv(r,cMon):'')||'').toUpperCase();
     const esUS=/US|U\$|USD|DOLAR|DÓLAR/.test(monedaRaw);
     for(const cc of conceptos){
