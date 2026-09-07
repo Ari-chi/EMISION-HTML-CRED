@@ -1087,6 +1087,34 @@ function parsePresupArgBudget(ws){
   const colBy=lbl=>{ for(let c=range.s.c;c<=range.e.c;c++){ if(_accent(hdr[c])===lbl) return c; } return -1; };
   const cPol=colBy('poliza'), cAseg=colBy('nombre asegurado'), cMon=colBy('moneda'), cMesGen=colBy('mes');
   if(cPol<0) return;
+  /* ===== Layout LARGO (una fila por póliza · concepto · mes): Póliza · Moneda · Tipo · Mes ·
+     Monto ARS · Monto US. Es el formato del detalle proyectado nuevo. Si están esas columnas,
+     se parsea así y se corta (no aplica la lógica de bloques por concepto de más abajo).
+     Suma: prima mín. (renovación + 2ª anualidad) + ajuste (todas) + profit/bono (resta) + malus.
+     Mantención u otros tipos → _tipoToConcepto null → se ignoran. ===== */
+  const cTipoL=colBy('tipo');
+  const cArsL=colBy('monto ars');
+  const cUsL=(colBy('monto us')>=0)?colBy('monto us'):colBy('monto usd');
+  const cAsegL=(cAseg>=0)?cAseg:colBy('asegurado');
+  if(cTipoL>=0 && cMesGen>=0 && (cArsL>=0 || cUsL>=0)){
+    state._presupArgTC = {};
+    for(let r=1;r<=range.e.r;r++){
+      const pol=getv(r,cPol), aseg=(cAsegL>=0?getv(r,cAsegL):null); if(pol==null && aseg==null) continue;
+      const tipo=String(getv(r,cTipoL)||'').trim(); const ck=_tipoToConcepto(tipo); if(!ck) continue;
+      const monedaRaw=String((cMon>=0?getv(r,cMon):'')||'').toUpperCase();
+      const esUS=/US|U\$|USD|DOLAR|DÓLAR/.test(monedaRaw);
+      let ars=cArsL>=0?_numv(getv(r,cArsL)):0;
+      let usd=cUsL>=0?_numv(getv(r,cUsL)):0;
+      if(!ars && !usd) continue;
+      /* Profit/bono viene NEGATIVO en la hoja; se guarda positivo para que el sgn=-1 de
+         presupArgMensual lo vuelva a restar (coherente con el layout por bloques). */
+      const _ss=(ck==='bono')?-1:1;
+      ars*=_ss; usd*=_ss;
+      let m=_mesToNum(getv(r,cMesGen)); if(!m) m=12;
+      _presupArgPush({poliza:pol, aseg, tipo, esUS, months:[{m, orig:(esUS?usd:ars), ars, usd, yellow:false}]});
+    }
+    return;
+  }
   /* TC por mes (mini-tabla MES + TIPO DE CAMBIO a la izquierda) — para mostrarlo chiquito en el resumen. */
   state._presupArgTC = {};
   const cTC=colBy('tipo de cambio');
@@ -1118,10 +1146,8 @@ function parsePresupArgBudget(ws){
     const monedaRaw=String((cMon>=0?getv(r,cMon):'')||'').toUpperCase();
     const esUS=/US|U\$|USD|DOLAR|DÓLAR/.test(monedaRaw);
     for(const cc of conceptos){
-      /* REGLA (Resumen mensual del usuario): el AJUSTE presupuestado se cuenta SOLO para pólizas
-         en pesos ($). El ajuste de pólizas en US$ NO se proyecta acá. Renovación / 2ª anualidad /
-         bono / malus se cuentan para todas las pólizas. */
-      if(_tipoToConcepto(cc.tipo)==='ajuste' && esUS) continue;
+      /* REGLA (Resumen del usuario, sep-2026): el Proyectado suma prima mín. (renovación + 2ª
+         anualidad), ajuste (TODAS las pólizas, $ y US), profit/bono (resta) y malus. Mantención NO. */
       let orig=cc.colOrig>=0?_numv(getv(r,cc.colOrig)):0;
       let ars =cc.colArs>=0 ?_numv(getv(r,cc.colArs)) :0;
       let usd =cc.colUs>=0  ?_numv(getv(r,cc.colUs))  :null;
@@ -1229,7 +1255,7 @@ function _tipoToConcepto(tipo){
   const t = String(tipo||'').trim().toLowerCase();
   if(/renovaci|anualidad|prima/.test(t)) return 'primaMin';
   if(/ajuste/.test(t)) return 'ajuste';
-  if(/bono/.test(t)) return 'bono';
+  if(/bono|profit/.test(t)) return 'bono';   /* "Profit Estimado" = bono (viene negativo) */
   if(/malus/.test(t)) return 'malus';
   /* Mantención NO cuenta como emisión (pedido del usuario): solo prima mínima / ajuste / bono / malus. */
   return null;
